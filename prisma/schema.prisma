@@ -1,4 +1,4 @@
-﻿generator client {
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -24,8 +24,8 @@ model Expense {
   no              Int           @default(autoincrement())
   accountingMonth String        @map("accounting_month") @db.VarChar(7)
   date            DateTime?     @db.Date
-  category        String        @default("")
-  subcategory     String        @default("") @map("sub_category")
+  categoryId      String        @map("category_id")
+  subCategoryId   String        @map("sub_category_id")
   item            String        @default("")
   description     String        @default("")
   amount          Int
@@ -38,7 +38,12 @@ model Expense {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
+  category        Category      @relation(fields: [categoryId], references: [id])
+  subCategory     SubCategory   @relation(fields: [subCategoryId], references: [id])
+
   @@index([accountingMonth])
+  @@index([categoryId])
+  @@index([subCategoryId])
   @@index([payer])
   @@index([source])
   @@map("expenses")
@@ -59,4 +64,37 @@ model Deposit {
   @@index([date])
   @@index([depositor])
   @@map("deposits")
+}
+
+model Category {
+  id            String        @id
+  name          String
+  isActive      Boolean       @default(true) @map("is_active")
+  sortOrder     Int           @default(0) @map("sort_order")
+  userId        String?       @map("user_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  subCategories SubCategory[]
+  expenses      Expense[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("categories")
+}
+
+model SubCategory {
+  id         String    @id
+  categoryId String    @map("category_id")
+  name       String
+  isActive   Boolean   @default(true) @map("is_active")
+  sortOrder  Int       @default(0) @map("sort_order")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  category   Category  @relation(fields: [categoryId], references: [id])
+  expenses   Expense[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("sub_categories")
 }

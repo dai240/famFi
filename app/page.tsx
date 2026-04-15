@@ -1,1101 +1,573 @@
-'use client';
+﻿'use client';
 
-import { useState } from 'react';
-import { format, addMonths, subMonths, isSameMonth } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-// Import all components
-import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
-import { BottomNavigation } from '@/components/common/BottomNavigation';
-import { MonthlyOverview } from '@/components/dashboard/MonthlyOverview';
-import { ExpenseCategories } from '@/components/household/ExpenseCategories';
-import { QuickActions } from '@/components/dashboard/QuickActions';
-import { SavingsGoals } from '@/components/household/SavingsGoals';
-import { UpcomingMilestones } from '@/components/schedule/UpcomingMilestones';
-import { ExpenseList } from '@/components/household/ExpenseList';
-import { ExpenseManagement } from '@/components/household/ExpenseManagement';
-import { IncomeManagement } from '@/components/household/IncomeManagement';
-import { ExpenseHistory } from '@/components/household/ExpenseHistory';
-import { CategoryManagement } from '@/components/household/CategoryManagement';
-import { PeopleManagement } from '@/components/people/PeopleManagement';
-import { EventManagement } from '@/components/schedule/EventManagement';
-import { HouseworkManagement } from '@/components/common/HouseworkManagement';
-import { RecipeManagement } from '@/components/recipe/RecipeManagement';
+type Payer = 'father' | 'mother';
+type Source = 'rakuten' | 'advance' | 'personal';
+type View = 'expenses' | 'deposits' | 'summary';
 
-// Import modals
-import { AddExpenseModal } from '@/components/household/AddExpenseModal';
-import { AddIncomeModal } from '@/components/household/AddIncomeModal';
-import { AddPersonModal } from '@/components/people/AddPersonModal';
-import { AddRecurringExpenseModal } from '@/components/household/AddRecurringExpenseModal';
-import { EditExpenseModal } from '@/components/household/EditExpenseModal';
-import { EditRecurringExpenseModal } from '@/components/household/EditRecurringExpenseModal';
-import { ExpenseDetailModal } from '@/components/household/ExpenseDetailModal';
-import { ConfirmExpenseModal } from '@/components/household/ConfirmExpenseModal';
-import { MonthlyReflectionModal } from '@/components/schedule/MonthlyReflectionModal';
-
-// Types
-export interface Person {
+type Expense = {
   id: string;
-  name: string;
-  group: string;
-  birthday?: string;
-  notes?: string;
-}
-
-export interface Category {
-  id: string;
-  name: string;
-  color: string;
-  subcategories: string[];
-}
-
-export interface Expense {
-  id: string;
-  date: string;
-  amount: number;
+  no: number;
+  accountingMonth: string;
+  date?: string;
   category: string;
   subcategory: string;
+  item: string;
   description: string;
-  comment?: string;
-  paymentMethod: string;
-  paidBy: string;
-  beneficiaries: string[];
-}
-
-export interface Income {
-  id: string;
-  date: string;
   amount: number;
-  description: string;
-  personId: string;
-  comment?: string;
-}
-
-export interface RecurringExpense {
-  id: string;
-  name: string;
-  category: string;
-  subcategory: string;
-  type: 'fixed' | 'variable';
-  amount?: number;
-  description: string;
-  comment?: string;
-  paymentMethod: string;
-  paidBy: string;
-  beneficiaries: string[];
-  personId: string; // 支払い者のID
-  isActive: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-export interface MonthlyExpenseStatus {
-  id: string;
-  recurringExpenseId: string;
-  month: string; // YYYY-MM format
-  status: 'pending' | 'confirmed' | 'skipped';
-  amount?: number;
-  confirmedDate?: string;
-}
-
-export interface Event {
-  id: string;
-  name: string;
-  date: string;
-  category: string;
-  description?: string;
-  participants: string[];
-  estimatedCost?: number;
-  actualCost?: number;
-  status: 'planned' | 'completed' | 'cancelled';
-  notes?: string;
-}
-
-export interface HouseworkTask {
-  id: string;
-  name: string;
-  category: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'custom';
-  assignedTo: string;
-  description?: string;
-  isActive: boolean;
-}
-
-export interface HouseworkRecord {
-  id: string;
-  taskId: string;
-  date: string;
-  completedBy: string;
-  notes?: string;
-  rating?: number;
-}
-
-export interface MonthlyReflection {
-  month: string; // YYYY-MM format
-  reflection: string;
-  goals: string;
-  improvements: string;
-}
-
-export interface MonthlyConfirmation {
-  month: string; // YYYY-MM format
-  isConfirmed: boolean;
-  confirmedDate?: string;
-}
-
-export interface Recipe {
-  id: string;
-  title: string;
-  description?: string;
-  imageUrl?: string;
-  servings: number;
-  cookingTime: number; // minutes
-  difficulty: 'easy' | 'medium' | 'hard';
-  category: string;
-  tags: string[];
-  ingredients: Ingredient[];
-  steps: RecipeStep[];
-  notes?: string;
-  createdBy: string;
+  payer: Payer;
+  source: Source;
+  reimbursed: boolean;
+  beneficiary: string;
+  comment: string;
   createdAt: string;
   updatedAt: string;
-  isFavorite: boolean;
-}
+};
 
-export interface Ingredient {
+type Deposit = {
   id: string;
-  name: string;
-  amount: string;
-  unit: string;
-}
-
-export interface RecipeStep {
-  id: string;
-  stepNumber: number;
-  instruction: string;
-  imageUrl?: string;
-  duration?: number; // minutes
-}
-
-export interface CookingRecord {
-  id: string;
-  recipeId: string;
+  no: number;
   date: string;
-  cookedBy: string;
-  servings?: number; // 実際に作った人数分
-  rating?: number; // 1-5の評価
-  notes?: string;
-  photos?: string[]; // 作った料理の写真URL
+  depositor: Payer;
+  amount: number;
+  description: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ExpenseForm = Omit<Expense, 'id' | 'no' | 'createdAt' | 'updatedAt'>;
+type DepositForm = Omit<Deposit, 'id' | 'no' | 'createdAt' | 'updatedAt'>;
+
+const expenseStorageKey = 'famfi:mvp:expenses';
+const depositStorageKey = 'famfi:mvp:deposits';
+
+const payerLabels: Record<Payer, string> = {
+  father: '父',
+  mother: '母',
+};
+
+const sourceLabels: Record<Source, string> = {
+  rakuten: '楽天',
+  advance: '支払者立替',
+  personal: '実費',
+};
+
+const monthFormatter = new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: '2-digit' });
+const currencyFormatter = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
+
+function getCurrentMonth() {
+  return monthFormatter.format(new Date()).replace('/', '-');
+}
+
+function toMonthInputValue(month: string) {
+  return month.replace('/', '-');
+}
+
+function toDisplayMonth(month: string) {
+  const [year, value] = month.replace('/', '-').split('-');
+  return `${year}年${Number(value)}月`;
+}
+
+function createExpenseForm(month: string): ExpenseForm {
+  return {
+    accountingMonth: month,
+    date: '',
+    category: '',
+    subcategory: '',
+    item: '',
+    description: '',
+    amount: 0,
+    payer: 'father',
+    source: 'rakuten',
+    reimbursed: false,
+    beneficiary: '',
+    comment: '',
+  };
+}
+
+function createDepositForm(): DepositForm {
+  return {
+    date: new Date().toISOString().slice(0, 10),
+    depositor: 'father',
+    amount: 0,
+    description: '',
+    comment: '',
+  };
+}
+
+function safeParse<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function getNextNo(records: { no: number }[]) {
+  return records.reduce((max, record) => Math.max(max, record.no), 0) + 1;
+}
+
+function expenseBelongsToMonth(expense: Expense, month: string) {
+  return toMonthInputValue(expense.accountingMonth) === month;
+}
+
+function depositBelongsToMonth(deposit: Deposit, month: string) {
+  return deposit.date.slice(0, 7) === month;
+}
+
+function calculateMonth(expenses: Expense[], deposits: Deposit[], month: string) {
+  const monthExpenses = expenses.filter((expense) => expenseBelongsToMonth(expense, month));
+  const monthDeposits = deposits.filter((deposit) => depositBelongsToMonth(deposit, month));
+  const totalExpenses = monthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const sharedExpenses = monthExpenses.filter((expense) => expense.source !== 'personal').reduce((sum, expense) => sum + expense.amount, 0);
+  const personalExpenses = monthExpenses.filter((expense) => expense.source === 'personal').reduce((sum, expense) => sum + expense.amount, 0);
+  const depositTotal = monthDeposits.reduce((sum, deposit) => sum + deposit.amount, 0);
+  return {
+    month,
+    totalExpenses,
+    sharedExpenses,
+    personalExpenses,
+    depositTotal,
+    sharedBalance: depositTotal - sharedExpenses,
+  };
 }
 
 export default function Home() {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [currentView, setCurrentView] = useState('dashboard');
+  const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
+  const [view, setView] = useState<View>('expenses');
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [expenseForm, setExpenseForm] = useState<ExpenseForm>(() => createExpenseForm(getCurrentMonth()));
+  const [depositForm, setDepositForm] = useState<DepositForm>(() => createDepositForm());
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+  const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [showDepositForm, setShowDepositForm] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [payerFilter, setPayerFilter] = useState<'all' | Payer>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | Source>('all');
 
-  // Modal states
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false);
-  const [isAddPersonOpen, setIsAddPersonOpen] = useState(false);
-  const [isAddRecurringExpenseOpen, setIsAddRecurringExpenseOpen] = useState(false);
-  const [isEditExpenseOpen, setIsEditExpenseOpen] = useState(false);
-  const [isEditRecurringExpenseOpen, setIsEditRecurringExpenseOpen] = useState(false);
-  const [isExpenseDetailOpen, setIsExpenseDetailOpen] = useState(false);
-  const [isConfirmExpenseOpen, setIsConfirmExpenseOpen] = useState(false);
-  const [isMonthlyReflectionOpen, setIsMonthlyReflectionOpen] = useState(false);
+  useEffect(() => {
+    setExpenses(safeParse<Expense[]>(window.localStorage.getItem(expenseStorageKey), []));
+    setDeposits(safeParse<Deposit[]>(window.localStorage.getItem(depositStorageKey), []));
+    setIsLoaded(true);
+  }, []);
 
-  // Selected items for editing
-  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
-  const [selectedRecurringExpense, setSelectedRecurringExpense] = useState<RecurringExpense | null>(null);
-  const [selectedMonthlyStatus, setSelectedMonthlyStatus] = useState<MonthlyExpenseStatus | null>(null);
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  useEffect(() => {
+    if (isLoaded) window.localStorage.setItem(expenseStorageKey, JSON.stringify(expenses));
+  }, [expenses, isLoaded]);
 
-  // Sample data
-  const [people, setPeople] = useState<Person[]>([
-    { id: '1', name: '田中太郎', group: '家族', birthday: '1985-05-15' },
-    { id: '2', name: '田中花子', group: '家族', birthday: '1987-08-22' },
-    { id: '3', name: '田中一郎', group: '家族', birthday: '2015-03-10' },
-    { id: '4', name: '田中二郎', group: '家族', birthday: '2018-11-05' }
-  ]);
+  useEffect(() => {
+    if (isLoaded) window.localStorage.setItem(depositStorageKey, JSON.stringify(deposits));
+  }, [deposits, isLoaded]);
 
-  const [categories, setCategories] = useState<Category[]>([
-    {
-      id: '1',
-      name: '住居費',
-      color: '#3B82F6',
-      subcategories: ['家賃', '管理費', '修繕費', '光熱費']
-    },
-    {
-      id: '2',
-      name: '食費',
-      color: '#10B981',
-      subcategories: ['食材', '外食', '弁当', 'お菓子']
-    },
-    {
-      id: '3',
-      name: '育児・教育',
-      color: '#F59E0B',
-      subcategories: ['保育園', '習い事', '教材', '医療費']
-    },
-    {
-      id: '4',
-      name: '保険・医療',
-      color: '#EF4444',
-      subcategories: ['生命保険', '医療保険', '病院', '薬']
-    },
-    {
-      id: '5',
-      name: 'プレゼント・お祝い',
-      color: '#8B5CF6',
-      subcategories: ['誕生日', '記念日', 'お祝い', 'ギフト']
-    },
-    {
-      id: '6',
-      name: 'その他',
-      color: '#6B7280',
-      subcategories: ['雑費', '交通費', '娯楽', 'その他']
-    }
-  ]);
+  const categories = useMemo(() => {
+    const values = expenses.map((expense) => expense.category).filter(Boolean);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b, 'ja'));
+  }, [expenses]);
 
-  const [expenses, setExpenses] = useState<Expense[]>([
-    {
-      id: '1',
-      date: '2024-07-10',
-      amount: 80000,
-      category: '住居費',
-      subcategory: '家賃',
-      description: '月額家賃',
-      paymentMethod: 'クレジットカード',
-      paidBy: '1',
-      beneficiaries: ['1', '2', '3', '4'],
-      comment: 'コメントあり'
-    },
-    {
-      id: '2',
-      date: '2024-07-15',
-      amount: 25000,
-      category: '食費',
-      subcategory: '食材',
-      description: '週末の買い物',
-      paymentMethod: '現金',
-      paidBy: '2',
-      beneficiaries: ['1', '2', '3', '4']
-    }
-  ]);
+  const visibleExpenses = useMemo(() => {
+    return expenses
+      .filter((expense) => expenseBelongsToMonth(expense, currentMonth))
+      .filter((expense) => categoryFilter === 'all' || expense.category === categoryFilter)
+      .filter((expense) => payerFilter === 'all' || expense.payer === payerFilter)
+      .filter((expense) => sourceFilter === 'all' || expense.source === sourceFilter)
+      .sort((a, b) => `${b.date || b.accountingMonth}-999`.localeCompare(`${a.date || a.accountingMonth}-999`) || b.no - a.no);
+  }, [categoryFilter, currentMonth, expenses, payerFilter, sourceFilter]);
 
-  const [income, setIncome] = useState<Income[]>([
-    {
-      id: '1',
-      date: '2024-07-25',
-      amount: 300000,
-      description: '給与',
-      personId: '1'
-    },
-    {
-      id: '2',
-      date: '2024-07-25',
-      amount: 200000,
-      description: 'パート代',
-      personId: '2'
-    }
-  ]);
+  const visibleDeposits = useMemo(() => {
+    return deposits
+      .filter((deposit) => depositBelongsToMonth(deposit, currentMonth))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.no - a.no);
+  }, [currentMonth, deposits]);
 
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([
-    {
-      id: '1',
-      name: '家賃',
-      category: '住居費',
-      subcategory: '家賃',
-      type: 'fixed',
-      amount: 80000,
-      description: '月額家賃',
-      paymentMethod: 'クレジットカード',
-      paidBy: '1',
-      beneficiaries: ['1', '2', '3', '4'],
-      personId: '1',
-      isActive: true,
-      comment: 'コメントあり',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    {
-      id: '2',
-      name: '電気代',
-      category: '住居費',
-      subcategory: '光熱費',
-      type: 'variable',
-      description: '電気代',
-      paymentMethod: 'クレジットカード',
-      paidBy: '1',
-      beneficiaries: ['1', '2', '3', '4'],
-      personId: '1',
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ]);
+  const monthSummary = useMemo(() => calculateMonth(expenses, deposits, currentMonth), [currentMonth, deposits, expenses]);
 
-  const [monthlyExpenseStatuses, setMonthlyExpenseStatuses] = useState<MonthlyExpenseStatus[]>([
-    {
-      id: '1',
-      recurringExpenseId: '1',
-      month: '2024-07',
-      status: 'confirmed',
-      amount: 80000,
-      confirmedDate: '2024-07-01'
-    }
-  ]);
+  const summaryRows = useMemo(() => {
+    const months = new Set<string>([currentMonth]);
+    expenses.forEach((expense) => months.add(toMonthInputValue(expense.accountingMonth)));
+    deposits.forEach((deposit) => months.add(deposit.date.slice(0, 7)));
+    let cumulative = 0;
+    return Array.from(months)
+      .sort()
+      .map((month) => {
+        const summary = calculateMonth(expenses, deposits, month);
+        cumulative += summary.sharedBalance;
+        return { ...summary, cumulative };
+      });
+  }, [currentMonth, deposits, expenses]);
 
-  const [events, setEvents] = useState<Event[]>([
-    {
-      id: '1',
-      name: '太郎の七五三',
-      date: '2024-11-15',
-      category: '年中行事',
-      description: '神社での七五三のお参り',
-      participants: ['1', '2', '3'],
-      estimatedCost: 50000,
-      status: 'planned'
-    }
-  ]);
+  const maxChartValue = Math.max(...summaryRows.map((row) => Math.max(row.depositTotal, row.sharedExpenses)), 1);
 
-  const [houseworkTasks, setHouseworkTasks] = useState<HouseworkTask[]>([
-    {
-      id: '1',
-      name: '掃除機かけ',
-      category: '掃除',
-      frequency: 'weekly',
-      assignedTo: '1',
-      description: 'リビングと寝室の掃除機かけ',
-      isActive: true
-    }
-  ]);
+  const startNewExpense = () => {
+    setEditingExpenseId(null);
+    setExpenseForm(createExpenseForm(currentMonth));
+    setShowExpenseForm(true);
+  };
 
-  const [houseworkRecords, setHouseworkRecords] = useState<HouseworkRecord[]>([
-    {
-      id: '1',
-      taskId: '1',
-      date: '2024-07-15',
-      completedBy: '1',
-      rating: 5
-    }
-  ]);
+  const editExpense = (expense: Expense) => {
+    setEditingExpenseId(expense.id);
+    setExpenseForm({
+      accountingMonth: toMonthInputValue(expense.accountingMonth),
+      date: expense.date || '',
+      category: expense.category,
+      subcategory: expense.subcategory,
+      item: expense.item,
+      description: expense.description,
+      amount: expense.amount,
+      payer: expense.payer,
+      source: expense.source,
+      reimbursed: expense.reimbursed,
+      beneficiary: expense.beneficiary,
+      comment: expense.comment,
+    });
+    setShowExpenseForm(true);
+  };
 
-  const [monthlyReflections, setMonthlyReflections] = useState<MonthlyReflection[]>([]);
-  const [monthlyConfirmations, setMonthlyConfirmations] = useState<MonthlyConfirmation[]>([]);
-
-  // Recipe data
-  const [recipes, setRecipes] = useState<Recipe[]>([
-    {
-      id: '1',
-      title: '無限もやし',
-      description: '野菜が苦手な子供でもパクパク食べれる、中華味のサラダです。',
-      imageUrl: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg',
-      servings: 4,
-      cookingTime: 15,
-      difficulty: 'easy',
-      category: '副菜',
-      tags: ['簡単', '節約', '野菜'],
-      ingredients: [
-        { id: '1', name: 'もやし', amount: '1', unit: '袋' },
-        { id: '2', name: 'きゅうり', amount: '1', unit: '本' },
-        { id: '3', name: 'ツナ缶', amount: '1', unit: '缶' },
-        { id: '4', name: 'しょうゆ', amount: '小さじ2', unit: '' },
-        { id: '5', name: '酢', amount: '小さじ2', unit: '' },
-        { id: '6', name: '砂糖', amount: '小さじ2', unit: '' },
-        { id: '7', name: '鶏がらスープ', amount: '小さじ2', unit: '' }
-      ],
-      steps: [
-        {
-          id: '1',
-          stepNumber: 1,
-          instruction: 'もやしは洗って耐熱ボリ袋に入れてレンジで600W2分チンする',
-          duration: 2
-        },
-        {
-          id: '2',
-          stepNumber: 2,
-          instruction: 'きゅうりを千切りし、塩をふって5分くらい置く。5分後、しぼって水気をきる',
-          duration: 5
-        },
-        {
-          id: '3',
-          stepNumber: 3,
-          instruction: 'チンしたもやしは軽く絞んで水気をきる',
-          duration: 1
-        },
-        {
-          id: '4',
-          stepNumber: 4,
-          instruction: 'きゅうり、もやし、ツナ缶をボウルに入れ、調味料を全部入れて混ぜたらできあがり',
-          duration: 2
-        }
-      ],
-      notes: '冷蔵庫で冷やすとより美味しくなります。',
-      createdBy: '2',
-      createdAt: '2024-07-01T10:00:00Z',
-      updatedAt: '2024-07-01T10:00:00Z',
-      isFavorite: true
-    },
-    {
-      id: '2',
-      title: 'チキンカレー',
-      description: 'スパイスから作る本格的なチキンカレーです。',
-      imageUrl: 'https://images.pexels.com/photos/2474661/pexels-photo-2474661.jpeg',
-      servings: 6,
-      cookingTime: 60,
-      difficulty: 'medium',
-      category: '主菜',
-      tags: ['スパイス', '本格', '鶏肉'],
-      ingredients: [
-        { id: '1', name: '鶏もも肉', amount: '600', unit: 'g' },
-        { id: '2', name: '玉ねぎ', amount: '2', unit: '個' },
-        { id: '3', name: 'トマト缶', amount: '1', unit: '缶' },
-        { id: '4', name: 'にんにく', amount: '3', unit: '片' },
-        { id: '5', name: 'しょうが', amount: '1', unit: '片' },
-        { id: '6', name: 'カレー粉', amount: '大さじ3', unit: '' },
-        { id: '7', name: 'ココナッツミルク', amount: '400', unit: 'ml' }
-      ],
-      steps: [
-        {
-          id: '1',
-          stepNumber: 1,
-          instruction: '鶏肉を一口大に切り、塩胡椒で下味をつける',
-          duration: 10
-        },
-        {
-          id: '2',
-          stepNumber: 2,
-          instruction: '玉ねぎをみじん切りにし、にんにく・しょうがをすりおろす',
-          duration: 15
-        },
-        {
-          id: '3',
-          stepNumber: 3,
-          instruction: 'フライパンで鶏肉を焼き色がつくまで炒める',
-          duration: 10
-        },
-        {
-          id: '4',
-          stepNumber: 4,
-          instruction: '玉ねぎを加えて透明になるまで炒め、にんにく・しょうがを加える',
-          duration: 10
-        },
-        {
-          id: '5',
-          stepNumber: 5,
-          instruction: 'カレー粉を加えて香りが立つまで炒め、トマト缶とココナッツミルクを加えて煮込む',
-          duration: 20
-        }
-      ],
-      notes: 'お好みでガラムマサラを最後に加えると香りが良くなります。',
-      createdBy: '1',
-      createdAt: '2024-07-05T15:30:00Z',
-      updatedAt: '2024-07-05T15:30:00Z',
-      isFavorite: false
-    }
-  ]);
-
-  // Cooking records data
-  const [cookingRecords, setCookingRecords] = useState<CookingRecord[]>([
-    {
-      id: '1',
-      recipeId: '1',
-      date: '2024-07-20',
-      cookedBy: '2',
-      servings: 4,
-      rating: 5,
-      notes: '子供たちも喜んで食べてくれました！'
-    },
-    {
-      id: '2',
-      recipeId: '1',
-      date: '2024-07-25',
-      cookedBy: '1',
-      servings: 4,
-      rating: 4,
-      notes: '簡単で美味しい'
-    },
-    {
-      id: '3',
-      recipeId: '2',
-      date: '2024-07-18',
-      cookedBy: '2',
-      servings: 6,
-      rating: 5,
-      notes: 'スパイスの香りが最高でした'
-    }
-  ]);
-
-  // Event handlers
-  const handleAddExpense = (expense: Omit<Expense, 'id'>) => {
-    const newExpense: Expense = {
-      ...expense,
-      id: Date.now().toString()
+  const saveExpense = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!expenseForm.accountingMonth || !expenseForm.amount || expenseForm.amount < 0) return;
+    const now = new Date().toISOString();
+    const normalizedForm = {
+      ...expenseForm,
+      accountingMonth: toMonthInputValue(expenseForm.accountingMonth),
+      amount: Number(expenseForm.amount),
+      reimbursed: expenseForm.source === 'advance' ? expenseForm.reimbursed : false,
     };
-    setExpenses([...expenses, newExpense]);
-    setIsAddExpenseOpen(false);
-    toast.success('支出を追加しました');
-  };
 
-  const handleEditExpense = (expense: Expense) => {
-    setExpenses(expenses.map(e => e.id === expense.id ? expense : e));
-    setIsEditExpenseOpen(false);
-    setSelectedExpense(null);
-    toast.success('支出を更新しました');
-  };
-
-  const handleDeleteExpense = (id: string) => {
-    setExpenses(expenses.filter(e => e.id !== id));
-    setIsExpenseDetailOpen(false);
-    setSelectedExpense(null);
-    toast.success('支出を削除しました');
-  };
-
-  const handleAddIncome = (inc: Omit<Income, 'id'>) => {
-    const newIncome: Income = {
-      ...inc,
-      id: Date.now().toString()
-    };
-    setIncome([...income, newIncome]);
-    setIsAddIncomeOpen(false);
-    toast.success('入金を追加しました');
-  };
-
-  const handleAddPerson = (person: Omit<Person, 'id'>) => {
-    const newPerson: Person = {
-      ...person,
-      id: Date.now().toString()
-    };
-    setPeople([...people, newPerson]);
-    setIsAddPersonOpen(false);
-    toast.success('人を追加しました');
-  };
-
-  const handleEditPerson = (person: Person) => {
-    setSelectedPerson(person);
-    setIsAddPersonOpen(true);
-  };
-
-  const handleAddRecurringExpense = (expense: Omit<RecurringExpense, 'id'>) => {
-    const newExpense: RecurringExpense = {
-      ...expense,
-      id: Date.now().toString()
-    };
-    setRecurringExpenses([...recurringExpenses, newExpense]);
-    setIsAddRecurringExpenseOpen(false);
-    toast.success('定期支出を追加しました');
-  };
-
-  const handleEditRecurringExpense = (expense: RecurringExpense) => {
-    setRecurringExpenses(recurringExpenses.map(e => e.id === expense.id ? expense : e));
-    setIsEditRecurringExpenseOpen(false);
-    setSelectedRecurringExpense(null);
-    toast.success('定期支出を更新しました');
-  };
-
-  const handleToggleRecurringExpenseStatus = (monthlyStatus: MonthlyExpenseStatus) => {
-    const recurringExpense = recurringExpenses.find(re => re.id === monthlyStatus.recurringExpenseId);
-    if (!recurringExpense) return;
-
-    setSelectedMonthlyStatus(monthlyStatus);
-    setSelectedRecurringExpense(recurringExpense);
-    setIsConfirmExpenseOpen(true);
-  };
-
-  const handleConfirmExpense = (monthlyStatus: MonthlyExpenseStatus, amount?: number) => {
-    const recurringExpense = recurringExpenses.find(re => re.id === monthlyStatus.recurringExpenseId);
-    if (!recurringExpense) return;
-
-    const finalAmount = amount || recurringExpense.amount || 0;
-
-    if (monthlyStatus.status === 'confirmed') {
-      // Remove from confirmed status
-      setMonthlyExpenseStatuses(monthlyExpenseStatuses.filter(s => s.id !== monthlyStatus.id));
-      toast.success('支出の確定を解除しました');
+    if (editingExpenseId) {
+      setExpenses((current) => current.map((expense) => expense.id === editingExpenseId ? { ...expense, ...normalizedForm, updatedAt: now } : expense));
     } else {
-      // Confirm the expense
-      const updatedStatus: MonthlyExpenseStatus = {
-        ...monthlyStatus,
-        status: 'confirmed',
-        amount: finalAmount,
-        confirmedDate: new Date().toISOString().split('T')[0]
-      };
-
-      const existingIndex = monthlyExpenseStatuses.findIndex(s => s.id === monthlyStatus.id);
-      if (existingIndex >= 0) {
-        setMonthlyExpenseStatuses(monthlyExpenseStatuses.map(s => s.id === monthlyStatus.id ? updatedStatus : s));
-      } else {
-        setMonthlyExpenseStatuses([...monthlyExpenseStatuses, updatedStatus]);
-      }
-
-      // Add to regular expenses
-      const newExpense: Expense = {
-        id: Date.now().toString(),
-        date: new Date().toISOString().split('T')[0],
-        amount: finalAmount,
-        category: recurringExpense.category,
-        subcategory: recurringExpense.subcategory,
-        description: recurringExpense.name,
-        comment: recurringExpense.comment,
-        paymentMethod: recurringExpense.paymentMethod,
-        paidBy: recurringExpense.paidBy,
-        beneficiaries: recurringExpense.beneficiaries
-      };
-      setExpenses([...expenses, newExpense]);
-      toast.success('支出を確定しました');
+      setExpenses((current) => [
+        ...current,
+        {
+          ...normalizedForm,
+          id: crypto.randomUUID(),
+          no: getNextNo(current),
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
     }
 
-    setIsConfirmExpenseOpen(false);
-    setSelectedMonthlyStatus(null);
-    setSelectedRecurringExpense(null);
+    setShowExpenseForm(false);
+    setEditingExpenseId(null);
+    setExpenseForm(createExpenseForm(currentMonth));
   };
 
-  const handleOpenExpenseDetail = (expense: Expense) => {
-    setSelectedExpense(expense);
-    setIsExpenseDetailOpen(true);
+  const deleteExpense = (id: string) => {
+    const target = expenses.find((expense) => expense.id === id);
+    if (!target || !window.confirm(`No.${target.no} の支出を削除しますか？`)) return;
+    setExpenses((current) => current.filter((expense) => expense.id !== id));
   };
 
-  const handleOpenEditExpense = (expense: Expense) => {
-    setSelectedExpense(expense);
-    setIsEditExpenseOpen(true);
+  const startNewDeposit = () => {
+    setEditingDepositId(null);
+    setDepositForm(createDepositForm());
+    setShowDepositForm(true);
   };
 
-  const handleOpenEditRecurringExpense = (expense: RecurringExpense) => {
-    setSelectedRecurringExpense(expense);
-    setIsEditRecurringExpenseOpen(true);
+  const editDeposit = (deposit: Deposit) => {
+    setEditingDepositId(deposit.id);
+    setDepositForm({
+      date: deposit.date,
+      depositor: deposit.depositor,
+      amount: deposit.amount,
+      description: deposit.description,
+      comment: deposit.comment,
+    });
+    setShowDepositForm(true);
   };
 
-  const handleSaveMonthlyReflection = (reflection: MonthlyReflection) => {
-    const existingIndex = monthlyReflections.findIndex(r => r.month === reflection.month);
-    if (existingIndex >= 0) {
-      setMonthlyReflections(monthlyReflections.map(r => r.month === reflection.month ? reflection : r));
+  const saveDeposit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!depositForm.date || !depositForm.amount || depositForm.amount < 0) return;
+    const now = new Date().toISOString();
+    const normalizedForm = { ...depositForm, amount: Number(depositForm.amount) };
+
+    if (editingDepositId) {
+      setDeposits((current) => current.map((deposit) => deposit.id === editingDepositId ? { ...deposit, ...normalizedForm, updatedAt: now } : deposit));
     } else {
-      setMonthlyReflections([...monthlyReflections, reflection]);
-    }
-    setIsMonthlyReflectionOpen(false);
-    toast.success('振り返りを保存しました');
-  };
-
-  const handleMonthlyConfirmation = (month: string, isConfirmed: boolean) => {
-    const existingIndex = monthlyConfirmations.findIndex(c => c.month === month);
-    const confirmation: MonthlyConfirmation = {
-      month,
-      isConfirmed,
-      confirmedDate: isConfirmed ? new Date().toISOString().split('T')[0] : undefined
-    };
-
-    if (existingIndex >= 0) {
-      setMonthlyConfirmations(monthlyConfirmations.map(c => c.month === month ? confirmation : c));
-    } else {
-      setMonthlyConfirmations([...monthlyConfirmations, confirmation]);
+      setDeposits((current) => [
+        ...current,
+        {
+          ...normalizedForm,
+          id: crypto.randomUUID(),
+          no: getNextNo(current),
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
     }
 
-    toast.success(isConfirmed ? '今月の入力を完了しました' : '入力完了を解除しました');
+    setShowDepositForm(false);
+    setEditingDepositId(null);
+    setDepositForm(createDepositForm());
   };
 
-  const previousMonth = () => {
-    setCurrentMonth(subMonths(currentMonth, 1));
-  };
-
-  const nextMonth = () => {
-    setCurrentMonth(addMonths(currentMonth, 1));
-  };
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'dashboard':
-        return (
-          <div className="space-y-6">
-            <MonthlyOverview
-              currentMonth={currentMonth}
-              expenses={expenses}
-              income={income}
-              people={people}
-              monthlyReflections={monthlyReflections}
-              monthlyConfirmations={monthlyConfirmations}
-              onOpenReflection={() => setIsMonthlyReflectionOpen(true)}
-              onMonthlyConfirmation={handleMonthlyConfirmation}
-            />
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <ExpenseCategories
-                  currentMonth={currentMonth}
-                  expenses={expenses}
-                  categories={categories}
-                />
-              </div>
-              <div className="space-y-6">
-                <QuickActions
-                  onAddExpense={() => setIsAddExpenseOpen(true)}
-                  onAddIncome={() => setIsAddIncomeOpen(true)}
-                />
-                <SavingsGoals />
-                <UpcomingMilestones />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'expenses':
-        return (
-          <ExpenseList
-            expenses={expenses}
-            recurringExpenses={recurringExpenses}
-            monthlyExpenseStatuses={monthlyExpenseStatuses}
-            currentMonth={currentMonth}
-            people={people}
-            categories={categories}
-            onEditExpense={handleOpenEditExpense}
-            onViewExpense={handleOpenExpenseDetail}
-            onAddExpense={() => setIsAddExpenseOpen(true)}
-            onToggleRecurringExpenseStatus={handleToggleRecurringExpenseStatus}
-          />
-        );
-
-      case 'expense-management':
-        return (
-          <ExpenseManagement
-            recurringExpenses={recurringExpenses}
-            monthlyExpenseStatuses={monthlyExpenseStatuses}
-            currentMonth={currentMonth}
-            people={people}
-            categories={categories}
-            onAddRecurringExpense={() => setIsAddRecurringExpenseOpen(true)}
-            onEditRecurringExpense={handleOpenEditRecurringExpense}
-            onConfirmExpense={handleToggleRecurringExpenseStatus}
-          />
-        );
-
-      case 'income':
-        return (
-          <IncomeManagement
-            income={income}
-            people={people}
-            currentMonth={currentMonth}
-            onAddIncome={() => setIsAddIncomeOpen(true)}
-          />
-        );
-
-      case 'history':
-        return (
-          <ExpenseHistory
-            expenses={expenses}
-            people={people}
-            categories={categories}
-            onEditExpense={handleOpenEditExpense}
-            onViewExpense={handleOpenExpenseDetail}
-          />
-        );
-
-      case 'categories':
-        return (
-          <CategoryManagement
-            categories={categories}
-            onUpdateCategories={setCategories}
-          />
-        );
-
-      case 'people':
-        return (
-          <PeopleManagement
-            people={people}
-            onAddPerson={() => setIsAddPersonOpen(true)}
-            onEditPerson={handleEditPerson}
-          />
-        );
-
-      case 'events':
-        return (
-          <EventManagement
-            events={events}
-            people={people}
-            currentMonth={currentMonth}
-            onUpdateEvents={setEvents}
-          />
-        );
-
-      case 'housework':
-        return (
-          <HouseworkManagement
-            tasks={houseworkTasks}
-            records={houseworkRecords}
-            people={people}
-            currentMonth={currentMonth}
-            onUpdateTasks={setHouseworkTasks}
-            onUpdateRecords={setHouseworkRecords}
-          />
-        );
-
-      case 'recipes':
-        return (
-          <RecipeManagement
-            recipes={recipes}
-            people={people}
-            cookingRecords={cookingRecords}
-            onUpdateRecipes={setRecipes}
-            onUpdateCookingRecords={setCookingRecords}
-          />
-        );
-
-      default:
-        return (
-          <div className="text-center py-8">
-            <p className="text-gray-500">選択されたビューが見つかりません</p>
-          </div>
-        );
-    }
+  const deleteDeposit = (id: string) => {
+    const target = deposits.find((deposit) => deposit.id === id);
+    if (!target || !window.confirm(`No.${target.no} の入金を削除しますか？`)) return;
+    setDeposits((current) => current.filter((deposit) => deposit.id !== id));
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Desktop Header */}
-      <div className="hidden md:block">
-        <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center gap-8">
-                <h1 className="text-xl font-bold text-gray-900">家計管理</h1>
-                
-                <nav className="flex items-center gap-6">
-                  <Button
-                    variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                    onClick={() => setCurrentView('dashboard')}
-                    className="text-sm"
-                  >
-                    ダッシュボード
-                  </Button>
-                  
-                  <div className="relative group">
-                    <Button variant="ghost" className="text-sm">
-                      家計
-                    </Button>
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                      <div className="py-1">
-                        <button
-                          onClick={() => setCurrentView('expenses')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          支出一覧
-                        </button>
-                        <button
-                          onClick={() => setCurrentView('expense-management')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          支出管理
-                        </button>
-                        <button
-                          onClick={() => setCurrentView('income')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          入金管理
-                        </button>
-                        <button
-                          onClick={() => setCurrentView('history')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          履歴
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+    <main className="app-shell">
+      <header className="hero">
+        <div>
+          <p className="eyebrow">FamFi MVP</p>
+          <h1>夫婦の共通支出を、ゆるく続ける。</h1>
+          <p className="lead">まずは支出、入金、月次サマリだけ。細かすぎない家計簿として今日から使えます。</p>
+        </div>
+        <label className="month-picker">
+          <span>計上年月</span>
+          <input type="month" value={currentMonth} onChange={(event) => setCurrentMonth(event.target.value)} />
+        </label>
+      </header>
 
-                  <div className="relative group">
-                    <Button variant="ghost" className="text-sm">
-                      予定
-                    </Button>
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                      <div className="py-1">
-                        <button
-                          onClick={() => setCurrentView('events')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          イベント
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+      <section className="summary-grid" aria-label="月次サマリ">
+        <SummaryCard label="支出合計" value={currencyFormatter.format(monthSummary.totalExpenses)} />
+        <SummaryCard label="共通支出" value={currencyFormatter.format(monthSummary.sharedExpenses)} />
+        <SummaryCard label="実費支出" value={currencyFormatter.format(monthSummary.personalExpenses)} />
+        <SummaryCard label="入金合計" value={currencyFormatter.format(monthSummary.depositTotal)} />
+        <SummaryCard label="差分（共通）" value={currencyFormatter.format(monthSummary.sharedBalance)} tone={monthSummary.sharedBalance >= 0 ? 'good' : 'bad'} />
+      </section>
 
-                  <Button
-                    variant={currentView === 'housework' ? 'default' : 'ghost'}
-                    onClick={() => setCurrentView('housework')}
-                    className="text-sm"
-                  >
-                    家事
-                  </Button>
+      <nav className="tabs" aria-label="家計簿メニュー">
+        <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}>支出一覧</button>
+        <button className={view === 'deposits' ? 'active' : ''} onClick={() => setView('deposits')}>入金一覧</button>
+        <button className={view === 'summary' ? 'active' : ''} onClick={() => setView('summary')}>月次サマリ</button>
+      </nav>
 
-                  <Button
-                    variant={currentView === 'recipes' ? 'default' : 'ghost'}
-                    onClick={() => setCurrentView('recipes')}
-                    className="text-sm"
-                  >
-                    料理
-                  </Button>
-
-                  <div className="relative group">
-                    <Button variant="ghost" className="text-sm">
-                      管理
-                    </Button>
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                      <div className="py-1">
-                        <button
-                          onClick={() => setCurrentView('categories')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          カテゴリ
-                        </button>
-                        <button
-                          onClick={() => setCurrentView('people')}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                          人の管理
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </nav>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={previousMonth}>
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-sm font-medium min-w-[100px] text-center">
-                    {format(currentMonth, 'yyyy年M月')}
-                  </span>
-                  <Button variant="outline" size="sm" onClick={nextMonth}>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-                
-                <Button onClick={() => setIsAddExpenseOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  支出追加
-                </Button>
-              </div>
+      {view === 'expenses' && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Expenses</p>
+              <h2>{toDisplayMonth(currentMonth)}の支出</h2>
             </div>
+            <button className="primary-button" onClick={startNewExpense}>支出を追加</button>
           </div>
-        </div>
-      </div>
 
-      {/* Mobile Header - Only show on dashboard */}
-      {currentView === 'dashboard' && (
-        <div className="md:hidden">
-          <DashboardHeader 
-            currentMonth={currentMonth} 
-            onMonthChange={setCurrentMonth}
-            currentView={currentView}
-            onViewChange={setCurrentView}
-          />
-        </div>
+          <div className="filters">
+            <label>
+              カテゴリ
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+                <option value="all">すべて</option>
+                {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </label>
+            <label>
+              支払者
+              <select value={payerFilter} onChange={(event) => setPayerFilter(event.target.value as 'all' | Payer)}>
+                <option value="all">すべて</option>
+                <option value="father">父</option>
+                <option value="mother">母</option>
+              </select>
+            </label>
+            <label>
+              財源
+              <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as 'all' | Source)}>
+                <option value="all">すべて</option>
+                <option value="rakuten">楽天</option>
+                <option value="advance">支払者立替</option>
+                <option value="personal">実費</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>日付</th>
+                  <th>カテゴリ</th>
+                  <th>もの</th>
+                  <th>金額</th>
+                  <th>支払者</th>
+                  <th>財源</th>
+                  <th>立替済</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleExpenses.map((expense) => (
+                  <tr key={expense.id}>
+                    <td>{expense.no}</td>
+                    <td>{expense.date || `${toDisplayMonth(expense.accountingMonth)}分`}</td>
+                    <td>{expense.category || '-'}</td>
+                    <td>
+                      <strong>{expense.item || '-'}</strong>
+                      {expense.description && <span>{expense.description}</span>}
+                    </td>
+                    <td className="amount">{currencyFormatter.format(expense.amount)}</td>
+                    <td>{payerLabels[expense.payer]}</td>
+                    <td>{sourceLabels[expense.source]}</td>
+                    <td>{expense.source === 'advance' ? (expense.reimbursed ? '済' : '未') : '-'}</td>
+                    <td className="actions">
+                      <button onClick={() => editExpense(expense)}>編集</button>
+                      <button onClick={() => deleteExpense(expense.id)}>削除</button>
+                    </td>
+                  </tr>
+                ))}
+                {visibleExpenses.length === 0 && <EmptyRow colSpan={9} text="この月の支出はまだありません。" />}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {renderContent()}
-      </main>
+      {view === 'deposits' && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Deposits</p>
+              <h2>{toDisplayMonth(currentMonth)}の入金</h2>
+            </div>
+            <button className="primary-button" onClick={startNewDeposit}>入金を追加</button>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>日付</th>
+                  <th>入金者</th>
+                  <th>説明</th>
+                  <th>金額</th>
+                  <th>コメント</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleDeposits.map((deposit) => (
+                  <tr key={deposit.id}>
+                    <td>{deposit.no}</td>
+                    <td>{deposit.date}</td>
+                    <td>{payerLabels[deposit.depositor]}</td>
+                    <td>{deposit.description || '-'}</td>
+                    <td className="amount">{currencyFormatter.format(deposit.amount)}</td>
+                    <td>{deposit.comment || '-'}</td>
+                    <td className="actions">
+                      <button onClick={() => editDeposit(deposit)}>編集</button>
+                      <button onClick={() => deleteDeposit(deposit.id)}>削除</button>
+                    </td>
+                  </tr>
+                ))}
+                {visibleDeposits.length === 0 && <EmptyRow colSpan={7} text="この月の入金はまだありません。" />}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden">
-        <BottomNavigation 
-          currentView={currentView}
-          onViewChange={setCurrentView}
-        />
+      {view === 'summary' && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Monthly</p>
+              <h2>月次サマリ</h2>
+            </div>
+          </div>
+          <div className="chart" aria-label="入金と共通支出の比較">
+            {summaryRows.map((row) => (
+              <div className="chart-row" key={row.month}>
+                <span>{toDisplayMonth(row.month)}</span>
+                <div className="bars">
+                  <div className="bar deposit" style={{ width: `${(row.depositTotal / maxChartValue) * 100}%` }}>入金 {currencyFormatter.format(row.depositTotal)}</div>
+                  <div className="bar expense" style={{ width: `${(row.sharedExpenses / maxChartValue) * 100}%` }}>共通 {currencyFormatter.format(row.sharedExpenses)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>月</th>
+                  <th>支出合計</th>
+                  <th>共通支出</th>
+                  <th>実費支出</th>
+                  <th>入金合計</th>
+                  <th>差分（共通）</th>
+                  <th>共通プール累計</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summaryRows.map((row) => (
+                  <tr key={row.month}>
+                    <td>{toDisplayMonth(row.month)}</td>
+                    <td className="amount">{currencyFormatter.format(row.totalExpenses)}</td>
+                    <td className="amount">{currencyFormatter.format(row.sharedExpenses)}</td>
+                    <td className="amount">{currencyFormatter.format(row.personalExpenses)}</td>
+                    <td className="amount">{currencyFormatter.format(row.depositTotal)}</td>
+                    <td className="amount">{currencyFormatter.format(row.sharedBalance)}</td>
+                    <td className="amount">{currencyFormatter.format(row.cumulative)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {showExpenseForm && (
+        <Modal title={editingExpenseId ? '支出を編集' : '支出を追加'} onClose={() => setShowExpenseForm(false)}>
+          <form className="record-form" onSubmit={saveExpense}>
+            <label>計上年月<input type="month" required value={expenseForm.accountingMonth} onChange={(event) => setExpenseForm({ ...expenseForm, accountingMonth: event.target.value })} /></label>
+            <label>日付<input type="date" value={expenseForm.date} onChange={(event) => setExpenseForm({ ...expenseForm, date: event.target.value })} /></label>
+            <label>カテゴリ<input value={expenseForm.category} onChange={(event) => setExpenseForm({ ...expenseForm, category: event.target.value })} placeholder="食費" /></label>
+            <label>サブカテゴリ<input value={expenseForm.subcategory} onChange={(event) => setExpenseForm({ ...expenseForm, subcategory: event.target.value })} placeholder="外食" /></label>
+            <label>もの<input value={expenseForm.item} onChange={(event) => setExpenseForm({ ...expenseForm, item: event.target.value })} placeholder="店名や品目" /></label>
+            <label>説明<textarea value={expenseForm.description} onChange={(event) => setExpenseForm({ ...expenseForm, description: event.target.value })} /></label>
+            <label>金額<input type="number" min="0" required value={expenseForm.amount || ''} onChange={(event) => setExpenseForm({ ...expenseForm, amount: Number(event.target.value) })} /></label>
+            <label>支払者<select value={expenseForm.payer} onChange={(event) => setExpenseForm({ ...expenseForm, payer: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
+            <label>財源<select value={expenseForm.source} onChange={(event) => setExpenseForm({ ...expenseForm, source: event.target.value as Source, reimbursed: false })}><option value="rakuten">楽天</option><option value="advance">支払者立替</option><option value="personal">実費</option></select></label>
+            {expenseForm.source === 'advance' && <label className="checkbox"><input type="checkbox" checked={expenseForm.reimbursed} onChange={(event) => setExpenseForm({ ...expenseForm, reimbursed: event.target.checked })} />立替済</label>}
+            {expenseForm.source === 'personal' && <p className="note">実費は支出合計に含めますが、共通プールの差分には含めません。</p>}
+            <label>誰宛<input value={expenseForm.beneficiary} onChange={(event) => setExpenseForm({ ...expenseForm, beneficiary: event.target.value })} placeholder="自由入力" /></label>
+            <label>コメント<textarea value={expenseForm.comment} onChange={(event) => setExpenseForm({ ...expenseForm, comment: event.target.value })} /></label>
+            <div className="form-actions"><button type="button" onClick={() => setShowExpenseForm(false)}>キャンセル</button><button className="primary-button" type="submit">保存</button></div>
+          </form>
+        </Modal>
+      )}
+
+      {showDepositForm && (
+        <Modal title={editingDepositId ? '入金を編集' : '入金を追加'} onClose={() => setShowDepositForm(false)}>
+          <form className="record-form" onSubmit={saveDeposit}>
+            <label>日付<input type="date" required value={depositForm.date} onChange={(event) => setDepositForm({ ...depositForm, date: event.target.value })} /></label>
+            <label>入金者<select value={depositForm.depositor} onChange={(event) => setDepositForm({ ...depositForm, depositor: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
+            <label>金額<input type="number" min="0" required value={depositForm.amount || ''} onChange={(event) => setDepositForm({ ...depositForm, amount: Number(event.target.value) })} /></label>
+            <label>説明<input value={depositForm.description} onChange={(event) => setDepositForm({ ...depositForm, description: event.target.value })} placeholder="共通口座へ入金" /></label>
+            <label>コメント<textarea value={depositForm.comment} onChange={(event) => setDepositForm({ ...depositForm, comment: event.target.value })} /></label>
+            <div className="form-actions"><button type="button" onClick={() => setShowDepositForm(false)}>キャンセル</button><button className="primary-button" type="submit">保存</button></div>
+          </form>
+        </Modal>
+      )}
+    </main>
+  );
+}
+
+function SummaryCard({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'bad' }) {
+  return <article className={`summary-card ${tone || ''}`}><span>{label}</span><strong>{value}</strong></article>;
+}
+
+function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
+  return <tr><td colSpan={colSpan} className="empty-cell">{text}</td></tr>;
+}
+
+function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div className="modal-card">
+        <div className="modal-heading"><h2 id="modal-title">{title}</h2><button onClick={onClose} aria-label="閉じる">閉じる</button></div>
+        {children}
       </div>
-
-      {/* Modals */}
-      <AddExpenseModal
-        isOpen={isAddExpenseOpen}
-        onClose={() => setIsAddExpenseOpen(false)}
-        onSave={handleAddExpense}
-        people={people}
-        categories={categories}
-      />
-
-      <AddIncomeModal
-        isOpen={isAddIncomeOpen}
-        onClose={() => setIsAddIncomeOpen(false)}
-        onSave={handleAddIncome}
-        people={people}
-      />
-
-      <AddPersonModal
-        isOpen={isAddPersonOpen}
-        onClose={() => {
-          setIsAddPersonOpen(false);
-          setSelectedPerson(null);
-        }}
-        onSave={handleAddPerson}
-      />
-
-      <AddRecurringExpenseModal
-        isOpen={isAddRecurringExpenseOpen}
-        onClose={() => setIsAddRecurringExpenseOpen(false)}
-        onSave={handleAddRecurringExpense}
-        people={people}
-        categories={categories}
-      />
-
-      <EditExpenseModal
-        isOpen={isEditExpenseOpen}
-        expense={selectedExpense}
-        onClose={() => {
-          setIsEditExpenseOpen(false);
-          setSelectedExpense(null);
-        }}
-        onSave={handleEditExpense}
-        people={people}
-        categories={categories}
-      />
-
-      <EditRecurringExpenseModal
-        isOpen={isEditRecurringExpenseOpen}
-        expense={selectedRecurringExpense}
-        onClose={() => {
-          setIsEditRecurringExpenseOpen(false);
-          setSelectedRecurringExpense(null);
-        }}
-        onSave={handleEditRecurringExpense}
-        people={people}
-        categories={categories}
-      />
-
-      <ExpenseDetailModal
-        isOpen={isExpenseDetailOpen}
-        expense={selectedExpense}
-        people={people}
-        onClose={() => {
-          setIsExpenseDetailOpen(false);
-          setSelectedExpense(null);
-        }}
-        onEdit={() => {
-          setIsExpenseDetailOpen(false);
-          setIsEditExpenseOpen(true);
-        }}
-        onDelete={handleDeleteExpense}
-      />
-
-      <ConfirmExpenseModal
-        isOpen={isConfirmExpenseOpen}
-        monthlyStatus={selectedMonthlyStatus}
-        recurringExpense={selectedRecurringExpense}
-        onClose={() => {
-          setIsConfirmExpenseOpen(false);
-          setSelectedMonthlyStatus(null);
-          setSelectedRecurringExpense(null);
-        }}
-        onConfirm={handleConfirmExpense}
-      />
-
-      <MonthlyReflectionModal
-        isOpen={isMonthlyReflectionOpen}
-        currentMonth={currentMonth}
-        existingReflection={monthlyReflections.find(r => r.month === `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`)}
-        onClose={() => setIsMonthlyReflectionOpen(false)}
-        onSave={handleSaveMonthlyReflection}
-      />
     </div>
   );
 }

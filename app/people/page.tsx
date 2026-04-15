@@ -1,41 +1,14 @@
-'use client';
-
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { PeopleManagement } from "@/components/people/PeopleManagement";
-import { useDashboard } from "@/hooks/useDashboard";
+﻿import Link from 'next/link';
 
 export default function PeoplePage() {
-  const {
-    people,
-    handleAddPerson,
-    handleEditPerson,
-  } = useDashboard();
-
-  // 型安全なハンドラ
-  const handleAddPersonWrapper = () => {
-    // ここでモーダルを開くなどの処理
-    console.log('Add person clicked');
-  };
-
   return (
-    <DashboardLayout
-      currentMonth={new Date()}
-      currentView="people"
-      onMonthChange={() => {}}
-      onViewChange={() => {}}
-    >
-      {/* ページタイトル */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">家族・メンバー管理</h1>
-        <p className="text-gray-600">家族やメンバーの情報を管理します</p>
-      </div>
-
-      {/* メイン表示 */}
-      <PeopleManagement
-        people={people}
-        onAddPerson={handleAddPersonWrapper} // ← 修正
-        onEditPerson={handleEditPerson}
-      />
-    </DashboardLayout>
+    <main className="app-shell">
+      <section className="panel">
+        <p className="eyebrow">FamFi MVP</p>
+        <h1>家族管理は後回しにしています。</h1>
+        <p className="lead">父/母の固定選択で家計簿を先に使えるようにしています。</p>
+        <p style={{ marginTop: 20 }}><Link href="/">トップページを開く</Link></p>
+      </section>
+    </main>
   );
 }

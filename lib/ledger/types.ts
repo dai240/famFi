@@ -82,6 +82,6 @@ export const payerLabels: Record<Payer, string> = {
 
 export const sourceLabels: Record<ExpenseSource, string> = {
   rakuten: '楽天',
-  advance: '支払者立替',
+  advance: '立替',
   personal: '実費',
 };

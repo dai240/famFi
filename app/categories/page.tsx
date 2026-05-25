@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useLedgerData } from '@/lib/ledger/use-ledger-data';
 import type { Category, CategoryInput, SubCategory } from '@/lib/ledger/types';
 
@@ -75,6 +75,16 @@ export default function CategoriesPage() {
     refreshLedger(new Date().toISOString().slice(0, 7));
   }, [refreshLedger]);
 
+  const activeCount = useMemo(
+    () => ledgerCategories.filter((category) => category.isActive).length,
+    [ledgerCategories],
+  );
+
+  const subCategoryCount = useMemo(
+    () => ledgerCategories.reduce((sum, category) => sum + category.subCategories.length, 0),
+    [ledgerCategories],
+  );
+
   const saveCategory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const existing = ledgerCategories.find((category) => category.id === editingId);
@@ -92,8 +102,19 @@ export default function CategoriesPage() {
   };
 
   const deactivateCategory = async (category: Category) => {
-    if (!window.confirm(`${category.name} を非表示にしますか？過去データは残ります。`)) return;
+    if (!window.confirm(`${category.name} を非表示にしますか？過去の記録や集計は残ります。`)) return;
     await ledger.deactivateCategory(category.id);
+    await refreshLedger(new Date().toISOString().slice(0, 7));
+  };
+
+  const moveCategory = async (categoryId: string, direction: -1 | 1) => {
+    const ids = ledgerCategories.map((category) => category.id);
+    const index = ids.indexOf(categoryId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= ids.length) return;
+    const nextIds = [...ids];
+    [nextIds[index], nextIds[nextIndex]] = [nextIds[nextIndex], nextIds[index]];
+    await ledger.reorderCategories(nextIds);
     await refreshLedger(new Date().toISOString().slice(0, 7));
   };
 
@@ -104,16 +125,33 @@ export default function CategoriesPage() {
 
   return (
     <main className="app-shell">
-      <header className="hero compact-hero">
+      <header className="page-hero">
         <div>
           <p className="eyebrow">Categories</p>
-          <h1>カテゴリ管理</h1>
-          <p className="lead">IDは変えずに表示名を編集できます。削除は非表示扱いなので、過去の集計は壊れません。</p>
+          <h1>カテゴリを整える</h1>
+          <p className="lead">
+            支出登録で迷わないように、よく使う分類だけを残しておきます。非表示にしても過去の記録は消えません。
+          </p>
         </div>
         <Link className="text-link" href="/">家計簿へ戻る</Link>
       </header>
 
       {ledger.error && <p className="error-banner">{ledger.error}</p>}
+
+      <section className="metric-strip compact">
+        <article className="metric-card">
+          <span>有効カテゴリ</span>
+          <strong>{activeCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>サブカテゴリ</span>
+          <strong>{subCategoryCount}</strong>
+        </article>
+        <article className="metric-card">
+          <span>保存先</span>
+          <strong>{ledger.backend === 'local' ? 'local' : 'DB'}</strong>
+        </article>
+      </section>
 
       <section className="category-layout">
         <form className="panel category-form" onSubmit={saveCategory}>
@@ -123,13 +161,24 @@ export default function CategoriesPage() {
           </div>
           <label>
             カテゴリ名
-            <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="例：医療費" required />
+            <input
+              value={form.name}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              placeholder="例: 医療費"
+              required
+            />
           </label>
           <label>
-            サブカテゴリ（1行に1つ）
-            <textarea value={form.subCategoryNames} onChange={(event) => setForm({ ...form, subCategoryNames: event.target.value })} />
+            サブカテゴリ
+            <textarea
+              value={form.subCategoryNames}
+              onChange={(event) => setForm({ ...form, subCategoryNames: event.target.value })}
+              placeholder={'1行に1つずつ入力\n例: 病院\n例: 薬'}
+            />
           </label>
-          <p className="note">既存カテゴリを編集するときもIDは維持します。サブカテゴリ名を変えた場合、同名のものは同じIDを維持し、新しい行は新規IDになります。</p>
+          <p className="note">
+            名前だけ変えたサブカテゴリは同じ記録として扱います。新しい行を増やすと、次回の支出登録で選べるようになります。
+          </p>
           <div className="form-actions">
             {editingId && <button type="button" onClick={cancel}>キャンセル</button>}
             <button className="primary-button" type="submit">保存</button>
@@ -144,7 +193,7 @@ export default function CategoriesPage() {
             </div>
           </div>
           <div className="category-list">
-            {ledgerCategories.map((category) => (
+            {ledgerCategories.map((category, index) => (
               <article className={`category-item ${category.isActive ? '' : 'inactive'}`} key={category.id}>
                 <div>
                   <strong>{category.name}</strong>
@@ -152,6 +201,8 @@ export default function CategoriesPage() {
                   <p>{category.subCategories.map((subCategory) => subCategory.name).join(' / ')}</p>
                 </div>
                 <div className="actions">
+                  <button onClick={() => moveCategory(category.id, -1)} disabled={index === 0}>上へ</button>
+                  <button onClick={() => moveCategory(category.id, 1)} disabled={index === ledgerCategories.length - 1}>下へ</button>
                   <button onClick={() => editCategory(category)}>編集</button>
                   {category.isActive && <button onClick={() => deactivateCategory(category)}>非表示</button>}
                 </div>

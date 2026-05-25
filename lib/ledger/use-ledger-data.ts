@@ -117,6 +117,13 @@ export function useLedgerData() {
     [repositories],
   );
 
+  const reorderCategories = useCallback(
+    async (ids: string[]) => {
+      await repositories.categories.reorder(ids);
+    },
+    [repositories],
+  );
+
   return {
     backend,
     expenses,
@@ -135,5 +142,6 @@ export function useLedgerData() {
     deleteDeposit,
     upsertCategory,
     deactivateCategory,
+    reorderCategories,
   };
 }

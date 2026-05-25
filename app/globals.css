@@ -276,7 +276,7 @@ td span {
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
-  grid-template-columns: minmax(180px, 240px) 1fr auto;
+  grid-template-columns: minmax(180px, 240px) minmax(260px, 1fr);
   gap: 12px;
   align-items: end;
   padding: 14px;
@@ -299,6 +299,10 @@ td span {
   flex-wrap: wrap;
 }
 
+.csv-actions {
+  grid-column: 1 / -1;
+}
+
 .quick-templates span {
   color: var(--muted);
   font-size: 13px;
@@ -319,6 +323,38 @@ td span {
 
 .file-button input {
   display: none;
+}
+
+.template-manager {
+  display: grid;
+  gap: 16px;
+}
+
+.template-list {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.template-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+}
+
+.template-item strong,
+.template-item span {
+  display: block;
+}
+
+.template-item span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
 }
 
 .panel {

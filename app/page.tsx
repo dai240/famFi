@@ -12,11 +12,21 @@ type View = 'expenses' | 'deposits' | 'review' | 'summary';
 type ExpenseForm = ExpenseInput;
 type DepositForm = DepositInput;
 type QuickTemplate = Pick<ExpenseInput, 'item' | 'categoryId' | 'subCategoryId' | 'payer' | 'source' | 'beneficiary'> & {
+  id: string;
   label: string;
   amount?: number;
+  description?: string;
 };
 
 const initialBalanceStorageKey = 'famfi:mvp:initial-balance';
+const templateStorageKey = 'famfi:mvp:expense-templates';
+const localDataKeys = [
+  'famfi:mvp:expenses',
+  'famfi:mvp:deposits',
+  'famfi:mvp:categories',
+  initialBalanceStorageKey,
+  templateStorageKey,
+];
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
 
@@ -66,10 +76,31 @@ function createDepositForm(): DepositForm {
   };
 }
 
+function createTemplateId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `tpl-${crypto.randomUUID()}`;
+  }
+  return `tpl-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function readStoredNumber(key: string) {
   if (typeof window === 'undefined') return 0;
   const value = Number(window.localStorage.getItem(key) || 0);
   return Number.isFinite(value) ? value : 0;
+}
+
+function readStoredJson<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? (JSON.parse(value) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredJson<T>(key: string, value: T) {
+  window.localStorage.setItem(key, JSON.stringify(value));
 }
 
 function escapeCsv(value: string | number | boolean | undefined) {
@@ -81,14 +112,18 @@ function buildCsv(headers: string[], rows: Array<Array<string | number | boolean
   return [headers.map(escapeCsv).join(','), ...rows.map((row) => row.map(escapeCsv).join(','))].join('\n');
 }
 
-function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+function downloadText(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadCsv(filename: string, csv: string) {
+  downloadText(filename, `\uFEFF${csv}`, 'text/csv;charset=utf-8;');
 }
 
 function splitCsvLine(line: string) {
@@ -122,9 +157,25 @@ export default function Home() {
   const [sourceFilter, setSourceFilter] = useState<'all' | ExpenseSource>('all');
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [initialBalance, setInitialBalance] = useState(0);
+  const [templates, setTemplates] = useState<QuickTemplate[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [templateForm, setTemplateForm] = useState<QuickTemplate>(() => ({
+    id: createTemplateId(),
+    label: '',
+    item: '',
+    categoryId: uncategorizedCategoryId,
+    subCategoryId: uncategorizedSubCategoryId,
+    amount: 0,
+    payer: 'father',
+    source: 'rakuten',
+    beneficiary: '家族',
+    description: '',
+  }));
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>(() => createExpenseForm(getCurrentMonth(), []));
   const [depositForm, setDepositForm] = useState<DepositForm>(() => createDepositForm());
 
@@ -134,12 +185,16 @@ export default function Home() {
 
   useEffect(() => {
     setInitialBalance(readStoredNumber(initialBalanceStorageKey));
+    setTemplates(readStoredJson<QuickTemplate[]>(templateStorageKey, []));
+    setTemplatesLoaded(true);
   }, []);
 
   const activeCategories = useMemo(() => ledgerCategories.filter((category) => category.isActive), [ledgerCategories]);
   const categoryById = useMemo(() => new Map(ledgerCategories.map((category) => [category.id, category])), [ledgerCategories]);
   const selectedCategory = categoryById.get(expenseForm.categoryId);
   const selectedSubCategories = getVisibleSubCategories(selectedCategory);
+  const templateCategory = categoryById.get(templateForm.categoryId);
+  const templateSubCategories = getVisibleSubCategories(templateCategory);
 
   const filters = useMemo<Partial<ExpenseFilters>>(
     () => ({
@@ -155,6 +210,32 @@ export default function Home() {
   }, [currentMonth, filters, refreshLedger]);
 
   useEffect(() => {
+    if (!templatesLoaded || templates.length || activeCategories.length === 0) return;
+    if (typeof window !== 'undefined' && window.localStorage.getItem(templateStorageKey) !== null) return;
+    const findTemplateCategory = (categoryId: string, fallback = uncategorizedCategoryId) => {
+      const category = activeCategories.find((entry) => entry.id === categoryId) || activeCategories.find((entry) => entry.id === fallback) || activeCategories[0];
+      const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
+      return { category, subCategory };
+    };
+    const housingTemplate = findTemplateCategory('cat-housing');
+    const utilitiesTemplate = findTemplateCategory('cat-utilities');
+    const foodTemplate = findTemplateCategory('cat-food');
+    const defaultTemplates: QuickTemplate[] = [
+      housingTemplate.category && housingTemplate.subCategory
+        ? { id: createTemplateId(), label: '家賃・住居費', item: '家賃', categoryId: housingTemplate.category.id, subCategoryId: housingTemplate.subCategory.id, payer: 'father', source: 'rakuten', beneficiary: '家族' }
+        : undefined,
+      utilitiesTemplate.category && utilitiesTemplate.subCategory
+        ? { id: createTemplateId(), label: '光熱費', item: '光熱費', categoryId: utilitiesTemplate.category.id, subCategoryId: utilitiesTemplate.subCategory.id, payer: 'father', source: 'rakuten', beneficiary: '家族' }
+        : undefined,
+      foodTemplate.category && foodTemplate.subCategory
+        ? { id: createTemplateId(), label: '食材', item: '食材', categoryId: foodTemplate.category.id, subCategoryId: foodTemplate.subCategory.id, payer: 'mother', source: 'advance', beneficiary: '家族' }
+        : undefined,
+    ].filter(Boolean) as QuickTemplate[];
+    setTemplates(defaultTemplates);
+    writeStoredJson(templateStorageKey, defaultTemplates);
+  }, [activeCategories, templates.length, templatesLoaded]);
+
+  useEffect(() => {
     if (!showExpenseForm) return;
     const category = categoryById.get(expenseForm.categoryId) || getInitialCategory(ledgerCategories);
     const subCategories = getVisibleSubCategories(category);
@@ -166,6 +247,19 @@ export default function Home() {
       }));
     }
   }, [categoryById, expenseForm.categoryId, expenseForm.subCategoryId, ledgerCategories, showExpenseForm]);
+
+  useEffect(() => {
+    if (!showTemplateManager) return;
+    const category = categoryById.get(templateForm.categoryId) || getInitialCategory(ledgerCategories);
+    const subCategories = getVisibleSubCategories(category);
+    if (category && !subCategories.some((subCategory) => subCategory.id === templateForm.subCategoryId)) {
+      setTemplateForm((current) => ({
+        ...current,
+        categoryId: category.id,
+        subCategoryId: subCategories[0]?.id || category.subCategories[0]?.id || uncategorizedSubCategoryId,
+      }));
+    }
+  }, [categoryById, ledgerCategories, showTemplateManager, templateForm.categoryId, templateForm.subCategoryId]);
 
   const refresh = () => refreshLedger(currentMonth, filters);
 
@@ -192,8 +286,74 @@ export default function Home() {
       payer: template.payer,
       source: template.source,
       beneficiary: template.beneficiary,
+      description: template.description || '',
     });
     setShowExpenseForm(true);
+  };
+
+  const startTemplateFromCurrentForm = () => {
+    setEditingTemplateId(null);
+    setTemplateForm({
+      id: createTemplateId(),
+      label: expenseForm.item || '新しいテンプレート',
+      item: expenseForm.item,
+      categoryId: expenseForm.categoryId,
+      subCategoryId: expenseForm.subCategoryId,
+      amount: expenseForm.amount,
+      payer: expenseForm.payer,
+      source: expenseForm.source,
+      beneficiary: expenseForm.beneficiary,
+      description: expenseForm.description,
+    });
+    setShowExpenseForm(false);
+    setShowTemplateManager(true);
+  };
+
+  const editTemplate = (template: QuickTemplate) => {
+    setEditingTemplateId(template.id);
+    setTemplateForm({ ...template });
+    setShowTemplateManager(true);
+  };
+
+  const resetTemplateForm = () => {
+    setEditingTemplateId(null);
+    setTemplateForm({
+      id: createTemplateId(),
+      label: '',
+      item: '',
+      categoryId: activeCategories[0]?.id || uncategorizedCategoryId,
+      subCategoryId: getVisibleSubCategories(activeCategories[0])[0]?.id || activeCategories[0]?.subCategories[0]?.id || uncategorizedSubCategoryId,
+      amount: 0,
+      payer: 'father',
+      source: 'rakuten',
+      beneficiary: '家族',
+      description: '',
+    });
+  };
+
+  const saveTemplate = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextTemplate = {
+      ...templateForm,
+      label: templateForm.label.trim(),
+      item: templateForm.item.trim(),
+      amount: Number(templateForm.amount || 0),
+    };
+    if (!nextTemplate.label || !nextTemplate.item) return;
+    const nextTemplates = editingTemplateId
+      ? templates.map((template) => (template.id === editingTemplateId ? nextTemplate : template))
+      : [...templates, nextTemplate];
+    setTemplates(nextTemplates);
+    writeStoredJson(templateStorageKey, nextTemplates);
+    resetTemplateForm();
+  };
+
+  const deleteTemplate = (templateId: string) => {
+    if (!window.confirm('このテンプレートを削除しますか？')) return;
+    const nextTemplates = templates.filter((template) => template.id !== templateId);
+    setTemplates(nextTemplates);
+    writeStoredJson(templateStorageKey, nextTemplates);
+    if (editingTemplateId === templateId) resetTemplateForm();
   };
 
   const duplicateExpense = (expense: Expense) => {
@@ -307,6 +467,16 @@ export default function Home() {
     }));
   };
 
+  const selectTemplateCategory = (categoryId: string) => {
+    const category = categoryById.get(categoryId);
+    const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
+    setTemplateForm((current) => ({
+      ...current,
+      categoryId,
+      subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
+    }));
+  };
+
   const exportCurrentMonthCsv = () => {
     const expenseRows = monthExpenses.map((expense) => {
       const category = categoryById.get(expense.categoryId);
@@ -357,10 +527,27 @@ export default function Home() {
     if (!file) return;
     const text = await file.text();
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean);
+    const headers = splitCsvLine(lines[0] || '');
     const rows = lines.slice(1).map(splitCsvLine);
+    const valueOf = (row: string[], names: string[], fallbackIndex: number) => {
+      const headerIndex = names.map((name) => headers.indexOf(name)).find((index) => index >= 0);
+      return row[headerIndex ?? fallbackIndex] || '';
+    };
     let imported = 0;
     for (const row of rows) {
-      const [type, , accountingMonth, date, categoryName, subCategoryName, item, amount, person, source, state, description, beneficiary, comment] = row;
+      const type = valueOf(row, ['種別', 'type'], 0);
+      const accountingMonth = valueOf(row, ['計上年月', 'month'], 2);
+      const date = valueOf(row, ['日付', 'date', '利用日'], 3);
+      const categoryName = valueOf(row, ['カテゴリ', 'category'], 4);
+      const subCategoryName = valueOf(row, ['サブカテゴリ', 'subcategory'], 5);
+      const item = valueOf(row, ['内容', '品目', '店名', '摘要', 'item'], 6);
+      const amount = valueOf(row, ['金額', 'amount', '利用金額'], 7);
+      const person = valueOf(row, ['人', '支払者', '入金者', 'person'], 8);
+      const source = valueOf(row, ['財源', 'source'], 9);
+      const state = valueOf(row, ['状態', 'status'], 10);
+      const description = valueOf(row, ['メモ', '説明', 'description'], 11);
+      const beneficiary = valueOf(row, ['誰のため', 'beneficiary'], 12);
+      const comment = valueOf(row, ['コメント', 'comment'], 13);
       const parsedAmount = Number(String(amount || '').replace(/[^\d.-]/g, ''));
       if (type === '入金') {
         if (!date || !parsedAmount) continue;
@@ -401,7 +588,47 @@ export default function Home() {
       imported += 1;
     }
     await refresh();
-    window.alert(`${imported}件の支出を取り込みました。`);
+    window.alert(`${imported}件の記録を取り込みました。`);
+  };
+
+  const exportBackupJson = () => {
+    const backup = Object.fromEntries(localDataKeys.map((key) => [key, window.localStorage.getItem(key)]));
+    downloadText(
+      `famfi-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(backup, null, 2),
+      'application/json;charset=utf-8;',
+    );
+  };
+
+  const importBackupJson = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const backup = JSON.parse((await file.text()).replace(/^\uFEFF/, '')) as Record<string, string | null>;
+      localDataKeys.forEach((key) => {
+        const value = backup[key];
+        if (typeof value === 'string') {
+          window.localStorage.setItem(key, value);
+        }
+      });
+      setInitialBalance(readStoredNumber(initialBalanceStorageKey));
+      setTemplates(readStoredJson<QuickTemplate[]>(templateStorageKey, []));
+      await refresh();
+      window.alert('バックアップを復元しました。');
+    } catch {
+      window.alert('バックアップJSONを読み込めませんでした。');
+    }
+  };
+
+  const resetLocalData = async () => {
+    if (!window.confirm('localStorageの家計簿データを初期化しますか？この操作は元に戻せません。')) return;
+    localDataKeys.forEach((key) => window.localStorage.removeItem(key));
+    setInitialBalance(0);
+    setTemplates([]);
+    setTemplatesLoaded(false);
+    setTimeout(() => setTemplatesLoaded(true), 0);
+    await refresh();
   };
 
   const monthExpenses = ledger.expenses;
@@ -450,25 +677,6 @@ export default function Home() {
   const unreimbursedExpenses = monthExpenses.filter((expense) => expense.source === 'advance' && !expense.reimbursed);
   const maxCategoryTotal = Math.max(...categoryTotals.map((row) => row.total), 1);
   const maxChartValue = Math.max(...ledger.summaryRows.map((row) => Math.max(row.depositTotal, row.sharedExpenses)), 1);
-  const findTemplateCategory = (categoryId: string, fallback = uncategorizedCategoryId) => {
-    const category = activeCategories.find((entry) => entry.id === categoryId) || activeCategories.find((entry) => entry.id === fallback) || activeCategories[0];
-    const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
-    return { category, subCategory };
-  };
-  const housingTemplate = findTemplateCategory('cat-housing');
-  const utilitiesTemplate = findTemplateCategory('cat-utilities');
-  const foodTemplate = findTemplateCategory('cat-food');
-  const quickTemplates: QuickTemplate[] = [
-    housingTemplate.category && housingTemplate.subCategory
-      ? { label: '家賃・住居費', item: '家賃', categoryId: housingTemplate.category.id, subCategoryId: housingTemplate.subCategory.id, payer: 'father', source: 'rakuten', beneficiary: '家族' }
-      : undefined,
-    utilitiesTemplate.category && utilitiesTemplate.subCategory
-      ? { label: '光熱費', item: '光熱費', categoryId: utilitiesTemplate.category.id, subCategoryId: utilitiesTemplate.subCategory.id, payer: 'father', source: 'rakuten', beneficiary: '家族' }
-      : undefined,
-    foodTemplate.category && foodTemplate.subCategory
-      ? { label: '食材', item: '食材', categoryId: foodTemplate.category.id, subCategoryId: foodTemplate.subCategory.id, payer: 'mother', source: 'advance', beneficiary: '家族' }
-      : undefined,
-  ].filter(Boolean) as QuickTemplate[];
 
   return (
     <main className="app-shell">
@@ -529,9 +737,10 @@ export default function Home() {
         </label>
         <div className="quick-templates">
           <span>よく使う支出</span>
-          {quickTemplates.map((template) => (
-            <button key={template.label} onClick={() => startExpenseFromTemplate(template)}>{template.label}</button>
+          {templates.slice(0, 5).map((template) => (
+            <button key={template.id} onClick={() => startExpenseFromTemplate(template)}>{template.label}</button>
           ))}
+          <button onClick={() => setShowTemplateManager(true)}>テンプレート管理</button>
           {latestExpense && <button onClick={() => duplicateExpense(latestExpense)}>最新支出を複製</button>}
         </div>
         <div className="csv-actions">
@@ -540,6 +749,12 @@ export default function Home() {
             CSV取込
             <input type="file" accept=".csv,text/csv" onChange={importExpensesCsv} />
           </label>
+          <button onClick={exportBackupJson}>バックアップ</button>
+          <label className="file-button">
+            復元
+            <input type="file" accept=".json,application/json" onChange={importBackupJson} />
+          </label>
+          <button onClick={resetLocalData}>初期化</button>
         </div>
       </section>
 
@@ -787,6 +1002,44 @@ export default function Home() {
         </section>
       )}
 
+      {showTemplateManager && (
+        <Modal title="支出テンプレート管理" onClose={() => setShowTemplateManager(false)}>
+          <div className="template-manager">
+            <form className="record-form" onSubmit={saveTemplate}>
+              <label>ボタン名<input required value={templateForm.label} onChange={(event) => setTemplateForm({ ...templateForm, label: event.target.value })} placeholder="例: 保育園" /></label>
+              <label>内容<input required value={templateForm.item} onChange={(event) => setTemplateForm({ ...templateForm, item: event.target.value })} placeholder="店名や品目" /></label>
+              <label>カテゴリ<select required value={templateForm.categoryId} onChange={(event) => selectTemplateCategory(event.target.value)}>{activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <label>サブカテゴリ<select required value={templateForm.subCategoryId} onChange={(event) => setTemplateForm({ ...templateForm, subCategoryId: event.target.value })}>{templateSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}</select></label>
+              <label>金額<input type="number" min="0" value={templateForm.amount || ''} onChange={(event) => setTemplateForm({ ...templateForm, amount: Number(event.target.value) })} placeholder="未入力でもOK" /></label>
+              <label>支払者<select value={templateForm.payer} onChange={(event) => setTemplateForm({ ...templateForm, payer: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
+              <label>財源<select value={templateForm.source} onChange={(event) => setTemplateForm({ ...templateForm, source: event.target.value as ExpenseSource })}><option value="rakuten">楽天</option><option value="advance">立替</option><option value="personal">実費</option></select></label>
+              <label>誰のため<input value={templateForm.beneficiary} onChange={(event) => setTemplateForm({ ...templateForm, beneficiary: event.target.value })} placeholder="例: 家族" /></label>
+              <label>メモ<textarea value={templateForm.description || ''} onChange={(event) => setTemplateForm({ ...templateForm, description: event.target.value })} /></label>
+              <div className="form-actions">
+                {editingTemplateId && <button type="button" onClick={resetTemplateForm}>新規作成に戻る</button>}
+                <button className="primary-button" type="submit">{editingTemplateId ? '更新' : '追加'}</button>
+              </div>
+            </form>
+            <div className="template-list">
+              {templates.map((template) => (
+                <article className="template-item" key={template.id}>
+                  <div>
+                    <strong>{template.label}</strong>
+                    <span>{template.item} / {formatCurrency(template.amount || 0)} / {sourceLabels[template.source]}</span>
+                  </div>
+                  <div className="actions">
+                    <button onClick={() => startExpenseFromTemplate(template)}>使う</button>
+                    <button onClick={() => editTemplate(template)}>編集</button>
+                    <button onClick={() => deleteTemplate(template.id)}>削除</button>
+                  </div>
+                </article>
+              ))}
+              {templates.length === 0 && <p className="empty-note">よく使う支出を追加すると、トップからすぐ入力できます。</p>}
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {showExpenseForm && (
         <Modal title={editingExpenseId ? '支出を編集' : '支出を追加'} onClose={() => setShowExpenseForm(false)}>
           <form className="record-form" onSubmit={saveExpense}>
@@ -803,7 +1056,11 @@ export default function Home() {
             <label>メモ<textarea value={expenseForm.description} onChange={(event) => setExpenseForm({ ...expenseForm, description: event.target.value })} placeholder="レシート内容や補足" /></label>
             <label>誰のため<input value={expenseForm.beneficiary} onChange={(event) => setExpenseForm({ ...expenseForm, beneficiary: event.target.value })} placeholder="例: 家族 / 子ども / 父" /></label>
             <label>コメント<textarea value={expenseForm.comment} onChange={(event) => setExpenseForm({ ...expenseForm, comment: event.target.value })} /></label>
-            <div className="form-actions"><button type="button" onClick={() => setShowExpenseForm(false)}>キャンセル</button><button className="primary-button" type="submit">保存</button></div>
+            <div className="form-actions">
+              <button type="button" onClick={() => setShowExpenseForm(false)}>キャンセル</button>
+              <button type="button" onClick={startTemplateFromCurrentForm}>テンプレート化</button>
+              <button className="primary-button" type="submit">保存</button>
+            </div>
           </form>
         </Modal>
       )}

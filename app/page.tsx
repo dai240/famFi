@@ -18,6 +18,14 @@ type QuickTemplate = Pick<ExpenseInput, 'item' | 'categoryId' | 'subCategoryId' 
   amount?: number;
   description?: string;
 };
+type FixedCost = Pick<ExpenseInput, 'categoryId' | 'subCategoryId' | 'payer' | 'source' | 'beneficiary'> & {
+  id: string;
+  label: string;
+  amount: number;
+  dueDay: number;
+  description?: string;
+  isActive: boolean;
+};
 type CsvPreviewRecord = {
   id: string;
   kind: 'expense' | 'deposit';
@@ -41,6 +49,7 @@ type CsvPreviewRecord = {
 const initialBalanceStorageKey = 'famfi:mvp:initial-balance';
 const templateStorageKey = 'famfi:mvp:expense-templates';
 const settlementRuleStorageKey = 'famfi:mvp:settlement-rule';
+const fixedCostStorageKey = 'famfi:mvp:fixed-costs';
 const localDataKeys = [
   'famfi:mvp:expenses',
   'famfi:mvp:deposits',
@@ -48,6 +57,7 @@ const localDataKeys = [
   initialBalanceStorageKey,
   templateStorageKey,
   settlementRuleStorageKey,
+  fixedCostStorageKey,
 ];
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
@@ -59,6 +69,11 @@ function formatCurrency(value: number) {
 function toDisplayMonth(month: string) {
   const [year, value] = month.replace('/', '-').split('-');
   return `${year}年${Number(value)}月`;
+}
+
+function getLastDayOfMonth(month: string) {
+  const [year, value] = month.split('-').map(Number);
+  return new Date(year, value, 0).getDate();
 }
 
 function getVisibleSubCategories(category?: Category) {
@@ -107,6 +122,13 @@ function createTemplateId() {
     return `tpl-${crypto.randomUUID()}`;
   }
   return `tpl-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createFixedCostId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `fix-${crypto.randomUUID()}`;
+  }
+  return `fix-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function readStoredNumber(key: string) {
@@ -211,13 +233,18 @@ export default function Home() {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
+  const [showFixedCostManager, setShowFixedCostManager] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [editingFixedCostId, setEditingFixedCostId] = useState<string | null>(null);
   const [initialBalance, setInitialBalance] = useState(0);
   const [settlementRule, setSettlementRule] = useState<SettlementRule>(() => defaultSettlementRule());
   const [templates, setTemplates] = useState<QuickTemplate[]>([]);
+  const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
+  const [fixedDraftAmounts, setFixedDraftAmounts] = useState<Record<string, number>>({});
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [fixedCostsLoaded, setFixedCostsLoaded] = useState(false);
   const [templateForm, setTemplateForm] = useState<QuickTemplate>(() => ({
     id: createTemplateId(),
     label: '',
@@ -230,6 +257,19 @@ export default function Home() {
     beneficiary: '家族',
     description: '',
   }));
+  const [fixedCostForm, setFixedCostForm] = useState<FixedCost>(() => ({
+    id: createFixedCostId(),
+    label: '',
+    categoryId: uncategorizedCategoryId,
+    subCategoryId: uncategorizedSubCategoryId,
+    amount: 0,
+    dueDay: 1,
+    payer: 'father',
+    source: 'rakuten',
+    beneficiary: '家族',
+    description: '',
+    isActive: true,
+  }));
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>(() => createExpenseForm(getCurrentMonth(), []));
   const [depositForm, setDepositForm] = useState<DepositForm>(() => createDepositForm());
 
@@ -241,7 +281,9 @@ export default function Home() {
     setInitialBalance(readStoredNumber(initialBalanceStorageKey));
     setSettlementRule(readStoredJson<SettlementRule>(settlementRuleStorageKey, defaultSettlementRule()));
     setTemplates(readStoredJson<QuickTemplate[]>(templateStorageKey, []));
+    setFixedCosts(readStoredJson<FixedCost[]>(fixedCostStorageKey, []));
     setTemplatesLoaded(true);
+    setFixedCostsLoaded(true);
   }, []);
 
   const activeCategories = useMemo(() => ledgerCategories.filter((category) => category.isActive), [ledgerCategories]);
@@ -250,6 +292,8 @@ export default function Home() {
   const selectedSubCategories = getVisibleSubCategories(selectedCategory);
   const templateCategory = categoryById.get(templateForm.categoryId);
   const templateSubCategories = getVisibleSubCategories(templateCategory);
+  const fixedCostCategory = categoryById.get(fixedCostForm.categoryId);
+  const fixedCostSubCategories = getVisibleSubCategories(fixedCostCategory);
 
   const filters = useMemo<Partial<ExpenseFilters>>(
     () => ({
@@ -291,6 +335,33 @@ export default function Home() {
   }, [activeCategories, templates.length, templatesLoaded]);
 
   useEffect(() => {
+    if (!fixedCostsLoaded || fixedCosts.length || activeCategories.length === 0) return;
+    if (typeof window !== 'undefined' && window.localStorage.getItem(fixedCostStorageKey) !== null) return;
+    const findCategory = (categoryId: string) => {
+      const category = activeCategories.find((entry) => entry.id === categoryId) || activeCategories[0];
+      const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
+      return { category, subCategory };
+    };
+    const housing = findCategory('cat-housing');
+    const utilities = findCategory('cat-utilities');
+    const communication = findCategory('cat-communication');
+    const defaults: FixedCost[] = [
+      housing.category && housing.subCategory
+        ? { id: createFixedCostId(), label: '家賃', categoryId: housing.category.id, subCategoryId: housing.subCategory.id, amount: 0, dueDay: 1, payer: 'father', source: 'rakuten', beneficiary: '家族', isActive: true }
+        : undefined,
+      utilities.category && utilities.subCategory
+        ? { id: createFixedCostId(), label: '光熱費', categoryId: utilities.category.id, subCategoryId: utilities.subCategory.id, amount: 0, dueDay: 15, payer: 'father', source: 'rakuten', beneficiary: '家族', isActive: true }
+        : undefined,
+      communication.category && communication.subCategory
+        ? { id: createFixedCostId(), label: '通信費', categoryId: communication.category.id, subCategoryId: communication.subCategory.id, amount: 0, dueDay: 25, payer: 'father', source: 'rakuten', beneficiary: '家族', isActive: true }
+        : undefined,
+    ].filter(Boolean) as FixedCost[];
+    setFixedCosts(defaults);
+    setFixedDraftAmounts(Object.fromEntries(defaults.map((cost) => [cost.id, cost.amount])));
+    writeStoredJson(fixedCostStorageKey, defaults);
+  }, [activeCategories, fixedCosts.length, fixedCostsLoaded]);
+
+  useEffect(() => {
     if (!showExpenseForm) return;
     const category = categoryById.get(expenseForm.categoryId) || getInitialCategory(ledgerCategories);
     const subCategories = getVisibleSubCategories(category);
@@ -315,6 +386,25 @@ export default function Home() {
       }));
     }
   }, [categoryById, ledgerCategories, showTemplateManager, templateForm.categoryId, templateForm.subCategoryId]);
+
+  useEffect(() => {
+    if (!showFixedCostManager) return;
+    const category = categoryById.get(fixedCostForm.categoryId) || getInitialCategory(ledgerCategories);
+    const subCategories = getVisibleSubCategories(category);
+    if (category && !subCategories.some((subCategory) => subCategory.id === fixedCostForm.subCategoryId)) {
+      setFixedCostForm((current) => ({
+        ...current,
+        categoryId: category.id,
+        subCategoryId: subCategories[0]?.id || category.subCategories[0]?.id || uncategorizedSubCategoryId,
+      }));
+    }
+  }, [categoryById, fixedCostForm.categoryId, fixedCostForm.subCategoryId, ledgerCategories, showFixedCostManager]);
+
+  useEffect(() => {
+    setFixedDraftAmounts((current) => ({
+      ...Object.fromEntries(fixedCosts.map((cost) => [cost.id, current[cost.id] ?? cost.amount])),
+    }));
+  }, [fixedCosts]);
 
   const refresh = () => refreshLedger(currentMonth, filters);
 
@@ -414,6 +504,56 @@ export default function Home() {
     setTemplates(nextTemplates);
     writeStoredJson(templateStorageKey, nextTemplates);
     if (editingTemplateId === templateId) resetTemplateForm();
+  };
+
+  const resetFixedCostForm = () => {
+    const category = activeCategories[0];
+    const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
+    setEditingFixedCostId(null);
+    setFixedCostForm({
+      id: createFixedCostId(),
+      label: '',
+      categoryId: category?.id || uncategorizedCategoryId,
+      subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
+      amount: 0,
+      dueDay: 1,
+      payer: 'father',
+      source: 'rakuten',
+      beneficiary: '家族',
+      description: '',
+      isActive: true,
+    });
+  };
+
+  const saveFixedCost = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextCost = {
+      ...fixedCostForm,
+      label: fixedCostForm.label.trim(),
+      amount: Number(fixedCostForm.amount || 0),
+      dueDay: Math.min(31, Math.max(1, Number(fixedCostForm.dueDay || 1))),
+    };
+    if (!nextCost.label) return;
+    const nextCosts = editingFixedCostId
+      ? fixedCosts.map((cost) => (cost.id === editingFixedCostId ? nextCost : cost))
+      : [...fixedCosts, nextCost];
+    setFixedCosts(nextCosts);
+    setFixedDraftAmounts((current) => ({ ...current, [nextCost.id]: nextCost.amount }));
+    writeStoredJson(fixedCostStorageKey, nextCosts);
+    resetFixedCostForm();
+  };
+
+  const editFixedCost = (cost: FixedCost) => {
+    setEditingFixedCostId(cost.id);
+    setFixedCostForm({ ...cost });
+    setShowFixedCostManager(true);
+  };
+
+  const deactivateFixedCost = (fixedCostId: string) => {
+    const nextCosts = fixedCosts.map((cost) => (cost.id === fixedCostId ? { ...cost, isActive: false } : cost));
+    setFixedCosts(nextCosts);
+    writeStoredJson(fixedCostStorageKey, nextCosts);
+    if (editingFixedCostId === fixedCostId) resetFixedCostForm();
   };
 
   const duplicateExpense = (expense: Expense) => {
@@ -531,6 +671,16 @@ export default function Home() {
     const category = categoryById.get(categoryId);
     const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
     setTemplateForm((current) => ({
+      ...current,
+      categoryId,
+      subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
+    }));
+  };
+
+  const selectFixedCostCategory = (categoryId: string) => {
+    const category = categoryById.get(categoryId);
+    const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
+    setFixedCostForm((current) => ({
       ...current,
       categoryId,
       subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
@@ -719,6 +869,35 @@ export default function Home() {
     window.alert(`${imported}件の記録を取り込みました。`);
   };
 
+  const fixedCostMarker = (cost: FixedCost) => `[fixed:${cost.id}:${currentMonth}]`;
+
+  const confirmFixedCost = async (cost: FixedCost) => {
+    const amount = Number(fixedDraftAmounts[cost.id] || 0);
+    if (!amount || amount < 0) {
+      window.alert('金額を入力してから確定してください。');
+      return;
+    }
+    if (monthExpenses.some((expense) => expense.comment.includes(fixedCostMarker(cost)))) {
+      window.alert('この固定費は今月すでに確定済みです。');
+      return;
+    }
+    await ledger.createExpense({
+      accountingMonth: currentMonth,
+      date: `${currentMonth}-${String(Math.min(cost.dueDay, getLastDayOfMonth(currentMonth))).padStart(2, '0')}`,
+      categoryId: cost.categoryId,
+      subCategoryId: cost.subCategoryId,
+      item: cost.label,
+      description: cost.description || '',
+      amount,
+      payer: cost.payer,
+      source: cost.source,
+      reimbursed: false,
+      beneficiary: cost.beneficiary,
+      comment: fixedCostMarker(cost),
+    });
+    await refresh();
+  };
+
   const exportBackupJson = () => {
     const backup = Object.fromEntries(localDataKeys.map((key) => [key, window.localStorage.getItem(key)]));
     downloadText(
@@ -742,6 +921,7 @@ export default function Home() {
       });
       setInitialBalance(readStoredNumber(initialBalanceStorageKey));
       setTemplates(readStoredJson<QuickTemplate[]>(templateStorageKey, []));
+      setFixedCosts(readStoredJson<FixedCost[]>(fixedCostStorageKey, []));
       await refresh();
       window.alert('バックアップを復元しました。');
     } catch {
@@ -754,8 +934,12 @@ export default function Home() {
     localDataKeys.forEach((key) => window.localStorage.removeItem(key));
     setInitialBalance(0);
     setTemplates([]);
+    setFixedCosts([]);
+    setFixedDraftAmounts({});
     setTemplatesLoaded(false);
+    setFixedCostsLoaded(false);
     setTimeout(() => setTemplatesLoaded(true), 0);
+    setTimeout(() => setFixedCostsLoaded(true), 0);
     await refresh();
   };
 
@@ -789,23 +973,17 @@ export default function Home() {
     .filter((expense) => expense.source === 'advance' && !expense.reimbursed)
     .reduce((sum, expense) => sum + expense.amount, 0);
   const latestExpense = monthExpenses[0];
-  const categoryTotals = activeCategories
-    .map((category) => ({
-      category,
-      total: monthExpenses
-        .filter((expense) => expense.categoryId === category.id)
-        .reduce((sum, expense) => sum + expense.amount, 0),
-    }))
-    .filter((row) => row.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5);
   const topExpenses = [...monthExpenses].sort((a, b) => b.amount - a.amount).slice(0, 5);
   const unreimbursedExpenses = monthExpenses.filter((expense) => expense.source === 'advance' && !expense.reimbursed);
-  const maxCategoryTotal = Math.max(...categoryTotals.map((row) => row.total), 1);
   const maxChartValue = Math.max(...ledger.summaryRows.map((row) => Math.max(row.depositTotal, row.sharedExpenses)), 1);
   const importablePreviewCount = csvPreviewRecords.filter(canImportCsvRecord).length;
   const previewExpenseCount = csvPreviewRecords.filter((record) => record.kind === 'expense' && canImportCsvRecord(record)).length;
   const previewDepositCount = csvPreviewRecords.filter((record) => record.kind === 'deposit' && canImportCsvRecord(record)).length;
+  const activeFixedCosts = fixedCosts
+    .filter((cost) => cost.isActive)
+    .sort((a, b) => a.dueDay - b.dueDay || a.label.localeCompare(b.label, 'ja'));
+  const pendingFixedCosts = activeFixedCosts.filter((cost) => !monthExpenses.some((expense) => expense.comment.includes(fixedCostMarker(cost))));
+  const confirmedFixedCosts = activeFixedCosts.length - pendingFixedCosts.length;
 
   return (
     <main className="app-shell">
@@ -846,12 +1024,46 @@ export default function Home() {
       </section>
 
       <section className="metric-strip">
-        <MetricCard label="支出合計" value={formatCurrency(ledger.summary.totalExpenses)} />
         <MetricCard label="共通支出" value={formatCurrency(ledger.summary.sharedExpenses)} />
-        <MetricCard label="実費支出" value={formatCurrency(ledger.summary.personalExpenses)} />
         <MetricCard label="入金合計" value={formatCurrency(ledger.summary.depositTotal)} />
         <MetricCard label="差分" value={formatCurrency(ledger.summary.sharedBalance)} tone={ledger.summary.sharedBalance >= 0 ? 'good' : 'bad'} />
         <MetricCard label="共通プール残高" value={formatCurrency(currentCumulative)} tone={currentCumulative >= 0 ? 'good' : 'bad'} />
+        <MetricCard label="固定費 確定" value={`${confirmedFixedCosts}/${activeFixedCosts.length}`} tone={pendingFixedCosts.length === 0 ? 'good' : undefined} />
+      </section>
+
+      <section className="panel fixed-cost-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Monthly fixed costs</p>
+            <h2>今月の固定費</h2>
+          </div>
+          <button onClick={() => setShowFixedCostManager(true)}>固定費を管理</button>
+        </div>
+        <div className="fixed-cost-list">
+          {activeFixedCosts.map((cost) => {
+            const confirmed = !pendingFixedCosts.some((pending) => pending.id === cost.id);
+            return (
+              <article className={`fixed-cost-item ${confirmed ? 'confirmed' : ''}`} key={cost.id}>
+                <div>
+                  <strong>{cost.label}</strong>
+                  <span>毎月{cost.dueDay}日 / {payerLabels[cost.payer]} / {sourceLabels[cost.source]}</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  value={fixedDraftAmounts[cost.id] || ''}
+                  onChange={(event) => setFixedDraftAmounts((current) => ({ ...current, [cost.id]: Number(event.target.value || 0) }))}
+                  disabled={confirmed}
+                  aria-label={`${cost.label}の金額`}
+                />
+                <button className={confirmed ? '' : 'primary-button'} onClick={() => confirmFixedCost(cost)} disabled={confirmed}>
+                  {confirmed ? '確定済み' : '確定'}
+                </button>
+              </article>
+            );
+          })}
+          {activeFixedCosts.length === 0 && <p className="empty-note">毎月かかるものを登録すると、ここで今月分を確認して確定できます。</p>}
+        </div>
       </section>
 
       <section className="utility-panel">
@@ -927,42 +1139,6 @@ export default function Home() {
           </label>
           <button onClick={resetLocalData}>初期化</button>
         </div>
-      </section>
-
-      <section className="insight-grid">
-        <article className="panel insight-panel">
-          <div className="panel-heading compact">
-            <div>
-              <p className="eyebrow">Check</p>
-              <h2>今月の確認ポイント</h2>
-            </div>
-          </div>
-          <div className="check-list">
-            <CheckItem label="未精算の立替" value={formatCurrency(unreimbursedAdvance)} danger={unreimbursedAdvance > 0} />
-            <CheckItem label="父が払った共通費" value={formatCurrency(sharedPaidByFather)} />
-            <CheckItem label="母が払った共通費" value={formatCurrency(sharedPaidByMother)} />
-            <CheckItem label="最新の支出" value={latestExpense ? `${latestExpense.item || '名称なし'} / ${formatCurrency(latestExpense.amount)}` : 'まだありません'} />
-          </div>
-        </article>
-
-        <article className="panel insight-panel">
-          <div className="panel-heading compact">
-            <div>
-              <p className="eyebrow">Category</p>
-              <h2>支出が多いカテゴリ</h2>
-            </div>
-          </div>
-          <div className="category-bars">
-            {categoryTotals.map((row) => (
-              <div className="category-bar" key={row.category.id}>
-                <span>{row.category.name}</span>
-                <div><i style={{ width: `${(row.total / maxCategoryTotal) * 100}%` }} /></div>
-                <strong>{formatCurrency(row.total)}</strong>
-              </div>
-            ))}
-            {categoryTotals.length === 0 && <p className="empty-note">支出を追加すると、カテゴリ別の偏りが見えるようになります。</p>}
-          </div>
-        </article>
       </section>
 
       <nav className="tabs" aria-label="家計簿メニュー">
@@ -1203,6 +1379,43 @@ export default function Home() {
             <div className="form-actions">
               <button type="button" onClick={() => setShowCsvPreview(false)}>キャンセル</button>
               <button className="primary-button" type="button" onClick={confirmCsvImport} disabled={importablePreviewCount === 0}>この内容で取り込む</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showFixedCostManager && (
+        <Modal title="固定費管理" onClose={() => setShowFixedCostManager(false)}>
+          <div className="template-manager">
+            <form className="record-form" onSubmit={saveFixedCost}>
+              <label>名前<input required value={fixedCostForm.label} onChange={(event) => setFixedCostForm({ ...fixedCostForm, label: event.target.value })} placeholder="例: 家賃" /></label>
+              <label>目安金額<input type="number" min="0" value={fixedCostForm.amount || ''} onChange={(event) => setFixedCostForm({ ...fixedCostForm, amount: Number(event.target.value) })} placeholder="毎月変わる場合は0でもOK" /></label>
+              <label>毎月の日付<input type="number" min="1" max="31" value={fixedCostForm.dueDay} onChange={(event) => setFixedCostForm({ ...fixedCostForm, dueDay: Number(event.target.value || 1) })} /></label>
+              <label>カテゴリ<select required value={fixedCostForm.categoryId} onChange={(event) => selectFixedCostCategory(event.target.value)}>{activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <label>サブカテゴリ<select required value={fixedCostForm.subCategoryId} onChange={(event) => setFixedCostForm({ ...fixedCostForm, subCategoryId: event.target.value })}>{fixedCostSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}</select></label>
+              <label>支払者<select value={fixedCostForm.payer} onChange={(event) => setFixedCostForm({ ...fixedCostForm, payer: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
+              <label>財源<select value={fixedCostForm.source} onChange={(event) => setFixedCostForm({ ...fixedCostForm, source: event.target.value as ExpenseSource })}><option value="rakuten">楽天</option><option value="advance">立替</option><option value="personal">実費</option></select></label>
+              <label>誰のため<input value={fixedCostForm.beneficiary} onChange={(event) => setFixedCostForm({ ...fixedCostForm, beneficiary: event.target.value })} placeholder="例: 家族" /></label>
+              <label>メモ<textarea value={fixedCostForm.description || ''} onChange={(event) => setFixedCostForm({ ...fixedCostForm, description: event.target.value })} /></label>
+              <div className="form-actions">
+                {editingFixedCostId && <button type="button" onClick={resetFixedCostForm}>新規作成に戻る</button>}
+                <button className="primary-button" type="submit">{editingFixedCostId ? '更新' : '追加'}</button>
+              </div>
+            </form>
+            <div className="template-list">
+              {fixedCosts.map((cost) => (
+                <article className={`template-item ${cost.isActive ? '' : 'inactive'}`} key={cost.id}>
+                  <div>
+                    <strong>{cost.label}</strong>
+                    <span>毎月{cost.dueDay}日 / {formatCurrency(cost.amount)} / {payerLabels[cost.payer]} / {sourceLabels[cost.source]}</span>
+                  </div>
+                  <div className="actions">
+                    <button onClick={() => editFixedCost(cost)}>編集</button>
+                    {cost.isActive && <button onClick={() => deactivateFixedCost(cost.id)}>非表示</button>}
+                  </div>
+                </article>
+              ))}
+              {fixedCosts.length === 0 && <p className="empty-note">毎月かかるものを追加すると、トップで今月分を確定できます。</p>}
             </div>
           </div>
         </Modal>

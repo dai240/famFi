@@ -226,7 +226,7 @@ td span {
 
 .metric-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
   gap: 12px;
   margin: 14px 0;
 }
@@ -264,11 +264,40 @@ td span {
   color: var(--warn);
 }
 
-.insight-grid {
+.fixed-cost-panel {
+  margin-bottom: 14px;
+}
+
+.fixed-cost-list {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 10px;
+}
+
+.fixed-cost-item {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 1fr 150px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.fixed-cost-item.confirmed {
+  border-left-color: var(--good);
+  background: #f4fbf7;
+}
+
+.fixed-cost-item strong,
+.fixed-cost-item span {
+  display: block;
+}
+
+.fixed-cost-item span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
 }
 
 .utility-panel {
@@ -353,6 +382,11 @@ td span {
   justify-content: space-between;
   gap: 14px;
   padding: 12px;
+}
+
+.template-item.inactive {
+  background: #f6f7f8;
+  color: var(--muted);
 }
 
 .template-item strong,
@@ -759,7 +793,7 @@ td span {
   .filters,
   .record-form,
   .category-layout,
-  .insight-grid,
+  .fixed-cost-item,
   .utility-panel,
   .preview-summary,
   .review-grid {

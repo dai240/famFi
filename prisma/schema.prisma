@@ -22,6 +22,7 @@ enum ExpenseSource {
 model Expense {
   id              String        @id @default(uuid()) @db.Uuid
   no              Int           @default(autoincrement())
+  householdId     String?       @map("household_id") @db.Uuid
   accountingMonth String        @map("accounting_month") @db.VarChar(7)
   date            DateTime?     @db.Date
   categoryId      String        @map("category_id")
@@ -38,9 +39,11 @@ model Expense {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
+  household       Household?    @relation(fields: [householdId], references: [id])
   category        Category      @relation(fields: [categoryId], references: [id])
   subCategory     SubCategory   @relation(fields: [subCategoryId], references: [id])
 
+  @@index([householdId])
   @@index([accountingMonth])
   @@index([categoryId])
   @@index([subCategoryId])
@@ -52,6 +55,7 @@ model Expense {
 model Deposit {
   id          String   @id @default(uuid()) @db.Uuid
   no          Int      @default(autoincrement())
+  householdId String?  @map("household_id") @db.Uuid
   date        DateTime @db.Date
   depositor   Payer
   amount      Int
@@ -61,6 +65,9 @@ model Deposit {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  household   Household? @relation(fields: [householdId], references: [id])
+
+  @@index([householdId])
   @@index([date])
   @@index([depositor])
   @@map("deposits")
@@ -68,15 +75,18 @@ model Deposit {
 
 model Category {
   id            String        @id
+  householdId   String?       @map("household_id") @db.Uuid
   name          String
   isActive      Boolean       @default(true) @map("is_active")
   sortOrder     Int           @default(0) @map("sort_order")
   userId        String?       @map("user_id") @db.Uuid
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
+  household     Household?    @relation(fields: [householdId], references: [id])
   subCategories SubCategory[]
   expenses      Expense[]
 
+  @@index([householdId])
   @@index([isActive])
   @@index([sortOrder])
   @@map("categories")
@@ -97,4 +107,58 @@ model SubCategory {
   @@index([isActive])
   @@index([sortOrder])
   @@map("sub_categories")
+}
+
+model Household {
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String          @default("FamFi")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  allowedMembers AllowedMember[]
+  fixedCosts     FixedCost[]
+  expenses       Expense[]
+  deposits       Deposit[]
+  categories     Category[]
+
+  @@map("households")
+}
+
+model AllowedMember {
+  id          String    @id @default(uuid()) @db.Uuid
+  householdId String    @map("household_id") @db.Uuid
+  email       String
+  nickname    String
+  role        String    @default("member")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  household   Household @relation(fields: [householdId], references: [id])
+
+  @@unique([householdId, email])
+  @@index([email])
+  @@index([householdId])
+  @@map("allowed_members")
+}
+
+model FixedCost {
+  id            String        @id @default(uuid()) @db.Uuid
+  householdId   String        @map("household_id") @db.Uuid
+  label         String
+  categoryId    String        @map("category_id")
+  subCategoryId String        @map("sub_category_id")
+  amount        Int           @default(0)
+  dueDay        Int           @default(1) @map("due_day")
+  payer         Payer
+  source        ExpenseSource
+  beneficiary   String        @default("")
+  description   String        @default("")
+  isActive      Boolean       @default(true) @map("is_active")
+  createdBy     String?       @map("created_by") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  household     Household     @relation(fields: [householdId], references: [id])
+
+  @@index([householdId])
+  @@index([isActive])
+  @@map("fixed_costs")
 }

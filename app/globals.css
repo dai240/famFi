@@ -304,6 +304,10 @@ td span {
   min-width: 120px;
 }
 
+.csv-preset {
+  min-width: 140px;
+}
+
 .csv-actions {
   grid-column: 1 / -1;
 }

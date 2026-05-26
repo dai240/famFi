@@ -9,6 +9,7 @@ import type { Category, Deposit, DepositInput, Expense, ExpenseFilters, ExpenseI
 import { payerLabels, sourceLabels } from '@/lib/ledger/types';
 
 type View = 'expenses' | 'deposits' | 'review' | 'summary';
+type CsvImportPreset = 'famfi' | 'rakuten-card' | 'bank';
 type ExpenseForm = ExpenseInput;
 type DepositForm = DepositInput;
 type QuickTemplate = Pick<ExpenseInput, 'item' | 'categoryId' | 'subCategoryId' | 'payer' | 'source' | 'beneficiary'> & {
@@ -155,12 +156,32 @@ function splitCsvLine(line: string) {
   return values.map((value) => value.trim());
 }
 
+function normalizeCsvDate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const normalized = trimmed
+    .replace(/[年月]/g, '-')
+    .replace(/日/g, '')
+    .replace(/\//g, '-')
+    .replace(/\./g, '-');
+  const parts = normalized.split('-').map((part) => part.padStart(2, '0'));
+  if (parts.length >= 3) return `${parts[0]}-${parts[1]}-${parts[2]}`;
+  return trimmed;
+}
+
+function parseCsvAmount(value: string) {
+  const normalized = value.replace(/[￥¥,\s]/g, '').replace(/^△/, '-');
+  const amount = Number(normalized.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 export default function Home() {
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
   const [view, setView] = useState<View>('expenses');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [payerFilter, setPayerFilter] = useState<'all' | Payer>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | ExpenseSource>('all');
+  const [csvImportPreset, setCsvImportPreset] = useState<CsvImportPreset>('famfi');
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
@@ -546,22 +567,40 @@ export default function Home() {
       const headerIndex = names.map((name) => headers.indexOf(name)).find((index) => index >= 0);
       return row[headerIndex ?? fallbackIndex] || '';
     };
+    const uncategorizedCategory =
+      ledgerCategories.find((entry) => entry.id === uncategorizedCategoryId) ||
+      ledgerCategories[0];
+    const uncategorizedSubCategory =
+      uncategorizedCategory?.subCategories.find((entry) => entry.id === uncategorizedSubCategoryId) ||
+      uncategorizedCategory?.subCategories[0];
     let imported = 0;
     for (const row of rows) {
-      const type = valueOf(row, ['種別', 'type'], 0);
-      const accountingMonth = valueOf(row, ['計上年月', 'month'], 2);
-      const date = valueOf(row, ['日付', 'date', '利用日'], 3);
+      const rawType = valueOf(row, ['種別', 'type'], 0);
+      const bankDepositAmount = parseCsvAmount(valueOf(row, ['入金', '入金額', '預入金額', 'deposit'], 8));
+      const bankWithdrawalAmount = parseCsvAmount(valueOf(row, ['出金', '出金額', '支払金額', 'withdrawal'], 7));
+      const type =
+        csvImportPreset === 'bank'
+          ? bankDepositAmount > 0
+            ? '入金'
+            : '支出'
+          : rawType || '支出';
+      const rawDate = valueOf(row, ['日付', 'date', '利用日', 'ご利用日', '取引日', 'お取引日'], csvImportPreset === 'famfi' ? 3 : 0);
+      const date = normalizeCsvDate(rawDate);
+      const accountingMonth = valueOf(row, ['計上年月', 'month'], 2) || date.slice(0, 7) || currentMonth;
       const categoryName = valueOf(row, ['カテゴリ', 'category'], 4);
       const subCategoryName = valueOf(row, ['サブカテゴリ', 'subcategory'], 5);
-      const item = valueOf(row, ['内容', '品目', '店名', '摘要', 'item'], 6);
-      const amount = valueOf(row, ['金額', 'amount', '利用金額'], 7);
+      const item = valueOf(row, ['内容', '品目', '店名', '摘要', 'ご利用店名', '利用店名', '利用店名・商品名', 'item'], csvImportPreset === 'famfi' ? 6 : 1);
+      const amountText =
+        csvImportPreset === 'bank'
+          ? String(bankDepositAmount || bankWithdrawalAmount)
+          : valueOf(row, ['金額', 'amount', '利用金額', 'ご利用金額', '支払金額'], csvImportPreset === 'famfi' ? 7 : 2);
       const person = valueOf(row, ['人', '支払者', '入金者', 'person'], 8);
       const source = valueOf(row, ['財源', 'source'], 9);
       const state = valueOf(row, ['状態', 'status'], 10);
       const description = valueOf(row, ['メモ', '説明', 'description'], 11);
       const beneficiary = valueOf(row, ['誰のため', 'beneficiary'], 12);
       const comment = valueOf(row, ['コメント', 'comment'], 13);
-      const parsedAmount = Number(String(amount || '').replace(/[^\d.-]/g, ''));
+      const parsedAmount = Math.abs(parseCsvAmount(amountText));
       if (type === '入金') {
         if (!date || !parsedAmount) continue;
         await ledger.createDeposit({
@@ -577,12 +616,10 @@ export default function Home() {
       if (type && type !== '支出') continue;
       const category =
         ledgerCategories.find((entry) => entry.name === categoryName) ||
-        ledgerCategories.find((entry) => entry.id === uncategorizedCategoryId) ||
-        ledgerCategories[0];
+        uncategorizedCategory;
       const subCategory =
         category?.subCategories.find((entry) => entry.name === subCategoryName) ||
-        category?.subCategories.find((entry) => entry.id === uncategorizedSubCategoryId) ||
-        category?.subCategories[0];
+        uncategorizedSubCategory;
       if (!category || !subCategory || !parsedAmount) continue;
       await ledger.createExpense({
         accountingMonth: toMonthInputValue(accountingMonth || currentMonth),
@@ -593,7 +630,7 @@ export default function Home() {
         description: description || '',
         amount: parsedAmount,
         payer: person === '母' ? 'mother' : 'father',
-        source: source === '実費' ? 'personal' : source === '立替' ? 'advance' : 'rakuten',
+        source: source === '実費' ? 'personal' : source === '立替' ? 'advance' : csvImportPreset === 'rakuten-card' ? 'rakuten' : 'rakuten',
         reimbursed: state === '精算済',
         beneficiary: beneficiary || '',
         comment: comment || '',
@@ -790,6 +827,14 @@ export default function Home() {
         </div>
         <div className="csv-actions">
           <button onClick={exportCurrentMonthCsv}>CSV出力</button>
+          <label className="csv-preset">
+            取込形式
+            <select value={csvImportPreset} onChange={(event) => setCsvImportPreset(event.target.value as CsvImportPreset)}>
+              <option value="famfi">FamFi</option>
+              <option value="rakuten-card">楽天カード</option>
+              <option value="bank">銀行明細</option>
+            </select>
+          </label>
           <label className="file-button">
             CSV取込
             <input type="file" accept=".csv,text/csv" onChange={importExpensesCsv} />

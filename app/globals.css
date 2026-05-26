@@ -730,7 +730,11 @@ td span {
   }
 
   .hero-actions,
-  .command-actions {
+  .command-actions,
+  .csv-actions,
+  .quick-templates,
+  .settlement-controls,
+  .actions {
     justify-items: stretch;
     justify-content: stretch;
   }
@@ -757,5 +761,23 @@ td span {
 
   .category-bar strong {
     text-align: left;
+  }
+
+  .command-actions button,
+  .csv-actions button,
+  .csv-actions .file-button,
+  .quick-templates button,
+  .settlement-controls label,
+  .actions button {
+    width: 100%;
+  }
+
+  .template-item,
+  .category-item {
+    flex-direction: column;
+  }
+
+  .modal-card {
+    padding: 14px;
   }
 }

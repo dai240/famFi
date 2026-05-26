@@ -366,6 +366,21 @@ td span {
   margin-top: 3px;
 }
 
+.csv-preview {
+  display: grid;
+  gap: 14px;
+}
+
+.preview-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.invalid-row {
+  background: #fff8f7;
+}
+
 .panel {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -746,6 +761,7 @@ td span {
   .category-layout,
   .insight-grid,
   .utility-panel,
+  .preview-summary,
   .review-grid {
     grid-template-columns: 1fr;
   }

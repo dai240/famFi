@@ -18,6 +18,25 @@ type QuickTemplate = Pick<ExpenseInput, 'item' | 'categoryId' | 'subCategoryId' 
   amount?: number;
   description?: string;
 };
+type CsvPreviewRecord = {
+  id: string;
+  kind: 'expense' | 'deposit';
+  accountingMonth?: string;
+  date: string;
+  categoryId?: string;
+  subCategoryId?: string;
+  categoryName?: string;
+  subCategoryName?: string;
+  item: string;
+  amount: number;
+  person: Payer;
+  source?: ExpenseSource;
+  reimbursed?: boolean;
+  description?: string;
+  beneficiary?: string;
+  comment?: string;
+  warnings: string[];
+};
 
 const initialBalanceStorageKey = 'famfi:mvp:initial-balance';
 const templateStorageKey = 'famfi:mvp:expense-templates';
@@ -175,6 +194,10 @@ function parseCsvAmount(value: string) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function canImportCsvRecord(record: CsvPreviewRecord) {
+  return Boolean(record.date && record.amount && !record.warnings.some((warning) => warning.startsWith('種別未対応')));
+}
+
 export default function Home() {
   const [currentMonth, setCurrentMonth] = useState(getCurrentMonth());
   const [view, setView] = useState<View>('expenses');
@@ -182,6 +205,9 @@ export default function Home() {
   const [payerFilter, setPayerFilter] = useState<'all' | Payer>('all');
   const [sourceFilter, setSourceFilter] = useState<'all' | ExpenseSource>('all');
   const [csvImportPreset, setCsvImportPreset] = useState<CsvImportPreset>('famfi');
+  const [csvPreviewRecords, setCsvPreviewRecords] = useState<CsvPreviewRecord[]>([]);
+  const [csvPreviewFileName, setCsvPreviewFileName] = useState('');
+  const [showCsvPreview, setShowCsvPreview] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
@@ -555,11 +581,7 @@ export default function Home() {
     downloadCsv(`famfi-${currentMonth}.csv`, csv);
   };
 
-  const importExpensesCsv = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    const text = await file.text();
+  const parseCsvPreview = (text: string): CsvPreviewRecord[] => {
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean);
     const headers = splitCsvLine(lines[0] || '');
     const rows = lines.slice(1).map(splitCsvLine);
@@ -573,8 +595,7 @@ export default function Home() {
     const uncategorizedSubCategory =
       uncategorizedCategory?.subCategories.find((entry) => entry.id === uncategorizedSubCategoryId) ||
       uncategorizedCategory?.subCategories[0];
-    let imported = 0;
-    for (const row of rows) {
+    return rows.map((row, index) => {
       const rawType = valueOf(row, ['種別', 'type'], 0);
       const bankDepositAmount = parseCsvAmount(valueOf(row, ['入金', '入金額', '預入金額', 'deposit'], 8));
       const bankWithdrawalAmount = parseCsvAmount(valueOf(row, ['出金', '出金額', '支払金額', 'withdrawal'], 7));
@@ -601,42 +622,99 @@ export default function Home() {
       const beneficiary = valueOf(row, ['誰のため', 'beneficiary'], 12);
       const comment = valueOf(row, ['コメント', 'comment'], 13);
       const parsedAmount = Math.abs(parseCsvAmount(amountText));
+      const personValue: Payer = person === '母' ? 'mother' : 'father';
+      const warnings: string[] = [];
+      if (!date) warnings.push('日付なし');
+      if (!parsedAmount) warnings.push('金額なし');
       if (type === '入金') {
-        if (!date || !parsedAmount) continue;
-        await ledger.createDeposit({
+        return {
+          id: `csv-${index}`,
+          kind: 'deposit',
           date,
-          depositor: person === '母' ? 'mother' : 'father',
+          item: item || '入金',
           amount: parsedAmount,
+          person: personValue,
           description: item || '',
           comment: comment || '',
-        });
-        imported += 1;
-        continue;
+          warnings,
+        } satisfies CsvPreviewRecord;
       }
-      if (type && type !== '支出') continue;
       const category =
         ledgerCategories.find((entry) => entry.name === categoryName) ||
         uncategorizedCategory;
       const subCategory =
         category?.subCategories.find((entry) => entry.name === subCategoryName) ||
         uncategorizedSubCategory;
-      if (!category || !subCategory || !parsedAmount) continue;
-      await ledger.createExpense({
+      if (type && type !== '支出') warnings.push(`種別未対応: ${type}`);
+      if (!categoryName) warnings.push('カテゴリ未指定');
+      if (category?.id === uncategorizedCategoryId) warnings.push('未分類として取込');
+      return {
+        id: `csv-${index}`,
+        kind: 'expense',
         accountingMonth: toMonthInputValue(accountingMonth || currentMonth),
         date: date || '',
-        categoryId: category.id,
-        subCategoryId: subCategory.id,
+        categoryId: category?.id,
+        subCategoryId: subCategory?.id,
+        categoryName: category?.name || '未分類',
+        subCategoryName: subCategory?.name || '未分類',
         item: item || '',
         description: description || '',
         amount: parsedAmount,
-        payer: person === '母' ? 'mother' : 'father',
+        person: personValue,
         source: source === '実費' ? 'personal' : source === '立替' ? 'advance' : csvImportPreset === 'rakuten-card' ? 'rakuten' : 'rakuten',
         reimbursed: state === '精算済',
         beneficiary: beneficiary || '',
         comment: comment || '',
+        warnings,
+      } satisfies CsvPreviewRecord;
+    });
+  };
+
+  const previewCsvImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const records = parseCsvPreview(await file.text());
+    setCsvPreviewRecords(records);
+    setCsvPreviewFileName(file.name);
+    setShowCsvPreview(true);
+  };
+
+  const confirmCsvImport = async () => {
+    let imported = 0;
+    for (const record of csvPreviewRecords) {
+      if (!canImportCsvRecord(record)) continue;
+      if (record.kind === 'deposit') {
+        await ledger.createDeposit({
+          date: record.date,
+          depositor: record.person,
+          amount: record.amount,
+          description: record.description || record.item || '',
+          comment: record.comment || '',
+        });
+        imported += 1;
+        continue;
+      }
+      if (!record.categoryId || !record.subCategoryId || !record.accountingMonth || !record.source) continue;
+      await ledger.createExpense({
+        accountingMonth: record.accountingMonth,
+        date: record.date,
+        categoryId: record.categoryId,
+        subCategoryId: record.subCategoryId,
+        item: record.item,
+        description: record.description || '',
+        amount: record.amount,
+        payer: record.person,
+        source: record.source,
+        reimbursed: record.reimbursed || false,
+        beneficiary: record.beneficiary || '',
+        comment: record.comment || '',
       });
       imported += 1;
     }
+    setShowCsvPreview(false);
+    setCsvPreviewRecords([]);
+    setCsvPreviewFileName('');
     await refresh();
     window.alert(`${imported}件の記録を取り込みました。`);
   };
@@ -725,6 +803,9 @@ export default function Home() {
   const unreimbursedExpenses = monthExpenses.filter((expense) => expense.source === 'advance' && !expense.reimbursed);
   const maxCategoryTotal = Math.max(...categoryTotals.map((row) => row.total), 1);
   const maxChartValue = Math.max(...ledger.summaryRows.map((row) => Math.max(row.depositTotal, row.sharedExpenses)), 1);
+  const importablePreviewCount = csvPreviewRecords.filter(canImportCsvRecord).length;
+  const previewExpenseCount = csvPreviewRecords.filter((record) => record.kind === 'expense' && canImportCsvRecord(record)).length;
+  const previewDepositCount = csvPreviewRecords.filter((record) => record.kind === 'deposit' && canImportCsvRecord(record)).length;
 
   return (
     <main className="app-shell">
@@ -837,7 +918,7 @@ export default function Home() {
           </label>
           <label className="file-button">
             CSV取込
-            <input type="file" accept=".csv,text/csv" onChange={importExpensesCsv} />
+            <input type="file" accept=".csv,text/csv" onChange={previewCsvImport} />
           </label>
           <button onClick={exportBackupJson}>バックアップ</button>
           <label className="file-button">
@@ -1090,6 +1171,41 @@ export default function Home() {
             </table>
           </div>
         </section>
+      )}
+
+      {showCsvPreview && (
+        <Modal title="CSV取込プレビュー" onClose={() => setShowCsvPreview(false)}>
+          <div className="csv-preview">
+            <div className="preview-summary">
+              <CheckItem label="ファイル" value={csvPreviewFileName || '-'} />
+              <CheckItem label="取込予定" value={`${importablePreviewCount}件`} danger={importablePreviewCount === 0} />
+              <CheckItem label="支出 / 入金" value={`${previewExpenseCount}件 / ${previewDepositCount}件`} />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>種別</th><th>日付</th><th>内容</th><th>分類</th><th>金額</th><th>人</th><th>確認</th></tr></thead>
+                <tbody>
+                  {csvPreviewRecords.map((record) => (
+                    <tr key={record.id} className={canImportCsvRecord(record) ? '' : 'invalid-row'}>
+                      <td>{record.kind === 'expense' ? '支出' : '入金'}</td>
+                      <td>{record.date || '-'}</td>
+                      <td>{record.item || '-'}</td>
+                      <td>{record.kind === 'expense' ? `${record.categoryName || '未分類'} / ${record.subCategoryName || '未分類'}` : '-'}</td>
+                      <td className="amount">{formatCurrency(record.amount)}</td>
+                      <td>{payerLabels[record.person]}</td>
+                      <td>{record.warnings.length ? record.warnings.join(' / ') : 'OK'}</td>
+                    </tr>
+                  ))}
+                  {csvPreviewRecords.length === 0 && <EmptyRow colSpan={7} text="取込できる行がありません。" />}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-actions">
+              <button type="button" onClick={() => setShowCsvPreview(false)}>キャンセル</button>
+              <button className="primary-button" type="button" onClick={confirmCsvImport} disabled={importablePreviewCount === 0}>この内容で取り込む</button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {showTemplateManager && (

@@ -292,11 +292,16 @@ td span {
 }
 
 .quick-templates,
-.csv-actions {
+.csv-actions,
+.settlement-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.settlement-controls label {
+  min-width: 120px;
 }
 
 .csv-actions {

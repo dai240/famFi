@@ -1,4 +1,24 @@
-import type { Deposit, Expense, MonthlySummary, MonthlySummaryWithCumulative } from './types';
+import type { Deposit, Expense, MonthlySummary, MonthlySummaryWithCumulative, Payer } from './types';
+
+export type SettlementRule =
+  | { mode: 'equal' }
+  | { mode: 'ratio'; fatherShare: number; motherShare: number };
+
+export type SettlementInput = {
+  fatherContribution: number;
+  motherContribution: number;
+  rule: SettlementRule;
+};
+
+export type SettlementResult = {
+  payer: Payer | null;
+  receiver: Payer | null;
+  amount: number;
+  fatherTarget: number;
+  motherTarget: number;
+  fatherContribution: number;
+  motherContribution: number;
+};
 
 export function toMonthInputValue(month: string) {
   return month.replace('/', '-');
@@ -51,4 +71,44 @@ export function calculateSummaryRows(
       cumulative += summary.sharedBalance;
       return { ...summary, cumulative };
     });
+}
+
+function normalizeShares(rule: SettlementRule) {
+  if (rule.mode === 'equal') return { fatherShare: 1, motherShare: 1 };
+  const fatherShare = Math.max(0, Number(rule.fatherShare) || 0);
+  const motherShare = Math.max(0, Number(rule.motherShare) || 0);
+  if (fatherShare + motherShare === 0) return { fatherShare: 1, motherShare: 1 };
+  return { fatherShare, motherShare };
+}
+
+export function calculateSettlement({ fatherContribution, motherContribution, rule }: SettlementInput): SettlementResult {
+  const totalContribution = fatherContribution + motherContribution;
+  const shares = normalizeShares(rule);
+  const shareTotal = shares.fatherShare + shares.motherShare;
+  const fatherTarget = Math.round((totalContribution * shares.fatherShare) / shareTotal);
+  const motherTarget = totalContribution - fatherTarget;
+  const fatherDelta = fatherContribution - fatherTarget;
+  const amount = Math.abs(fatherDelta);
+
+  if (amount === 0) {
+    return {
+      payer: null,
+      receiver: null,
+      amount: 0,
+      fatherTarget,
+      motherTarget,
+      fatherContribution,
+      motherContribution,
+    };
+  }
+
+  return {
+    payer: fatherDelta > 0 ? 'mother' : 'father',
+    receiver: fatherDelta > 0 ? 'father' : 'mother',
+    amount,
+    fatherTarget,
+    motherTarget,
+    fatherContribution,
+    motherContribution,
+  };
 }

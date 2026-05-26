@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { uncategorizedCategoryId, uncategorizedSubCategoryId } from '@/lib/ledger/category-presets';
-import { toMonthInputValue } from '@/lib/ledger/calculations';
+import { calculateSettlement, toMonthInputValue, type SettlementRule } from '@/lib/ledger/calculations';
 import { getCurrentMonth, useLedgerData } from '@/lib/ledger/use-ledger-data';
 import type { Category, Deposit, DepositInput, Expense, ExpenseFilters, ExpenseInput, ExpenseSource, Payer } from '@/lib/ledger/types';
 import { payerLabels, sourceLabels } from '@/lib/ledger/types';
@@ -20,12 +20,14 @@ type QuickTemplate = Pick<ExpenseInput, 'item' | 'categoryId' | 'subCategoryId' 
 
 const initialBalanceStorageKey = 'famfi:mvp:initial-balance';
 const templateStorageKey = 'famfi:mvp:expense-templates';
+const settlementRuleStorageKey = 'famfi:mvp:settlement-rule';
 const localDataKeys = [
   'famfi:mvp:expenses',
   'famfi:mvp:deposits',
   'famfi:mvp:categories',
   initialBalanceStorageKey,
   templateStorageKey,
+  settlementRuleStorageKey,
 ];
 
 const currencyFormatter = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 });
@@ -74,6 +76,10 @@ function createDepositForm(): DepositForm {
     description: '共通口座へ入金',
     comment: '',
   };
+}
+
+function defaultSettlementRule(): SettlementRule {
+  return { mode: 'equal' };
 }
 
 function createTemplateId() {
@@ -162,6 +168,7 @@ export default function Home() {
   const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [initialBalance, setInitialBalance] = useState(0);
+  const [settlementRule, setSettlementRule] = useState<SettlementRule>(() => defaultSettlementRule());
   const [templates, setTemplates] = useState<QuickTemplate[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [templateForm, setTemplateForm] = useState<QuickTemplate>(() => ({
@@ -185,6 +192,7 @@ export default function Home() {
 
   useEffect(() => {
     setInitialBalance(readStoredNumber(initialBalanceStorageKey));
+    setSettlementRule(readStoredJson<SettlementRule>(settlementRuleStorageKey, defaultSettlementRule()));
     setTemplates(readStoredJson<QuickTemplate[]>(templateStorageKey, []));
     setTemplatesLoaded(true);
   }, []);
@@ -267,6 +275,11 @@ export default function Home() {
     const nextValue = Number.isFinite(value) ? value : 0;
     setInitialBalance(nextValue);
     window.localStorage.setItem(initialBalanceStorageKey, String(nextValue));
+  };
+
+  const saveSettlementRule = (rule: SettlementRule) => {
+    setSettlementRule(rule);
+    writeStoredJson(settlementRuleStorageKey, rule);
   };
 
   const startNewExpense = () => {
@@ -637,7 +650,6 @@ export default function Home() {
   const previousSummary = currentSummaryIndex > 0 ? ledger.summaryRows[currentSummaryIndex - 1] : undefined;
   const currentCumulative = initialBalance + (ledger.summaryRows.find((row) => row.month === currentMonth)?.cumulative || 0);
   const balanceChange = previousSummary ? ledger.summary.totalExpenses - previousSummary.totalExpenses : ledger.summary.totalExpenses;
-  const settlementTotal = Math.round(ledger.summary.sharedExpenses / 2);
   const sharedPaidByFather = monthExpenses
     .filter((expense) => expense.source !== 'personal' && expense.payer === 'father')
     .reduce((sum, expense) => sum + expense.amount, 0);
@@ -652,13 +664,12 @@ export default function Home() {
     .reduce((sum, deposit) => sum + deposit.amount, 0);
   const fatherContribution = fatherDepositTotal + sharedPaidByFather;
   const motherContribution = motherDepositTotal + sharedPaidByMother;
-  const settlementAmount = Math.round(Math.abs(fatherContribution - motherContribution) / 2);
+  const settlement = calculateSettlement({ fatherContribution, motherContribution, rule: settlementRule });
+  const settlementAmount = settlement.amount;
   const settlementText =
     settlementAmount === 0
       ? '精算は不要です'
-      : fatherContribution > motherContribution
-        ? `母から父へ ${formatCurrency(settlementAmount)}`
-        : `父から母へ ${formatCurrency(settlementAmount)}`;
+      : `${payerLabels[settlement.payer!]}から${payerLabels[settlement.receiver!]}へ ${formatCurrency(settlementAmount)}`;
   const unreimbursedAdvance = monthExpenses
     .filter((expense) => expense.source === 'advance' && !expense.reimbursed)
     .reduce((sum, expense) => sum + expense.amount, 0);
@@ -707,7 +718,7 @@ export default function Home() {
           <h2>{ledger.summary.sharedBalance >= 0 ? '今月の共通プールは余裕があります' : '入金か立替精算を確認しましょう'}</h2>
           <p>
             共通支出 {formatCurrency(ledger.summary.sharedExpenses)} に対して、入金は {formatCurrency(ledger.summary.depositTotal)} です。
-            1人あたりの目安は {formatCurrency(settlementTotal)}、今月の精算は「{settlementText}」です。
+            目安は父 {formatCurrency(settlement.fatherTarget)} / 母 {formatCurrency(settlement.motherTarget)}、今月の精算は「{settlementText}」です。
           </p>
         </div>
         <div className="command-actions">
@@ -735,6 +746,40 @@ export default function Home() {
             placeholder="共通プールの開始残高"
           />
         </label>
+        <div className="settlement-controls">
+          <label>
+            精算ルール
+            <select
+              value={settlementRule.mode}
+              onChange={(event) => saveSettlementRule(event.target.value === 'ratio' ? { mode: 'ratio', fatherShare: 50, motherShare: 50 } : { mode: 'equal' })}
+            >
+              <option value="equal">折半</option>
+              <option value="ratio">比率</option>
+            </select>
+          </label>
+          {settlementRule.mode === 'ratio' && (
+            <>
+              <label>
+                父の比率
+                <input
+                  type="number"
+                  min="0"
+                  value={settlementRule.fatherShare}
+                  onChange={(event) => saveSettlementRule({ ...settlementRule, fatherShare: Number(event.target.value || 0) })}
+                />
+              </label>
+              <label>
+                母の比率
+                <input
+                  type="number"
+                  min="0"
+                  value={settlementRule.motherShare}
+                  onChange={(event) => saveSettlementRule({ ...settlementRule, motherShare: Number(event.target.value || 0) })}
+                />
+              </label>
+            </>
+          )}
+        </div>
         <div className="quick-templates">
           <span>よく使う支出</span>
           {templates.slice(0, 5).map((template) => (

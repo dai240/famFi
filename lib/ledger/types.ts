@@ -11,6 +11,7 @@ export type SubCategory = {
 export type Category = {
   id: string;
   name: string;
+  color: string;
   isActive: boolean;
   sortOrder: number;
   subCategories: SubCategory[];

@@ -3,6 +3,7 @@
 import { calculateMonth, depositBelongsToMonth, expenseBelongsToMonth, toMonthInputValue } from './calculations';
 import {
   cloneCategoryPresets,
+  getDefaultCategoryColor,
   uncategorizedCategoryId,
   uncategorizedSubCategoryId,
 } from './category-presets';
@@ -73,6 +74,7 @@ function normalizeCategories(categories: Category[]) {
   categories.forEach((category) => {
     byId.set(category.id, {
       ...category,
+      color: category.color || getDefaultCategoryColor(category.id),
       isActive: category.isActive ?? true,
       sortOrder: category.sortOrder ?? 500,
       subCategories: category.subCategories?.length
@@ -159,6 +161,7 @@ export class LocalStorageCategoryRepository implements CategoryRepository {
     const now = new Date().toISOString();
     const nextCategory: Category = {
       ...input,
+      color: input.color || getDefaultCategoryColor(input.id),
       subCategories: input.subCategories.map((subCategory, index) => ({
         ...subCategory,
         sortOrder: subCategory.sortOrder || (index + 1) * 10,

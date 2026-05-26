@@ -3,10 +3,31 @@ import type { Category } from './types';
 export const uncategorizedCategoryId = 'cat-uncategorized';
 export const uncategorizedSubCategoryId = 'sub-uncategorized';
 
+export const categoryPresetColors: Record<string, string> = {
+  'cat-housing': '#0f766e',
+  'cat-utilities': '#2563eb',
+  'cat-communication': '#7c3aed',
+  'cat-food': '#16a34a',
+  'cat-daily': '#d97706',
+  'cat-childcare': '#db2777',
+  'cat-transport': '#0891b2',
+  'cat-insurance': '#4f46e5',
+  'cat-car': '#475569',
+  'cat-leisure': '#ea580c',
+  'cat-large-purchase': '#9333ea',
+  'cat-other': '#64748b',
+  [uncategorizedCategoryId]: '#94a3b8',
+};
+
+export function getDefaultCategoryColor(categoryId: string) {
+  return categoryPresetColors[categoryId] || '#64748b';
+}
+
 export const categoryPresets: Category[] = [
   {
     id: 'cat-housing',
     name: '住居費',
+    color: categoryPresetColors['cat-housing'],
     isActive: true,
     sortOrder: 10,
     subCategories: [
@@ -19,6 +40,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-utilities',
     name: '光熱費',
+    color: categoryPresetColors['cat-utilities'],
     isActive: true,
     sortOrder: 20,
     subCategories: [
@@ -30,6 +52,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-communication',
     name: '通信費',
+    color: categoryPresetColors['cat-communication'],
     isActive: true,
     sortOrder: 30,
     subCategories: [
@@ -41,6 +64,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-food',
     name: '食費',
+    color: categoryPresetColors['cat-food'],
     isActive: true,
     sortOrder: 40,
     subCategories: [
@@ -53,6 +77,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-daily',
     name: '日用品・雑費',
+    color: categoryPresetColors['cat-daily'],
     isActive: true,
     sortOrder: 50,
     subCategories: [
@@ -64,6 +89,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-childcare',
     name: '育児・教育',
+    color: categoryPresetColors['cat-childcare'],
     isActive: true,
     sortOrder: 60,
     subCategories: [
@@ -76,6 +102,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-transport',
     name: '交通費',
+    color: categoryPresetColors['cat-transport'],
     isActive: true,
     sortOrder: 70,
     subCategories: [
@@ -87,6 +114,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-insurance',
     name: '保険',
+    color: categoryPresetColors['cat-insurance'],
     isActive: true,
     sortOrder: 80,
     subCategories: [
@@ -98,6 +126,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-car',
     name: '車関連',
+    color: categoryPresetColors['cat-car'],
     isActive: true,
     sortOrder: 90,
     subCategories: [
@@ -109,6 +138,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-leisure',
     name: 'レジャー・イベント',
+    color: categoryPresetColors['cat-leisure'],
     isActive: true,
     sortOrder: 100,
     subCategories: [
@@ -120,6 +150,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-large-purchase',
     name: '家具・家電・大型購入',
+    color: categoryPresetColors['cat-large-purchase'],
     isActive: true,
     sortOrder: 110,
     subCategories: [
@@ -131,6 +162,7 @@ export const categoryPresets: Category[] = [
   {
     id: 'cat-other',
     name: 'その他',
+    color: categoryPresetColors['cat-other'],
     isActive: true,
     sortOrder: 120,
     subCategories: [
@@ -141,6 +173,7 @@ export const categoryPresets: Category[] = [
   {
     id: uncategorizedCategoryId,
     name: '未分類',
+    color: categoryPresetColors[uncategorizedCategoryId],
     isActive: true,
     sortOrder: 999,
     subCategories: [

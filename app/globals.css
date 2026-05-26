@@ -18,6 +18,184 @@
   --gold: #c3830b;
 }
 
+@media (max-width: 640px) {
+  .expense-sheet-wrap {
+    display: none;
+  }
+
+  .mobile-expense-stack {
+    display: grid;
+    gap: 10px;
+  }
+
+  .mobile-stack-group {
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-stack-title {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 900;
+    margin: 6px 0 0;
+  }
+
+  .mobile-expense-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .mobile-expense-card.fixed-cost-card {
+    border-color: #efd894;
+  }
+
+  .mobile-expense-card.new-entry-card {
+    border-color: #c9e4df;
+  }
+
+  .mobile-expense-card summary {
+    align-items: center;
+    cursor: pointer;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    list-style: none;
+    min-height: 58px;
+    padding: 10px;
+  }
+
+  .mobile-expense-card:not(.fixed-cost-card) summary {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .mobile-expense-card summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .mobile-expense-card[open] summary {
+    border-bottom: 1px solid var(--line);
+  }
+
+  .mobile-card-kind {
+    background: #eef4f3;
+    border-radius: 999px;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 900;
+    padding: 7px 8px;
+    white-space: nowrap;
+  }
+
+  .fixed-cost-card .mobile-card-kind {
+    background: #fff1cc;
+    color: #76520a;
+  }
+
+  .mobile-card-main {
+    min-width: 0;
+  }
+
+  .mobile-card-main strong,
+  .mobile-card-main small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-card-main strong {
+    font-size: 14px;
+  }
+
+  .mobile-card-main small {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 3px;
+  }
+
+  .mobile-card-amount {
+    font-size: 13px;
+    font-weight: 900;
+    justify-self: end;
+    white-space: nowrap;
+  }
+
+  .mobile-confirm-button {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+    min-height: 34px;
+    padding: 0 10px;
+  }
+
+  .mobile-card-body {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .mobile-card-body label {
+    color: var(--muted);
+    display: grid;
+    font-size: 12px;
+    font-weight: 800;
+    gap: 6px;
+  }
+
+  .mobile-form-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-field-pair {
+    display: grid;
+    gap: 3px;
+  }
+
+  .mobile-field-pair span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mobile-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .mobile-card-meta span {
+    background: #eef2f5;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    padding: 6px 8px;
+  }
+
+  .mobile-card-note {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0;
+  }
+
+  .mobile-card-actions {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mobile-card-actions button,
+  .mobile-card-body > button {
+    width: 100%;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -65,6 +243,14 @@ textarea {
   color: var(--ink);
   min-height: 42px;
   padding: 9px 11px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: #eef2f5;
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 textarea {
@@ -264,55 +450,86 @@ td span {
   color: var(--warn);
 }
 
-.fixed-cost-panel {
-  margin-bottom: 14px;
-}
-
-.fixed-cost-list {
-  display: grid;
-  gap: 10px;
-}
-
-.fixed-cost-item {
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--gold);
-  border-radius: 8px;
-  display: grid;
-  grid-template-columns: 1fr 150px auto;
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-}
-
-.fixed-cost-item.confirmed {
-  border-left-color: var(--good);
-  background: #f4fbf7;
-}
-
-.fixed-cost-item strong,
-.fixed-cost-item span {
-  display: block;
-}
-
-.fixed-cost-item span {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 3px;
+.heading-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .utility-panel {
   background: #f8fafb;
   border: 1px solid var(--line);
   border-radius: 8px;
-  display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(260px, 1fr);
-  gap: 12px;
-  align-items: end;
-  padding: 14px;
-  margin-bottom: 14px;
+  margin: 0 0 14px;
 }
 
-.utility-panel label {
+.utility-panel summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.utility-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.utility-panel summary::after {
+  color: var(--muted);
+  content: "開く";
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.utility-panel[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.utility-panel[open] summary::after {
+  content: "閉じる";
+}
+
+.utility-panel summary span {
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.utility-panel summary small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.utility-content {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.utility-group {
+  display: grid;
+  gap: 10px;
+}
+
+.utility-group h3 {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.utility-panel label,
+.settings-grid label {
   display: grid;
   gap: 7px;
   color: var(--muted);
@@ -335,10 +552,6 @@ td span {
 
 .csv-preset {
   min-width: 140px;
-}
-
-.csv-actions {
-  grid-column: 1 / -1;
 }
 
 .quick-templates span {
@@ -572,6 +785,61 @@ td span {
   margin-bottom: 16px;
 }
 
+.filter-chips {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.filter-chips > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chips > div > span {
+  color: var(--muted);
+  flex: 0 0 64px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.filter-chips button {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 11px;
+}
+
+.filter-chips button.active {
+  background: #e8f7ef;
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.filter-chips button i,
+.category-pill i {
+  background: var(--category-color, #94a3b8);
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 9px;
+  width: 9px;
+}
+
+.filter-chips button strong {
+  background: #eef2f5;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 6px;
+}
+
 .filters label,
 .record-form label,
 .category-form label {
@@ -588,6 +856,186 @@ td span {
   border-radius: 8px;
 }
 
+.category-pill {
+  align-items: center;
+  color: var(--ink);
+  display: inline-flex;
+  gap: 6px;
+  font-weight: 900;
+}
+
+.category-select {
+  font-weight: 800;
+}
+
+.category-select-shell {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: block;
+  min-height: 42px;
+  position: relative;
+}
+
+.category-select-shell:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.category-select-shell::after {
+  color: var(--ink);
+  content: "⌄";
+  font-size: 16px;
+  font-weight: 900;
+  pointer-events: none;
+  position: absolute;
+  right: 12px;
+  top: 9px;
+}
+
+.category-select-shell select {
+  inset: 0;
+  opacity: 0.01;
+  position: absolute;
+}
+
+.category-select-value {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-weight: 900;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 34px 8px 12px;
+}
+
+.category-select-value i {
+  background: var(--category-color, #94a3b8);
+  border-radius: 999px;
+  display: inline-block;
+  height: 9px;
+  width: 9px;
+}
+
+.sheet-row {
+  background: #fff;
+}
+
+.sheet-row.fixed-cost-draft {
+  background: #fffaf0;
+  box-shadow: inset 4px 0 0 var(--gold);
+}
+
+.sheet-row.new-expense-row {
+  background: #f8fafb;
+}
+
+.sheet-badge,
+.sheet-status {
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.sheet-badge {
+  background: #eef4f3;
+  color: var(--accent);
+}
+
+.sheet-badge.fixed-cost {
+  background: #fff1cc;
+  color: #76520a;
+}
+
+.sheet-status {
+  background: #eef2f5;
+  color: var(--muted);
+}
+
+.sheet-status.pending {
+  background: #fff1cc;
+  color: #76520a;
+}
+
+.cell-stack {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.cell-input {
+  min-height: 38px;
+  width: 100%;
+}
+
+.date-cell-control {
+  display: grid;
+  gap: 6px;
+}
+
+.date-cell-control small,
+.record-form small,
+.mobile-card-body small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.inline-check {
+  align-items: center !important;
+  color: var(--muted);
+  display: flex !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  gap: 7px !important;
+}
+
+.inline-check input {
+  min-height: 16px;
+  width: 16px;
+}
+
+.choice-field {
+  display: grid;
+  gap: 7px;
+}
+
+.choice-field > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.choice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.choice-chips button {
+  border-radius: 999px;
+  flex: 1 1 auto;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.choice-chips button.active {
+  background: #e8f7ef;
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.amount-input {
+  min-width: 112px;
+  text-align: right;
+}
+
 .amount {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -602,6 +1050,10 @@ td span {
   color: var(--muted);
   text-align: center;
   padding: 34px;
+}
+
+.mobile-expense-stack {
+  display: none;
 }
 
 .chart {
@@ -758,6 +1210,31 @@ td span {
   display: block;
 }
 
+.category-title {
+  align-items: center;
+  display: flex !important;
+  gap: 8px;
+}
+
+.category-title span {
+  border-radius: 999px;
+  display: inline-block;
+  height: 12px;
+  margin: 0;
+  width: 12px;
+}
+
+.color-picker-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 54px 1fr;
+}
+
+.color-picker-row input[type="color"] {
+  min-height: 42px;
+  padding: 4px;
+}
+
 .category-item span {
   color: var(--muted);
   font-size: 12px;
@@ -793,8 +1270,7 @@ td span {
   .filters,
   .record-form,
   .category-layout,
-  .fixed-cost-item,
-  .utility-panel,
+  .settings-grid,
   .preview-summary,
   .review-grid {
     grid-template-columns: 1fr;
@@ -817,9 +1293,16 @@ td span {
   .csv-actions button,
   .csv-actions .file-button,
   .quick-templates button,
-  .settlement-controls label,
+  .utility-panel summary,
   .actions button {
     width: 100%;
+  }
+
+  .utility-panel summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px;
   }
 
   .template-item,
@@ -829,5 +1312,225 @@ td span {
 
   .modal-card {
     padding: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .expense-sheet-wrap {
+    display: none;
+  }
+
+  .mobile-expense-stack {
+    display: grid;
+    gap: 10px;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  button {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  .app-shell {
+    width: min(100% - 16px, 1180px);
+    padding: 10px 0 32px;
+  }
+
+  .dashboard-top,
+  .page-hero {
+    gap: 12px;
+    padding: 12px 0;
+  }
+
+  .dashboard-top h1,
+  .page-hero h1 {
+    font-size: 30px;
+    line-height: 1.08;
+    margin: 6px 0 8px;
+  }
+
+  .lead {
+    font-size: 14px;
+  }
+
+  .hero-actions {
+    justify-items: stretch;
+    min-width: 0;
+  }
+
+  .month-command,
+  .panel {
+    padding: 12px;
+  }
+
+  .month-command {
+    gap: 12px;
+    box-shadow: none;
+  }
+
+  .month-command p {
+    font-size: 13px;
+  }
+
+  .command-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .command-actions button {
+    width: 100%;
+  }
+
+  .metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric-card {
+    min-height: 82px;
+    padding: 12px;
+  }
+
+  .metric-card span {
+    font-size: 12px;
+  }
+
+  .metric-card strong {
+    font-size: 20px;
+  }
+
+  .utility-panel summary small {
+    display: none;
+  }
+
+  .tabs {
+    background: #f5f8f9;
+    margin: 12px -8px;
+    padding: 0 8px 8px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .tabs button {
+    flex: 1 0 auto;
+    white-space: nowrap;
+  }
+
+  .filters {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .expense-sheet-wrap {
+    border: 0;
+    overflow: visible;
+  }
+
+  .expense-sheet {
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    min-width: 0;
+  }
+
+  .expense-sheet thead {
+    display: none;
+  }
+
+  .expense-sheet,
+  .expense-sheet tbody,
+  .expense-sheet tr,
+  .expense-sheet td {
+    display: block;
+    width: 100%;
+  }
+
+  .expense-sheet tr {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .expense-sheet tr::before {
+    background: #f8fafb;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    content: "支出";
+    display: block;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 9px 10px;
+  }
+
+  .expense-sheet tr.fixed-cost-draft::before {
+    background: #fff6db;
+    color: #76520a;
+    content: "未確定の固定費";
+  }
+
+  .expense-sheet tr.new-expense-row::before {
+    background: #edf7f5;
+    color: var(--accent);
+    content: "新しい支出";
+  }
+
+  .expense-sheet td {
+    align-items: start;
+    border-bottom: 1px solid #edf2f5;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 76px minmax(0, 1fr);
+    padding: 10px;
+  }
+
+  .expense-sheet td:last-child {
+    border-bottom: 0;
+  }
+
+  .expense-sheet td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 800;
+    padding-top: 9px;
+  }
+
+  .expense-sheet td[data-label="種別"],
+  .expense-sheet td[data-label="No"] {
+    display: none;
+  }
+
+  .expense-sheet .cell-stack {
+    min-width: 0;
+  }
+
+  .expense-sheet .amount-input {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .expense-sheet .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .expense-sheet .actions button {
+    width: 100%;
+  }
+
+  .empty-cell {
+    padding: 20px 12px;
   }
 }

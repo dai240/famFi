@@ -23,6 +23,7 @@ function mapCategory(record: any): Category {
   return {
     id: record.id,
     name: record.name,
+    color: record.color || '#64748b',
     isActive: record.isActive,
     sortOrder: record.sortOrder,
     createdAt: record.createdAt?.toISOString?.() || record.createdAt,
@@ -79,6 +80,7 @@ async function ensurePresetCategories() {
       data: {
         id: category.id,
         name: category.name,
+        color: category.color,
         isActive: category.isActive,
         sortOrder: category.sortOrder,
         subCategories: {
@@ -89,7 +91,7 @@ async function ensurePresetCategories() {
             sortOrder: subCategory.sortOrder,
           })),
         },
-      },
+      } as any,
     });
   }
 }
@@ -111,6 +113,7 @@ export class PrismaCategoryRepository implements CategoryRepository {
       create: {
         id: input.id,
         name: input.name,
+        color: input.color,
         isActive: input.isActive,
         sortOrder: input.sortOrder,
         subCategories: {
@@ -121,12 +124,13 @@ export class PrismaCategoryRepository implements CategoryRepository {
             sortOrder: subCategory.sortOrder,
           })),
         },
-      },
+      } as any,
       update: {
         name: input.name,
+        color: input.color,
         isActive: input.isActive,
         sortOrder: input.sortOrder,
-      },
+      } as any,
       include: { subCategories: true },
     });
 

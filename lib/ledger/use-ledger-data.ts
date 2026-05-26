@@ -25,6 +25,7 @@ export function useLedgerData() {
   const repositories = useMemo(() => createClientRepositories(), []);
   const [backend] = useState(getDataBackend());
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [monthExpenses, setMonthExpenses] = useState<Expense[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [summary, setSummary] = useState<MonthlySummary>(() => calculateMonth([], [], getCurrentMonth()));
@@ -37,9 +38,10 @@ export function useLedgerData() {
       setIsLoading(true);
       setError(null);
       try {
-        const [nextCategories, nextExpenses, monthDeposits] = await Promise.all([
+        const [nextCategories, nextExpenses, nextMonthExpenses, monthDeposits] = await Promise.all([
           repositories.categories.list(true),
           repositories.expenses.list({ ...filters, month }),
+          repositories.expenses.list({ month }),
           repositories.deposits.listByMonth(month),
         ]);
         const [allExpenses, allDeposits, nextSummary] = await Promise.all([
@@ -49,6 +51,7 @@ export function useLedgerData() {
         ]);
         setCategories(nextCategories);
         setExpenses(nextExpenses);
+        setMonthExpenses(nextMonthExpenses);
         setDeposits(monthDeposits);
         setSummary(nextSummary);
         setSummaryRows(calculateSummaryRows(allExpenses, allDeposits, month));
@@ -127,6 +130,7 @@ export function useLedgerData() {
   return {
     backend,
     expenses,
+    monthExpenses,
     deposits,
     categories,
     summary,

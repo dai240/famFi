@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { uncategorizedCategoryId, uncategorizedSubCategoryId } from '@/lib/ledger/category-presets';
 import { calculateSettlement, toMonthInputValue, type SettlementRule } from '@/lib/ledger/calculations';
 import { getCurrentMonth, useLedgerData } from '@/lib/ledger/use-ledger-data';
@@ -26,6 +26,7 @@ type FixedCost = Pick<ExpenseInput, 'categoryId' | 'subCategoryId' | 'payer' | '
   description?: string;
   isActive: boolean;
 };
+type QuickExpenseForm = ExpenseInput;
 type CsvPreviewRecord = {
   id: string;
   kind: 'expense' | 'deposit';
@@ -76,6 +77,114 @@ function getLastDayOfMonth(month: string) {
   return new Date(year, value, 0).getDate();
 }
 
+function defaultDateForMonth(month: string) {
+  const today = new Date();
+  const day = Math.min(today.getDate(), getLastDayOfMonth(month));
+  return `${month}-${String(day).padStart(2, '0')}`;
+}
+
+function formatDateWithWeekday(date?: string) {
+  if (!date) return '';
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  return `${date.replaceAll('-', '/')}\u00a0(${weekdays[parsed.getDay()]})`;
+}
+
+function dateInputHelper(date: string | undefined, month: string) {
+  return date ? formatDateWithWeekday(date) : `${toDisplayMonth(month)}の月まとめ`;
+}
+
+function categoryStyle(category?: Category) {
+  return { '--category-color': category?.color || '#94a3b8' } as CSSProperties;
+}
+
+function formatExpenseDate(expense: Pick<Expense, 'accountingMonth' | 'date'>) {
+  return expense.date ? formatDateWithWeekday(expense.date) : `${toDisplayMonth(expense.accountingMonth)}まとめ`;
+}
+
+function CategoryPill({ category, children }: { category?: Category; children?: ReactNode }) {
+  return (
+    <span className="category-pill" style={categoryStyle(category)}>
+      <i />
+      {children || category?.name || '未分類'}
+    </span>
+  );
+}
+
+function categoryOptionLabel(category: Category) {
+  return `● ${category.name}`;
+}
+
+function CategoryOptions({ categories }: { categories: Category[] }) {
+  return (
+    <>
+      {categories.map((category) => (
+        <option key={category.id} value={category.id} style={{ color: category.color }}>
+          {categoryOptionLabel(category)}
+        </option>
+      ))}
+    </>
+  );
+}
+
+function CategorySelect({
+  value,
+  categories,
+  onChange,
+  required,
+  ariaLabel = 'カテゴリ',
+}: {
+  value: string;
+  categories: Category[];
+  onChange: (value: string) => void;
+  required?: boolean;
+  ariaLabel?: string;
+}) {
+  const selected = categories.find((category) => category.id === value);
+  return (
+    <span className="category-select-shell" style={categoryStyle(selected)}>
+      <span className="category-select-value">
+        <i />
+        {selected?.name || '未分類'}
+      </span>
+      <select
+        className="category-select"
+        required={required}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={ariaLabel}
+      >
+        <CategoryOptions categories={categories} />
+      </select>
+    </span>
+  );
+}
+
+function PayerChoices({ value, onChange }: { value: Payer; onChange: (value: Payer) => void }) {
+  return (
+    <div className="choice-chips" role="radiogroup" aria-label="支払者">
+      {(['father', 'mother'] as Payer[]).map((payer) => (
+        <button key={payer} type="button" className={value === payer ? 'active' : ''} onClick={() => onChange(payer)}>
+          {payerLabels[payer]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SourceChoices({ value, onChange }: { value: ExpenseSource; onChange: (value: ExpenseSource) => void }) {
+  return (
+    <div className="choice-chips" role="radiogroup" aria-label="財源">
+      {(['rakuten', 'advance', 'personal'] as ExpenseSource[]).map((source) => (
+        <button key={source} type="button" className={value === source ? 'active' : ''} onClick={() => onChange(source)}>
+          {sourceLabels[source]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function getVisibleSubCategories(category?: Category) {
   return category?.subCategories.filter((subCategory) => subCategory.isActive) || [];
 }
@@ -89,7 +198,7 @@ function createExpenseForm(month: string, categories: Category[]): ExpenseForm {
   const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
   return {
     accountingMonth: month,
-    date: new Date().toISOString().slice(0, 10),
+    date: '',
     categoryId: category?.id || uncategorizedCategoryId,
     subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
     item: '',
@@ -100,6 +209,14 @@ function createExpenseForm(month: string, categories: Category[]): ExpenseForm {
     reimbursed: false,
     beneficiary: '',
     comment: '',
+  };
+}
+
+function createQuickExpenseForm(month: string, categories: Category[]): QuickExpenseForm {
+  return {
+    ...createExpenseForm(month, categories),
+    date: '',
+    beneficiary: '家族',
   };
 }
 
@@ -245,6 +362,7 @@ export default function Home() {
   const [fixedDraftAmounts, setFixedDraftAmounts] = useState<Record<string, number>>({});
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [fixedCostsLoaded, setFixedCostsLoaded] = useState(false);
+  const [quickExpenseForm, setQuickExpenseForm] = useState<QuickExpenseForm>(() => createQuickExpenseForm(getCurrentMonth(), []));
   const [templateForm, setTemplateForm] = useState<QuickTemplate>(() => ({
     id: createTemplateId(),
     label: '',
@@ -294,6 +412,8 @@ export default function Home() {
   const templateSubCategories = getVisibleSubCategories(templateCategory);
   const fixedCostCategory = categoryById.get(fixedCostForm.categoryId);
   const fixedCostSubCategories = getVisibleSubCategories(fixedCostCategory);
+  const quickExpenseCategory = categoryById.get(quickExpenseForm.categoryId);
+  const quickExpenseSubCategories = getVisibleSubCategories(quickExpenseCategory);
 
   const filters = useMemo<Partial<ExpenseFilters>>(
     () => ({
@@ -373,6 +493,31 @@ export default function Home() {
       }));
     }
   }, [categoryById, expenseForm.categoryId, expenseForm.subCategoryId, ledgerCategories, showExpenseForm]);
+
+  useEffect(() => {
+    const category = categoryById.get(quickExpenseForm.categoryId) || getInitialCategory(ledgerCategories);
+    const subCategories = getVisibleSubCategories(category);
+    const nextSubCategoryId = subCategories[0]?.id || category?.subCategories[0]?.id || uncategorizedSubCategoryId;
+    const nextDate =
+      quickExpenseForm.date && quickExpenseForm.date.slice(0, 7) !== currentMonth
+        ? ''
+        : quickExpenseForm.date;
+    if (
+      category &&
+      (quickExpenseForm.accountingMonth !== currentMonth ||
+        quickExpenseForm.categoryId !== category.id ||
+        !subCategories.some((subCategory) => subCategory.id === quickExpenseForm.subCategoryId) ||
+        nextDate !== quickExpenseForm.date)
+    ) {
+      setQuickExpenseForm((current) => ({
+        ...current,
+        accountingMonth: currentMonth,
+        date: nextDate,
+        categoryId: category.id,
+        subCategoryId: nextSubCategoryId,
+      }));
+    }
+  }, [categoryById, currentMonth, ledgerCategories, quickExpenseForm.accountingMonth, quickExpenseForm.categoryId, quickExpenseForm.date, quickExpenseForm.subCategoryId]);
 
   useEffect(() => {
     if (!showTemplateManager) return;
@@ -560,7 +705,7 @@ export default function Home() {
     setEditingExpenseId(null);
     setExpenseForm({
       accountingMonth: currentMonth,
-      date: new Date().toISOString().slice(0, 10),
+      date: defaultDateForMonth(currentMonth),
       categoryId: expense.categoryId,
       subCategoryId: expense.subCategoryId,
       item: expense.item,
@@ -613,6 +758,30 @@ export default function Home() {
     await refresh();
   };
 
+  const saveQuickExpense = async (event?: { preventDefault: () => void }) => {
+    event?.preventDefault();
+    if (!quickExpenseForm.accountingMonth || !quickExpenseForm.amount || quickExpenseForm.amount < 0) return;
+    await ledger.createExpense({
+      ...quickExpenseForm,
+      accountingMonth: toMonthInputValue(quickExpenseForm.accountingMonth),
+      amount: Number(quickExpenseForm.amount),
+      reimbursed: quickExpenseForm.source === 'advance' ? quickExpenseForm.reimbursed : false,
+      item: quickExpenseForm.item.trim(),
+      description: quickExpenseForm.description.trim(),
+      beneficiary: quickExpenseForm.beneficiary.trim(),
+      comment: quickExpenseForm.comment.trim(),
+    });
+    setQuickExpenseForm((current) => ({
+      ...current,
+      item: '',
+      description: '',
+      amount: 0,
+      reimbursed: false,
+      comment: '',
+    }));
+    await refresh();
+  };
+
   const deleteExpense = async (expense: Expense) => {
     if (!window.confirm(`No.${expense.no} の支出を削除しますか？`)) return;
     await ledger.deleteExpense(expense.id);
@@ -661,6 +830,16 @@ export default function Home() {
     const category = categoryById.get(categoryId);
     const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
     setExpenseForm((current) => ({
+      ...current,
+      categoryId,
+      subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
+    }));
+  };
+
+  const selectQuickExpenseCategory = (categoryId: string) => {
+    const category = categoryById.get(categoryId);
+    const subCategory = getVisibleSubCategories(category)[0] || category?.subCategories[0];
+    setQuickExpenseForm((current) => ({
       ...current,
       categoryId,
       subCategoryId: subCategory?.id || uncategorizedSubCategoryId,
@@ -872,12 +1051,12 @@ export default function Home() {
   const fixedCostMarker = (cost: FixedCost) => `[fixed:${cost.id}:${currentMonth}]`;
 
   const confirmFixedCost = async (cost: FixedCost) => {
-    const amount = Number(fixedDraftAmounts[cost.id] || 0);
+    const amount = Number(fixedDraftAmounts[cost.id] ?? cost.amount ?? 0);
     if (!amount || amount < 0) {
       window.alert('金額を入力してから確定してください。');
       return;
     }
-    if (monthExpenses.some((expense) => expense.comment.includes(fixedCostMarker(cost)))) {
+    if (unfilteredMonthExpenses.some((expense) => expense.comment.includes(fixedCostMarker(cost)))) {
       window.alert('この固定費は今月すでに確定済みです。');
       return;
     }
@@ -944,6 +1123,7 @@ export default function Home() {
   };
 
   const monthExpenses = ledger.expenses;
+  const unfilteredMonthExpenses = ledger.monthExpenses;
   const monthDeposits = ledger.deposits;
   const currentSummaryIndex = ledger.summaryRows.findIndex((row) => row.month === currentMonth);
   const previousSummary = currentSummaryIndex > 0 ? ledger.summaryRows[currentSummaryIndex - 1] : undefined;
@@ -982,8 +1162,31 @@ export default function Home() {
   const activeFixedCosts = fixedCosts
     .filter((cost) => cost.isActive)
     .sort((a, b) => a.dueDay - b.dueDay || a.label.localeCompare(b.label, 'ja'));
-  const pendingFixedCosts = activeFixedCosts.filter((cost) => !monthExpenses.some((expense) => expense.comment.includes(fixedCostMarker(cost))));
+  const pendingFixedCosts = activeFixedCosts.filter((cost) => !unfilteredMonthExpenses.some((expense) => expense.comment.includes(fixedCostMarker(cost))));
+  const visiblePendingFixedCosts = pendingFixedCosts.filter((cost) => (
+    (categoryFilter === 'all' || cost.categoryId === categoryFilter) &&
+    (payerFilter === 'all' || cost.payer === payerFilter) &&
+    (sourceFilter === 'all' || cost.source === sourceFilter)
+  ));
   const confirmedFixedCosts = activeFixedCosts.length - pendingFixedCosts.length;
+  const categoryFilterOptions = activeCategories
+    .map((category) => ({
+      category,
+      count: unfilteredMonthExpenses.filter((expense) => expense.categoryId === category.id).length,
+    }))
+    .filter((option) => option.count > 0 || option.category.id === categoryFilter);
+  const totalExpenseFilterCount = unfilteredMonthExpenses.length;
+  const payerFilterOptions = [
+    { value: 'all' as const, label: 'すべて', count: totalExpenseFilterCount },
+    { value: 'father' as const, label: '父', count: unfilteredMonthExpenses.filter((expense) => expense.payer === 'father').length },
+    { value: 'mother' as const, label: '母', count: unfilteredMonthExpenses.filter((expense) => expense.payer === 'mother').length },
+  ];
+  const sourceFilterOptions = [
+    { value: 'all' as const, label: 'すべて', count: totalExpenseFilterCount },
+    { value: 'rakuten' as const, label: '楽天', count: unfilteredMonthExpenses.filter((expense) => expense.source === 'rakuten').length },
+    { value: 'advance' as const, label: '立替', count: unfilteredMonthExpenses.filter((expense) => expense.source === 'advance').length },
+    { value: 'personal' as const, label: '実費', count: unfilteredMonthExpenses.filter((expense) => expense.source === 'personal').length },
+  ];
 
   return (
     <main className="app-shell">
@@ -1011,14 +1214,13 @@ export default function Home() {
           <span className={`status-pill ${ledger.summary.sharedBalance >= 0 ? 'good' : 'bad'}`}>
             {ledger.summary.sharedBalance >= 0 ? '共通費は黒字' : '共通費が不足'}
           </span>
-          <h2>{ledger.summary.sharedBalance >= 0 ? '今月の共通プールは余裕があります' : '入金か立替精算を確認しましょう'}</h2>
           <p>
             共通支出 {formatCurrency(ledger.summary.sharedExpenses)} に対して、入金は {formatCurrency(ledger.summary.depositTotal)} です。
             目安は父 {formatCurrency(settlement.fatherTarget)} / 母 {formatCurrency(settlement.motherTarget)}、今月の精算は「{settlementText}」です。
           </p>
         </div>
         <div className="command-actions">
-          <button className="primary-button" onClick={startNewExpense}>支出を追加</button>
+          <button className="primary-button" onClick={startNewExpense}>詳細入力</button>
           <button onClick={startNewDeposit}>入金を追加</button>
         </div>
       </section>
@@ -1031,115 +1233,94 @@ export default function Home() {
         <MetricCard label="固定費 確定" value={`${confirmedFixedCosts}/${activeFixedCosts.length}`} tone={pendingFixedCosts.length === 0 ? 'good' : undefined} />
       </section>
 
-      <section className="panel fixed-cost-panel">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Monthly fixed costs</p>
-            <h2>今月の固定費</h2>
-          </div>
-          <button onClick={() => setShowFixedCostManager(true)}>固定費を管理</button>
-        </div>
-        <div className="fixed-cost-list">
-          {activeFixedCosts.map((cost) => {
-            const confirmed = !pendingFixedCosts.some((pending) => pending.id === cost.id);
-            return (
-              <article className={`fixed-cost-item ${confirmed ? 'confirmed' : ''}`} key={cost.id}>
-                <div>
-                  <strong>{cost.label}</strong>
-                  <span>毎月{cost.dueDay}日 / {payerLabels[cost.payer]} / {sourceLabels[cost.source]}</span>
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  value={fixedDraftAmounts[cost.id] || ''}
-                  onChange={(event) => setFixedDraftAmounts((current) => ({ ...current, [cost.id]: Number(event.target.value || 0) }))}
-                  disabled={confirmed}
-                  aria-label={`${cost.label}の金額`}
-                />
-                <button className={confirmed ? '' : 'primary-button'} onClick={() => confirmFixedCost(cost)} disabled={confirmed}>
-                  {confirmed ? '確定済み' : '確定'}
-                </button>
-              </article>
-            );
-          })}
-          {activeFixedCosts.length === 0 && <p className="empty-note">毎月かかるものを登録すると、ここで今月分を確認して確定できます。</p>}
-        </div>
-      </section>
-
-      <section className="utility-panel">
-        <label>
-          初期残高
-          <input
-            type="number"
-            value={initialBalance || ''}
-            onChange={(event) => saveInitialBalance(Number(event.target.value || 0))}
-            placeholder="共通プールの開始残高"
-          />
-        </label>
-        <div className="settlement-controls">
-          <label>
-            精算ルール
-            <select
-              value={settlementRule.mode}
-              onChange={(event) => saveSettlementRule(event.target.value === 'ratio' ? { mode: 'ratio', fatherShare: 50, motherShare: 50 } : { mode: 'equal' })}
-            >
-              <option value="equal">折半</option>
-              <option value="ratio">比率</option>
-            </select>
-          </label>
-          {settlementRule.mode === 'ratio' && (
-            <>
+      <details className="utility-panel">
+        <summary>
+          <span>設定・データ管理</span>
+          <small>初期残高、精算ルール、CSV、バックアップ</small>
+        </summary>
+        <div className="utility-content">
+          <section className="utility-group">
+            <h3>家計簿設定</h3>
+            <div className="settings-grid">
               <label>
-                父の比率
+                初期残高
                 <input
                   type="number"
-                  min="0"
-                  value={settlementRule.fatherShare}
-                  onChange={(event) => saveSettlementRule({ ...settlementRule, fatherShare: Number(event.target.value || 0) })}
+                  value={initialBalance || ''}
+                  onChange={(event) => saveInitialBalance(Number(event.target.value || 0))}
+                  placeholder="共通プールの開始残高"
                 />
               </label>
               <label>
-                母の比率
-                <input
-                  type="number"
-                  min="0"
-                  value={settlementRule.motherShare}
-                  onChange={(event) => saveSettlementRule({ ...settlementRule, motherShare: Number(event.target.value || 0) })}
-                />
+                精算ルール
+                <select
+                  value={settlementRule.mode}
+                  onChange={(event) => saveSettlementRule(event.target.value === 'ratio' ? { mode: 'ratio', fatherShare: 50, motherShare: 50 } : { mode: 'equal' })}
+                >
+                  <option value="equal">折半</option>
+                  <option value="ratio">比率</option>
+                </select>
               </label>
-            </>
-          )}
+              {settlementRule.mode === 'ratio' && (
+                <>
+                  <label>
+                    父の比率
+                    <input
+                      type="number"
+                      min="0"
+                      value={settlementRule.fatherShare}
+                      onChange={(event) => saveSettlementRule({ ...settlementRule, fatherShare: Number(event.target.value || 0) })}
+                    />
+                  </label>
+                  <label>
+                    母の比率
+                    <input
+                      type="number"
+                      min="0"
+                      value={settlementRule.motherShare}
+                      onChange={(event) => saveSettlementRule({ ...settlementRule, motherShare: Number(event.target.value || 0) })}
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+          </section>
+          <section className="utility-group">
+            <h3>入力補助</h3>
+            <div className="quick-templates">
+              {templates.slice(0, 5).map((template) => (
+                <button key={template.id} onClick={() => startExpenseFromTemplate(template)}>{template.label}</button>
+              ))}
+              <button onClick={() => setShowTemplateManager(true)}>テンプレート管理</button>
+              {latestExpense && <button onClick={() => duplicateExpense(latestExpense)}>最新支出を複製</button>}
+            </div>
+          </section>
+          <section className="utility-group">
+            <h3>データ</h3>
+            <div className="csv-actions">
+              <button onClick={exportCurrentMonthCsv}>CSV出力</button>
+              <label className="csv-preset">
+                取込形式
+                <select value={csvImportPreset} onChange={(event) => setCsvImportPreset(event.target.value as CsvImportPreset)}>
+                  <option value="famfi">FamFi</option>
+                  <option value="rakuten-card">楽天カード</option>
+                  <option value="bank">銀行明細</option>
+                </select>
+              </label>
+              <label className="file-button">
+                CSV取込
+                <input type="file" accept=".csv,text/csv" onChange={previewCsvImport} />
+              </label>
+              <button onClick={exportBackupJson}>バックアップ</button>
+              <label className="file-button">
+                復元
+                <input type="file" accept=".json,application/json" onChange={importBackupJson} />
+              </label>
+              <button onClick={resetLocalData}>初期化</button>
+            </div>
+          </section>
         </div>
-        <div className="quick-templates">
-          <span>よく使う支出</span>
-          {templates.slice(0, 5).map((template) => (
-            <button key={template.id} onClick={() => startExpenseFromTemplate(template)}>{template.label}</button>
-          ))}
-          <button onClick={() => setShowTemplateManager(true)}>テンプレート管理</button>
-          {latestExpense && <button onClick={() => duplicateExpense(latestExpense)}>最新支出を複製</button>}
-        </div>
-        <div className="csv-actions">
-          <button onClick={exportCurrentMonthCsv}>CSV出力</button>
-          <label className="csv-preset">
-            取込形式
-            <select value={csvImportPreset} onChange={(event) => setCsvImportPreset(event.target.value as CsvImportPreset)}>
-              <option value="famfi">FamFi</option>
-              <option value="rakuten-card">楽天カード</option>
-              <option value="bank">銀行明細</option>
-            </select>
-          </label>
-          <label className="file-button">
-            CSV取込
-            <input type="file" accept=".csv,text/csv" onChange={previewCsvImport} />
-          </label>
-          <button onClick={exportBackupJson}>バックアップ</button>
-          <label className="file-button">
-            復元
-            <input type="file" accept=".json,application/json" onChange={importBackupJson} />
-          </label>
-          <button onClick={resetLocalData}>初期化</button>
-        </div>
-      </section>
+      </details>
 
       <nav className="tabs" aria-label="家計簿メニュー">
         <button className={view === 'expenses' ? 'active' : ''} onClick={() => setView('expenses')}>支出</button>
@@ -1155,62 +1336,335 @@ export default function Home() {
               <p className="eyebrow">Expenses</p>
               <h2>{toDisplayMonth(currentMonth)}の支出</h2>
             </div>
-            <button className="primary-button" onClick={startNewExpense}>支出を追加</button>
+            <div className="heading-actions">
+              <button onClick={() => setShowFixedCostManager(true)}>固定費を管理</button>
+              <button className="primary-button" onClick={startNewExpense}>詳細入力</button>
+            </div>
           </div>
 
-          <div className="filters">
-            <label>
-              カテゴリ
-              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-                <option value="all">すべて</option>
-                {activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-            </label>
-            <label>
-              支払者
-              <select value={payerFilter} onChange={(event) => setPayerFilter(event.target.value as 'all' | Payer)}>
-                <option value="all">すべて</option>
-                <option value="father">父</option>
-                <option value="mother">母</option>
-              </select>
-            </label>
-            <label>
-              財源
-              <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as 'all' | ExpenseSource)}>
-                <option value="all">すべて</option>
-                <option value="rakuten">楽天</option>
-                <option value="advance">立替</option>
-                <option value="personal">実費</option>
-              </select>
-            </label>
+          <div className="filter-chips">
+            <div>
+              <span>カテゴリ</span>
+              <button className={categoryFilter === 'all' ? 'active' : ''} onClick={() => setCategoryFilter('all')}>
+                すべて <strong>{totalExpenseFilterCount}</strong>
+              </button>
+              {categoryFilterOptions.map(({ category, count }) => (
+                <button
+                  key={category.id}
+                  className={categoryFilter === category.id ? 'active' : ''}
+                  onClick={() => setCategoryFilter(category.id)}
+                  style={categoryStyle(category)}
+                >
+                  <i />{category.name} <strong>{count}</strong>
+                </button>
+              ))}
+            </div>
+            <div>
+              <span>支払者</span>
+              {payerFilterOptions.map((option) => (
+                <button key={option.value} className={payerFilter === option.value ? 'active' : ''} onClick={() => setPayerFilter(option.value)}>
+                  {option.label} <strong>{option.count}</strong>
+                </button>
+              ))}
+            </div>
+            <div>
+              <span>財源</span>
+              {sourceFilterOptions.map((option) => (
+                <button key={option.value} className={sourceFilter === option.value ? 'active' : ''} onClick={() => setSourceFilter(option.value)}>
+                  {option.label} <strong>{option.count}</strong>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="table-wrap">
-            <table>
+          <div className="table-wrap expense-sheet-wrap">
+            <table className="expense-sheet">
               <thead>
                 <tr><th>No</th><th>日付</th><th>分類</th><th>内容</th><th>金額</th><th>支払者</th><th>財源</th><th>状態</th><th>操作</th></tr>
               </thead>
               <tbody>
+                {visiblePendingFixedCosts.map((cost) => {
+                  const fixedDate = `${currentMonth}-${String(Math.min(cost.dueDay, getLastDayOfMonth(currentMonth))).padStart(2, '0')}`;
+                  const category = categoryById.get(cost.categoryId);
+                  const subCategory = category?.subCategories.find((item) => item.id === cost.subCategoryId);
+                  return (
+                    <tr className="sheet-row fixed-cost-draft" key={cost.id}>
+                      <td data-label="種別"><span className="sheet-badge fixed-cost">固定</span></td>
+                      <td data-label="日付">{formatDateWithWeekday(fixedDate)}</td>
+                      <td data-label="分類"><CategoryPill category={category} /><span>{subCategory?.name || '未分類'}</span></td>
+                      <td data-label="内容"><strong>{cost.label}</strong>{cost.description && <span>{cost.description}</span>}</td>
+                      <td data-label="金額">
+                        <input
+                          className="cell-input amount-input"
+                          type="number"
+                          min="0"
+                          value={(fixedDraftAmounts[cost.id] ?? cost.amount) || ''}
+                          onChange={(event) => setFixedDraftAmounts((current) => ({ ...current, [cost.id]: Number(event.target.value || 0) }))}
+                          aria-label={`${cost.label}の金額`}
+                        />
+                      </td>
+                      <td data-label="支払者">{payerLabels[cost.payer]}</td>
+                      <td data-label="財源">{sourceLabels[cost.source]}</td>
+                      <td data-label="状態"><span className="sheet-status pending">未確定</span></td>
+                      <td data-label="操作" className="actions"><button className="primary-button" onClick={() => confirmFixedCost(cost)}>確定</button></td>
+                    </tr>
+                  );
+                })}
+                <tr className="sheet-row new-expense-row">
+                  <td data-label="種別"><span className="sheet-badge">追加</span></td>
+                  <td data-label="日付">
+                    <div className="date-cell-control">
+                      <input
+                        className="cell-input"
+                        type="date"
+                        disabled={!quickExpenseForm.date}
+                        value={quickExpenseForm.date}
+                        onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, date: event.target.value })}
+                        aria-label="日付。空のままなら月まとめ"
+                      />
+                      <small>{dateInputHelper(quickExpenseForm.date, currentMonth)}</small>
+                      <label className="inline-check">
+                        <input
+                          type="checkbox"
+                          checked={!quickExpenseForm.date}
+                          onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, date: event.target.checked ? '' : defaultDateForMonth(currentMonth) })}
+                        />
+                        月まとめ
+                      </label>
+                    </div>
+                  </td>
+                  <td data-label="分類">
+                    <div className="cell-stack">
+                      <CategorySelect value={quickExpenseForm.categoryId} categories={activeCategories} onChange={selectQuickExpenseCategory} />
+                      <select className="cell-input" value={quickExpenseForm.subCategoryId} onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, subCategoryId: event.target.value })} aria-label="サブカテゴリ">
+                        {quickExpenseSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}
+                      </select>
+                    </div>
+                  </td>
+                  <td data-label="内容">
+                    <input
+                      className="cell-input"
+                      value={quickExpenseForm.item}
+                      onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, item: event.target.value })}
+                      placeholder="内容"
+                      aria-label="内容"
+                    />
+                  </td>
+                  <td data-label="金額">
+                    <input
+                      className="cell-input amount-input"
+                      type="number"
+                      min="0"
+                      value={quickExpenseForm.amount || ''}
+                      onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, amount: Number(event.target.value || 0) })}
+                      placeholder="金額"
+                      aria-label="金額"
+                    />
+                  </td>
+                  <td data-label="支払者">
+                    <PayerChoices value={quickExpenseForm.payer} onChange={(payer) => setQuickExpenseForm({ ...quickExpenseForm, payer })} />
+                  </td>
+                  <td data-label="財源">
+                    <SourceChoices value={quickExpenseForm.source} onChange={(source) => setQuickExpenseForm({ ...quickExpenseForm, source, reimbursed: false })} />
+                  </td>
+                  <td data-label="状態"><span className="sheet-status">日付なしは月まとめ</span></td>
+                  <td data-label="操作" className="actions"><button className="primary-button" onClick={saveQuickExpense} type="button">追加</button></td>
+                </tr>
                 {monthExpenses.map((expense) => {
                   const category = categoryById.get(expense.categoryId);
                   const subCategory = category?.subCategories.find((item) => item.id === expense.subCategoryId);
                   return (
                     <tr key={expense.id}>
-                      <td>{expense.no}</td>
-                      <td>{expense.date || `${toDisplayMonth(expense.accountingMonth)}分`}</td>
-                      <td><strong>{category?.name || '未分類'}</strong><span>{subCategory?.name || '未分類'}</span></td>
-                      <td><strong>{expense.item || '-'}</strong>{expense.description && <span>{expense.description}</span>}</td>
-                      <td className="amount">{formatCurrency(expense.amount)}</td>
-                      <td>{payerLabels[expense.payer]}</td>
-                      <td>{sourceLabels[expense.source]}</td>
-                      <td>{expense.source === 'advance' ? (expense.reimbursed ? '精算済' : '未精算') : '-'}</td>
-                      <td className="actions"><button onClick={() => duplicateExpense(expense)}>複製</button><button onClick={() => editExpense(expense)}>編集</button><button onClick={() => deleteExpense(expense)}>削除</button></td>
+                      <td data-label="No">{expense.no}</td>
+                      <td data-label="日付">{formatExpenseDate(expense)}</td>
+                      <td data-label="分類"><CategoryPill category={category} /><span>{subCategory?.name || '未分類'}</span></td>
+                      <td data-label="内容"><strong>{expense.item || '-'}</strong>{expense.description && <span>{expense.description}</span>}</td>
+                      <td data-label="金額" className="amount">{formatCurrency(expense.amount)}</td>
+                      <td data-label="支払者">{payerLabels[expense.payer]}</td>
+                      <td data-label="財源">{sourceLabels[expense.source]}</td>
+                      <td data-label="状態">{expense.source === 'advance' ? (expense.reimbursed ? '精算済' : '未精算') : '-'}</td>
+                      <td data-label="操作" className="actions"><button onClick={() => duplicateExpense(expense)}>複製</button><button onClick={() => editExpense(expense)}>編集</button><button onClick={() => deleteExpense(expense)}>削除</button></td>
                     </tr>
                   );
                 })}
-                {monthExpenses.length === 0 && <EmptyRow colSpan={9} text={ledger.isLoading ? '読み込み中です。' : 'まずは右上の「支出を追加」から、今月の共通支出を1件入れてみましょう。'} />}
+                {monthExpenses.length === 0 && visiblePendingFixedCosts.length === 0 && (
+                  <EmptyRow colSpan={9} text={ledger.isLoading ? '読み込み中です。' : '上の入力行から、今月の支出を1件入れてみましょう。'} />
+                )}
               </tbody>
             </table>
+          </div>
+
+          <div className="mobile-expense-stack">
+            {visiblePendingFixedCosts.length > 0 && (
+              <div className="mobile-stack-group">
+                <p className="mobile-stack-title">未確定の固定費</p>
+                {visiblePendingFixedCosts.map((cost) => {
+                  const fixedDate = `${currentMonth}-${String(Math.min(cost.dueDay, getLastDayOfMonth(currentMonth))).padStart(2, '0')}`;
+                  const category = categoryById.get(cost.categoryId);
+                  const subCategory = category?.subCategories.find((item) => item.id === cost.subCategoryId);
+                  return (
+                    <details className="mobile-expense-card fixed-cost-card" key={cost.id}>
+                      <summary>
+                        <span className="mobile-card-kind">固定</span>
+                        <span className="mobile-card-main">
+                          <strong>{cost.label}</strong>
+                          <small>{formatDateWithWeekday(fixedDate)} / <CategoryPill category={category} /></small>
+                        </span>
+                        <span className="mobile-card-amount">{(fixedDraftAmounts[cost.id] ?? cost.amount) ? formatCurrency(fixedDraftAmounts[cost.id] ?? cost.amount) : '金額未入力'}</span>
+                        <button
+                          className="mobile-confirm-button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            confirmFixedCost(cost);
+                          }}
+                        >
+                          確定
+                        </button>
+                      </summary>
+                      <div className="mobile-card-body">
+                        <div className="mobile-field-pair">
+                          <span>分類</span>
+                          <strong><CategoryPill category={category} /> / {subCategory?.name || '未分類'}</strong>
+                        </div>
+                        <label>
+                          金額
+                          <input
+                            type="number"
+                            min="0"
+                            value={(fixedDraftAmounts[cost.id] ?? cost.amount) || ''}
+                            onChange={(event) => setFixedDraftAmounts((current) => ({ ...current, [cost.id]: Number(event.target.value || 0) }))}
+                            placeholder="金額"
+                          />
+                        </label>
+                        <div className="mobile-card-meta">
+                          <span>{payerLabels[cost.payer]}</span>
+                          <span>{sourceLabels[cost.source]}</span>
+                          <span>未確定</span>
+                        </div>
+                        <button className="primary-button" onClick={() => confirmFixedCost(cost)}>確定</button>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+
+            <details className="mobile-expense-card new-entry-card">
+              <summary>
+                <span className="mobile-card-kind">追加</span>
+                <span className="mobile-card-main">
+                  <strong>新しい支出</strong>
+                  <small>タップして入力</small>
+                </span>
+                <span className="mobile-card-amount">{quickExpenseForm.amount ? formatCurrency(quickExpenseForm.amount) : '未入力'}</span>
+              </summary>
+              <div className="mobile-card-body">
+                <label>
+                  日付
+                  <input
+                    type="date"
+                    disabled={!quickExpenseForm.date}
+                    value={quickExpenseForm.date}
+                    onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, date: event.target.value })}
+                  />
+                  <small>{dateInputHelper(quickExpenseForm.date, currentMonth)}</small>
+                </label>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={!quickExpenseForm.date}
+                    onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, date: event.target.checked ? '' : defaultDateForMonth(currentMonth) })}
+                  />
+                  日付なしで月まとめ
+                </label>
+                <label>
+                  内容
+                  <input
+                    value={quickExpenseForm.item}
+                    onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, item: event.target.value })}
+                    placeholder="内容"
+                  />
+                </label>
+                <label>
+                  金額
+                  <input
+                    type="number"
+                    min="0"
+                    value={quickExpenseForm.amount || ''}
+                    onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, amount: Number(event.target.value || 0) })}
+                    placeholder="金額"
+                  />
+                </label>
+                <div className="mobile-form-grid">
+                  <label>
+                    カテゴリ
+                    <CategorySelect value={quickExpenseForm.categoryId} categories={activeCategories} onChange={selectQuickExpenseCategory} />
+                  </label>
+                  <label>
+                    サブカテゴリ
+                    <select value={quickExpenseForm.subCategoryId} onChange={(event) => setQuickExpenseForm({ ...quickExpenseForm, subCategoryId: event.target.value })}>
+                      {quickExpenseSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="mobile-form-grid">
+                  <div className="choice-field">
+                    <span>支払者</span>
+                    <PayerChoices value={quickExpenseForm.payer} onChange={(payer) => setQuickExpenseForm({ ...quickExpenseForm, payer })} />
+                  </div>
+                  <div className="choice-field">
+                    <span>財源</span>
+                    <SourceChoices value={quickExpenseForm.source} onChange={(source) => setQuickExpenseForm({ ...quickExpenseForm, source, reimbursed: false })} />
+                  </div>
+                </div>
+                <p className="mobile-card-note">日付を空にすると月まとめとして登録します。</p>
+                <button className="primary-button" onClick={saveQuickExpense}>追加</button>
+              </div>
+            </details>
+
+            {monthExpenses.length > 0 && (
+              <div className="mobile-stack-group">
+                <p className="mobile-stack-title">登録済みの支出</p>
+                {monthExpenses.map((expense) => {
+                  const category = categoryById.get(expense.categoryId);
+                  const subCategory = category?.subCategories.find((item) => item.id === expense.subCategoryId);
+                  return (
+                    <details className="mobile-expense-card" key={expense.id}>
+                      <summary>
+                        <span className="mobile-card-kind">No.{expense.no}</span>
+                        <span className="mobile-card-main">
+                          <strong>{expense.item || category?.name || '支出'}</strong>
+                          <small>{formatExpenseDate(expense)} / <CategoryPill category={category} /></small>
+                        </span>
+                        <span className="mobile-card-amount">{formatCurrency(expense.amount)}</span>
+                      </summary>
+                      <div className="mobile-card-body">
+                        <div className="mobile-field-pair">
+                          <span>分類</span>
+                          <strong><CategoryPill category={category} /> / {subCategory?.name || '未分類'}</strong>
+                        </div>
+                        <div className="mobile-card-meta">
+                          <span>{payerLabels[expense.payer]}</span>
+                          <span>{sourceLabels[expense.source]}</span>
+                          <span>{expense.source === 'advance' ? (expense.reimbursed ? '精算済' : '未精算') : '通常'}</span>
+                        </div>
+                        {expense.description && <p className="mobile-card-note">{expense.description}</p>}
+                        <div className="mobile-card-actions">
+                          <button onClick={() => duplicateExpense(expense)}>複製</button>
+                          <button onClick={() => editExpense(expense)}>編集</button>
+                          <button onClick={() => deleteExpense(expense)}>削除</button>
+                        </div>
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+
+            {monthExpenses.length === 0 && visiblePendingFixedCosts.length === 0 && (
+              <p className="empty-note">新しい支出を開いて、今月の支出を1件入れてみましょう。</p>
+            )}
           </div>
         </section>
       )}
@@ -1231,7 +1685,7 @@ export default function Home() {
                 {monthDeposits.map((deposit) => (
                   <tr key={deposit.id}>
                     <td>{deposit.no}</td>
-                    <td>{deposit.date}</td>
+                    <td>{formatDateWithWeekday(deposit.date)}</td>
                     <td>{payerLabels[deposit.depositor]}</td>
                     <td>{deposit.description || '-'}</td>
                     <td className="amount">{formatCurrency(deposit.amount)}</td>
@@ -1391,7 +1845,7 @@ export default function Home() {
               <label>名前<input required value={fixedCostForm.label} onChange={(event) => setFixedCostForm({ ...fixedCostForm, label: event.target.value })} placeholder="例: 家賃" /></label>
               <label>目安金額<input type="number" min="0" value={fixedCostForm.amount || ''} onChange={(event) => setFixedCostForm({ ...fixedCostForm, amount: Number(event.target.value) })} placeholder="毎月変わる場合は0でもOK" /></label>
               <label>毎月の日付<input type="number" min="1" max="31" value={fixedCostForm.dueDay} onChange={(event) => setFixedCostForm({ ...fixedCostForm, dueDay: Number(event.target.value || 1) })} /></label>
-              <label>カテゴリ<select required value={fixedCostForm.categoryId} onChange={(event) => selectFixedCostCategory(event.target.value)}>{activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <label>カテゴリ<CategorySelect required value={fixedCostForm.categoryId} categories={activeCategories} onChange={selectFixedCostCategory} /></label>
               <label>サブカテゴリ<select required value={fixedCostForm.subCategoryId} onChange={(event) => setFixedCostForm({ ...fixedCostForm, subCategoryId: event.target.value })}>{fixedCostSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}</select></label>
               <label>支払者<select value={fixedCostForm.payer} onChange={(event) => setFixedCostForm({ ...fixedCostForm, payer: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
               <label>財源<select value={fixedCostForm.source} onChange={(event) => setFixedCostForm({ ...fixedCostForm, source: event.target.value as ExpenseSource })}><option value="rakuten">楽天</option><option value="advance">立替</option><option value="personal">実費</option></select></label>
@@ -1427,7 +1881,7 @@ export default function Home() {
             <form className="record-form" onSubmit={saveTemplate}>
               <label>ボタン名<input required value={templateForm.label} onChange={(event) => setTemplateForm({ ...templateForm, label: event.target.value })} placeholder="例: 保育園" /></label>
               <label>内容<input required value={templateForm.item} onChange={(event) => setTemplateForm({ ...templateForm, item: event.target.value })} placeholder="店名や品目" /></label>
-              <label>カテゴリ<select required value={templateForm.categoryId} onChange={(event) => selectTemplateCategory(event.target.value)}>{activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+              <label>カテゴリ<CategorySelect required value={templateForm.categoryId} categories={activeCategories} onChange={selectTemplateCategory} /></label>
               <label>サブカテゴリ<select required value={templateForm.subCategoryId} onChange={(event) => setTemplateForm({ ...templateForm, subCategoryId: event.target.value })}>{templateSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}</select></label>
               <label>金額<input type="number" min="0" value={templateForm.amount || ''} onChange={(event) => setTemplateForm({ ...templateForm, amount: Number(event.target.value) })} placeholder="未入力でもOK" /></label>
               <label>支払者<select value={templateForm.payer} onChange={(event) => setTemplateForm({ ...templateForm, payer: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
@@ -1463,13 +1917,25 @@ export default function Home() {
         <Modal title={editingExpenseId ? '支出を編集' : '支出を追加'} onClose={() => setShowExpenseForm(false)}>
           <form className="record-form" onSubmit={saveExpense}>
             <label>計上年月<input type="month" required value={expenseForm.accountingMonth} onChange={(event) => setExpenseForm({ ...expenseForm, accountingMonth: event.target.value })} /></label>
-            <label>日付<input type="date" value={expenseForm.date} onChange={(event) => setExpenseForm({ ...expenseForm, date: event.target.value })} /></label>
-            <label>カテゴリ<select required value={expenseForm.categoryId} onChange={(event) => selectCategory(event.target.value)}>{activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+            <label>
+              日付
+              <input type="date" disabled={!expenseForm.date} value={expenseForm.date} onChange={(event) => setExpenseForm({ ...expenseForm, date: event.target.value })} />
+              <small>{dateInputHelper(expenseForm.date, expenseForm.accountingMonth || currentMonth)}</small>
+              <span className="inline-check">
+                <input
+                  type="checkbox"
+                  checked={!expenseForm.date}
+                  onChange={(event) => setExpenseForm({ ...expenseForm, date: event.target.checked ? '' : defaultDateForMonth(expenseForm.accountingMonth || currentMonth) })}
+                />
+                日付なしで月まとめ
+              </span>
+            </label>
+            <label>カテゴリ<CategorySelect required value={expenseForm.categoryId} categories={activeCategories} onChange={selectCategory} /></label>
             <label>サブカテゴリ<select required value={expenseForm.subCategoryId} onChange={(event) => setExpenseForm({ ...expenseForm, subCategoryId: event.target.value })}>{selectedSubCategories.map((subCategory) => <option key={subCategory.id} value={subCategory.id}>{subCategory.name}</option>)}</select></label>
             <label>内容<input value={expenseForm.item} onChange={(event) => setExpenseForm({ ...expenseForm, item: event.target.value })} placeholder="店名や品目" /></label>
             <label>金額<input type="number" min="0" required value={expenseForm.amount || ''} onChange={(event) => setExpenseForm({ ...expenseForm, amount: Number(event.target.value) })} /></label>
-            <label>支払者<select value={expenseForm.payer} onChange={(event) => setExpenseForm({ ...expenseForm, payer: event.target.value as Payer })}><option value="father">父</option><option value="mother">母</option></select></label>
-            <label>財源<select value={expenseForm.source} onChange={(event) => setExpenseForm({ ...expenseForm, source: event.target.value as ExpenseSource, reimbursed: false })}><option value="rakuten">楽天</option><option value="advance">立替</option><option value="personal">実費</option></select></label>
+            <div className="choice-field"><span>支払者</span><PayerChoices value={expenseForm.payer} onChange={(payer) => setExpenseForm({ ...expenseForm, payer })} /></div>
+            <div className="choice-field"><span>財源</span><SourceChoices value={expenseForm.source} onChange={(source) => setExpenseForm({ ...expenseForm, source, reimbursed: false })} /></div>
             {expenseForm.source === 'advance' && <label className="checkbox"><input type="checkbox" checked={expenseForm.reimbursed} onChange={(event) => setExpenseForm({ ...expenseForm, reimbursed: event.target.checked })} />精算済みにする</label>}
             {expenseForm.source === 'personal' && <p className="note">実費は支出合計には含めますが、共通プールの差分には含めません。</p>}
             <label>メモ<textarea value={expenseForm.description} onChange={(event) => setExpenseForm({ ...expenseForm, description: event.target.value })} placeholder="レシート内容や補足" /></label>

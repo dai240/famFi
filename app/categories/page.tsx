@@ -8,6 +8,7 @@ import type { Category, CategoryInput, SubCategory } from '@/lib/ledger/types';
 type CategoryForm = {
   id: string;
   name: string;
+  color: string;
   subCategoryNames: string;
 };
 
@@ -26,6 +27,7 @@ function emptyForm(): CategoryForm {
   return {
     id: createCategoryId(),
     name: '',
+    color: '#64748b',
     subCategoryNames: '未分類',
   };
 }
@@ -34,6 +36,7 @@ function toForm(category: Category): CategoryForm {
   return {
     id: category.id,
     name: category.name,
+    color: category.color || '#64748b',
     subCategoryNames: category.subCategories.map((subCategory) => subCategory.name).join('\n'),
   };
 }
@@ -58,6 +61,7 @@ function toInput(form: CategoryForm, existing?: Category): CategoryInput {
   return {
     id: form.id,
     name: form.name.trim(),
+    color: form.color,
     isActive: existing?.isActive ?? true,
     sortOrder: existing?.sortOrder ?? 500,
     subCategories,
@@ -169,6 +173,23 @@ export default function CategoriesPage() {
             />
           </label>
           <label>
+            カラー
+            <div className="color-picker-row">
+              <input
+                type="color"
+                value={form.color}
+                onChange={(event) => setForm({ ...form, color: event.target.value })}
+                aria-label="カテゴリカラー"
+              />
+              <input
+                value={form.color}
+                onChange={(event) => setForm({ ...form, color: event.target.value })}
+                pattern="^#[0-9A-Fa-f]{6}$"
+                placeholder="#64748b"
+              />
+            </div>
+          </label>
+          <label>
             サブカテゴリ
             <textarea
               value={form.subCategoryNames}
@@ -196,7 +217,7 @@ export default function CategoriesPage() {
             {ledgerCategories.map((category, index) => (
               <article className={`category-item ${category.isActive ? '' : 'inactive'}`} key={category.id}>
                 <div>
-                  <strong>{category.name}</strong>
+                  <strong className="category-title"><span style={{ backgroundColor: category.color }} />{category.name}</strong>
                   <span>{category.id}</span>
                   <p>{category.subCategories.map((subCategory) => subCategory.name).join(' / ')}</p>
                 </div>

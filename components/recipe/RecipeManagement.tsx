@@ -13,7 +13,7 @@ import { RecipeDetailModal } from '@/components/recipe/RecipeDetailModal';
 import { EditRecipeModal } from '@/components/recipe/EditRecipeModal';
 import { AddCookingRecordModal } from '@/components/recipe/AddCookingRecordModal';
 import { format, isSameMonth } from 'date-fns';
-import type { Recipe, Person, CookingRecord } from '@/app/page';
+import type { Recipe, Person, CookingRecord } from '@/types';
 
 interface RecipeManagementProps {
   recipes: Recipe[];

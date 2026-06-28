@@ -5,7 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart3, PieChart as PieChartIcon } from 'lucide-react';
-import type { Expense, Category } from '@/app/page';
+import type { Expense, Category } from '@/types';
 
 interface ExpenseCategoriesProps {
   currentMonth: Date;

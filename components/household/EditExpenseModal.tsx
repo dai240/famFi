@@ -1,249 +1,304 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { X, Edit, Save } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import type { Expense, Person, Category } from '@/app/page';
+import { Badge } from '@/components/ui/badge';
+import { AmountInput } from './AmountInput';
+import type { Expense, Person, Category } from '@/types';
 
 interface EditExpenseModalProps {
   isOpen: boolean;
-  expense: Expense | null;
   onClose: () => void;
   onSave: (expense: Expense) => void;
+  expense: Expense | null;
   people: Person[];
   categories: Category[];
 }
 
-const paymentMethods = ['クレジットカード', '現金', 'デビットカード', '電子マネー', '銀行振込'];
-
-export function EditExpenseModal({ isOpen, expense, onClose, onSave, people, categories }: EditExpenseModalProps) {
+export function EditExpenseModal({
+  isOpen,
+  onClose,
+  onSave,
+  expense,
+  people,
+  categories
+}: EditExpenseModalProps) {
   const [formData, setFormData] = useState({
-    date: '',
+    description: '',
     amount: '',
     category: '',
     subcategory: '',
-    description: '',
-    comment: '',
-    paymentMethod: 'クレジットカード',
+    date: '',
     paidBy: '',
-    beneficiaries: [] as string[]
+    paymentMethod: '',
+    beneficiaries: [] as string[],
+    comment: ''
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 支出データが変更されたらフォームを更新
   useEffect(() => {
     if (expense) {
       setFormData({
-        date: expense.date,
+        description: expense.description,
         amount: expense.amount.toString(),
         category: expense.category,
-        subcategory: expense.subcategory,
-        description: expense.description,
-        comment: expense.comment || '',
-        paymentMethod: expense.paymentMethod,
+        subcategory: expense.subcategory || '',
+        date: expense.date,
         paidBy: expense.paidBy,
-        beneficiaries: expense.beneficiaries
+        paymentMethod: expense.paymentMethod || '',
+        beneficiaries: expense.beneficiaries || [],
+        comment: expense.comment || ''
       });
+      setErrors({});
     }
   }, [expense]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!expense || !formData.amount || !formData.category || !formData.subcategory || !formData.description || !formData.paidBy) {
+
+    if (!expense) return;
+
+    // バリデーション
+    const newErrors: Record<string, string> = {};
+    if (!formData.description) newErrors.description = '支出の説明を入力してください';
+    if (!formData.amount) newErrors.amount = '金額を入力してください';
+    if (!formData.category) newErrors.category = 'カテゴリを選択してください';
+    if (!formData.date) newErrors.date = '日付を入力してください';
+    if (!formData.paidBy) newErrors.paidBy = '支払者を選択してください';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    onSave({
+    // 更新された支出を作成
+    const updatedExpense: Expense = {
       ...expense,
-      date: formData.date,
+      description: formData.description,
       amount: parseInt(formData.amount),
       category: formData.category,
-      subcategory: formData.subcategory,
-      description: formData.description,
-      comment: formData.comment || undefined,
-      paymentMethod: formData.paymentMethod,
+      subcategory: formData.subcategory || formData.category,
+      date: formData.date,
       paidBy: formData.paidBy,
-      beneficiaries: formData.beneficiaries
-    });
+      paymentMethod: formData.paymentMethod || '現金',
+      beneficiaries: formData.beneficiaries,
+      comment: formData.comment || undefined
+    };
+
+    onSave(updatedExpense);
+    handleClose();
   };
 
-  const handleCategoryChange = (category: string) => {
-    setFormData({
-      ...formData,
-      category,
-      subcategory: '' // Reset subcategory when category changes
-    });
+  const handleClose = () => {
+    setErrors({});
+    onClose();
   };
 
-  const handleBeneficiaryChange = (personId: string, checked: boolean) => {
-    if (checked) {
-      setFormData({
-        ...formData,
-        beneficiaries: [...formData.beneficiaries, personId]
-      });
-    } else {
-      setFormData({
-        ...formData,
-        beneficiaries: formData.beneficiaries.filter(id => id !== personId)
-      });
-    }
+  const toggleBeneficiary = (personId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      beneficiaries: prev.beneficiaries.includes(personId)
+        ? prev.beneficiaries.filter(id => id !== personId)
+        : [...prev.beneficiaries, personId]
+    }));
   };
 
-  const selectedCategory = categories.find(cat => cat.name === formData.category);
+  const getCategoryColor = (categoryName: string) => {
+    const category = categories.find(cat => cat.name === categoryName);
+    return category?.color || '#6B7280';
+  };
 
   if (!expense) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>支出を編集</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit className="w-5 h-5" />
+            支出を編集
+          </DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="date">日付</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="amount">金額</Label>
-              <Input
-                id="amount"
-                type="number"
-                placeholder="0"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="category">カテゴリ</Label>
-              <Select value={formData.category} onValueChange={handleCategoryChange} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="選択してください" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.name}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="subcategory">サブカテゴリ</Label>
-              <Select 
-                value={formData.subcategory} 
-                onValueChange={(value) => setFormData({ ...formData, subcategory: value })}
-                disabled={!formData.category}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選択してください" />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedCategory?.subcategories.map((subcategory) => (
-                    <SelectItem key={subcategory} value={subcategory}>
-                      {subcategory}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="description">説明</Label>
+          {/* 支出の説明 */}
+          <div className="space-y-2">
+            <Label htmlFor="description">支出の説明 *</Label>
             <Input
               id="description"
-              placeholder="支出の詳細を入力"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              required
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="例: 食費、交通費など"
+              className={errors.description ? 'border-red-500' : ''}
             />
+            {errors.description && (
+              <p className="text-sm text-red-500">{errors.description}</p>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="paymentMethod">支払い方法</Label>
-              <Select value={formData.paymentMethod} onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {method}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="paidBy">支払者</Label>
-              <Select value={formData.paidBy} onValueChange={(value) => setFormData({ ...formData, paidBy: value })} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="支払者を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {people.map((person) => (
-                    <SelectItem key={person.id} value={person.id}>
-                      {person.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* 金額 */}
+          <div className="space-y-2">
+            <AmountInput
+              value={formData.amount}
+              onChange={(value) => setFormData(prev => ({ ...prev, amount: value }))}
+              label="金額 *"
+              className={errors.amount ? 'border-red-500' : ''}
+            />
+            {errors.amount && (
+              <p className="text-sm text-red-500">{errors.amount}</p>
+            )}
           </div>
 
-          <div>
-            <Label>受益者（複数選択可）</Label>
-            <div className="grid grid-cols-2 gap-2 mt-2 max-h-32 overflow-y-auto">
-              {people.map((person) => (
-                <div key={person.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`beneficiary-${person.id}`}
-                    checked={formData.beneficiaries.includes(person.id)}
-                    onCheckedChange={(checked) => handleBeneficiaryChange(person.id, checked as boolean)}
-                  />
-                  <Label htmlFor={`beneficiary-${person.id}`} className="text-sm">
+          {/* カテゴリ */}
+          <div className="space-y-2">
+            <Label htmlFor="category">カテゴリ *</Label>
+            <Select value={formData.category} onValueChange={(value) => {
+              setFormData(prev => ({
+                ...prev,
+                category: value,
+                subcategory: '' // カテゴリ変更時にサブカテゴリをリセット
+              }));
+            }}>
+              <SelectTrigger className={errors.category ? 'border-red-500' : ''}>
+                <SelectValue placeholder="カテゴリを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.name}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: category.color }}
+                      />
+                      {category.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.category && (
+              <p className="text-sm text-red-500">{errors.category}</p>
+            )}
+          </div>
+
+          {/* サブカテゴリ */}
+          <div className="space-y-2">
+            <Label htmlFor="subcategory">サブカテゴリ</Label>
+            <Select
+              value={formData.subcategory}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, subcategory: value }))}
+              disabled={!formData.category}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="サブカテゴリを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {formData.category && categories.find(cat => cat.name === formData.category)?.subcategories?.map((subcategory) => (
+                  <SelectItem key={subcategory} value={subcategory}>
+                    {subcategory}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 日付 */}
+          <div className="space-y-2">
+            <Label htmlFor="date">日付 *</Label>
+            <Input
+              id="date"
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+              className={errors.date ? 'border-red-500' : ''}
+            />
+            {errors.date && (
+              <p className="text-sm text-red-500">{errors.date}</p>
+            )}
+          </div>
+
+          {/* 支払者 */}
+          <div className="space-y-2">
+            <Label htmlFor="paidBy">支払者 *</Label>
+            <Select value={formData.paidBy} onValueChange={(value) => setFormData(prev => ({ ...prev, paidBy: value }))}>
+              <SelectTrigger className={errors.paidBy ? 'border-red-500' : ''}>
+                <SelectValue placeholder="支払者を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {people.map((person) => (
+                  <SelectItem key={person.id} value={person.id}>
                     {person.name}
-                  </Label>
-                </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.paidBy && (
+              <p className="text-sm text-red-500">{errors.paidBy}</p>
+            )}
+          </div>
+
+          {/* 支払方法 */}
+          <div className="space-y-2">
+            <Label htmlFor="paymentMethod">支払方法</Label>
+            <Select value={formData.paymentMethod} onValueChange={(value) => setFormData(prev => ({ ...prev, paymentMethod: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="支払方法を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="現金">現金</SelectItem>
+                <SelectItem value="クレジットカード">クレジットカード</SelectItem>
+                <SelectItem value="デビットカード">デビットカード</SelectItem>
+                <SelectItem value="銀行振込">銀行振込</SelectItem>
+                <SelectItem value="電子マネー">電子マネー</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 受益者 */}
+          <div className="space-y-2">
+            <Label>受益者</Label>
+            <div className="flex flex-wrap gap-2">
+              {people.map((person) => (
+                <Badge
+                  key={person.id}
+                  variant={formData.beneficiaries.includes(person.id) ? 'default' : 'outline'}
+                  className="cursor-pointer"
+                  onClick={() => toggleBeneficiary(person.id)}
+                >
+                  {person.name}
+                </Badge>
               ))}
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="comment">コメント（任意）</Label>
+          {/* コメント */}
+          <div className="space-y-2">
+            <Label htmlFor="comment">コメント</Label>
             <Textarea
               id="comment"
-              placeholder="メモやコメントを入力"
               value={formData.comment}
-              onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
+              onChange={(e) => setFormData(prev => ({ ...prev, comment: e.target.value }))}
+              placeholder="特記事項があれば入力してください"
               rows={3}
             />
           </div>
 
+          {/* ボタン */}
           <div className="flex gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1">
-              キャンセル
-            </Button>
             <Button type="submit" className="flex-1">
-              更新
+              <Save className="w-4 h-4 mr-2" />
+              保存
+            </Button>
+            <Button type="button" variant="outline" onClick={handleClose}>
+              キャンセル
             </Button>
           </div>
         </form>

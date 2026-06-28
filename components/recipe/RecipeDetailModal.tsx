@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Heart, Clock, Users, Edit, Trash2, ChefHat, User, Star, Calendar, TrendingUp, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Recipe, Person, CookingRecord } from '@/app/page';
+import type { Recipe, Person, CookingRecord } from '@/types';
 
 interface RecipeDetailModalProps {
   isOpen: boolean;

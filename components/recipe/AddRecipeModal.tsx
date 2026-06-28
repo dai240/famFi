@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Plus, X, Upload } from 'lucide-react';
-import type { Recipe, Ingredient, RecipeStep, Person } from '@/app/page';
+import type { Recipe, Ingredient, RecipeStep, Person } from '@/types';
 
 interface AddRecipeModalProps {
   isOpen: boolean;
@@ -125,7 +125,7 @@ export function AddRecipeModal({ isOpen, onClose, onSave, people }: AddRecipeMod
     }
   };
 
-  const updateStep = (id: string, field: keyof RecipeStep, value: string | number) => {
+  const updateStep = (id: string, field: keyof RecipeStep, value: string | number | undefined) => {
     setSteps(steps.map(step => 
       step.id === id ? { ...step, [field]: value } : step
     ));

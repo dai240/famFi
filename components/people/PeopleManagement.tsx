@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, isToday, isTomorrow, isThisWeek, parseISO } from 'date-fns';
-import type { Person } from '@/app/page';
+import type { Person } from '@/types';
 
 interface PeopleManagementProps {
   people: Person[];

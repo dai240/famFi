@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useState } from 'react';
-import type { Category } from '@/app/page';
+import type { Category } from '@/types';
 
 interface CategoryManagementProps {
   categories: Category[];

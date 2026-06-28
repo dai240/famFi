@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2, Check, X } from 'lucide-react';
-import type { RecurringExpense, Category, Person } from '@/app/page';
+import type { RecurringExpense, Category, Person } from '@/types';
 
 interface RecurringExpenseManagementProps {
   recurringExpenses: RecurringExpense[];

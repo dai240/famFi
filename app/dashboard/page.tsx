@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { MonthlyOverview } from "@/components/dashboard/MonthlyOverview";
@@ -11,6 +12,7 @@ import { UpcomingMilestones } from "@/components/schedule/UpcomingMilestones";
 import { useDashboard } from "@/hooks/useDashboard";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const {
     currentMonth,
     people,
@@ -26,6 +28,30 @@ export default function DashboardPage() {
     handleMonthlyConfirmation,
   } = useDashboard();
 
+  // ビュー変更時の処理
+  const handleViewChange = (view: string) => {
+    switch (view) {
+      case 'household':
+        router.push('/household');
+        break;
+      case 'schedule':
+        router.push('/schedule');
+        break;
+      case 'housework':
+        router.push('/housework');
+        break;
+      case 'recipe':
+        router.push('/recipe');
+        break;
+      case 'management':
+        router.push('/management');
+        break;
+      default:
+        // ダッシュボードの場合は何もしない
+        break;
+    }
+  };
+
   // コールバック
   const handleOpenReflection = () => { /* モーダル表示など */ };
 
@@ -34,7 +60,7 @@ export default function DashboardPage() {
       currentMonth={currentMonth}
       currentView="dashboard"
       onMonthChange={setCurrentMonth}
-      onViewChange={() => {}}
+      onViewChange={handleViewChange}
       onAddExpense={() => handleAddExpense()}
     >
       {/* モバイル用ヘッダー */}
@@ -58,7 +84,7 @@ export default function DashboardPage() {
         onOpenReflection={handleOpenReflection}
         onMonthlyConfirmation={handleMonthlyConfirmation}
       />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <ExpenseCategories
             currentMonth={currentMonth}

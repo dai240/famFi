@@ -1,0 +1,348 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ユーザー管理
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // リレーション
+  people    Person[]
+  categories Category[]
+  expenses  Expense[]
+  income    Income[]
+  recurringExpenses RecurringExpense[]
+  events    Event[]
+  houseworkTasks HouseworkTask[]
+  houseworkRecords HouseworkRecord[]
+  monthlyReflections MonthlyReflection[]
+  monthlyConfirmations MonthlyConfirmation[]
+  recipes   Recipe[]
+  cookingRecords CookingRecord[]
+
+  @@map("users")
+}
+
+// 家族・メンバー
+model Person {
+  id        String   @id @default(cuid())
+  name      String
+  role      String?  // 父、母、子など
+  age       Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // リレーション
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  paidExpenses Expense[] @relation("PaidBy")
+  recurringPaidExpenses RecurringExpense[]
+  income     Income[]
+  houseworkTasks HouseworkTask[]
+  houseworkRecords HouseworkRecord[]
+  recipes    Recipe[]
+  cookingRecords CookingRecord[]
+
+  @@map("people")
+}
+
+// カテゴリ
+model Category {
+  id           String   @id @default(cuid())
+  name         String
+  color        String
+  subcategories String[] // JSON配列として保存
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // リレーション
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("categories")
+}
+
+// 支出
+model Expense {
+  id             String   @id @default(cuid())
+  description    String
+  amount         Int
+  category       String
+  subcategory    String?
+  date           String   // YYYY-MM-DD形式
+  paidBy         String
+  paymentMethod  String?
+  beneficiaries  String[] // JSON配列として保存
+  comment        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // リレーション
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  paidByPerson   Person   @relation("PaidBy", fields: [paidBy], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+// 収入
+model Income {
+  id          String   @id @default(cuid())
+  description String
+  amount      Int
+  category    String
+  date        String   // YYYY-MM-DD形式
+  receivedBy  String
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  receivedByPerson Person @relation(fields: [receivedBy], references: [id], onDelete: Cascade)
+
+  @@map("income")
+}
+
+// 定期支出
+model RecurringExpense {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  amount      Int?
+  category    String
+  subcategory String?
+  type        String   // 'fixed' | 'variable'
+  frequency   String   // 'monthly', 'yearly'など
+  isActive    Boolean  @default(true)
+  paidBy      String
+  paymentMethod String?
+  beneficiaries String[] // JSON配列として保存
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  paidByPerson Person @relation(fields: [paidBy], references: [id], onDelete: Cascade)
+  monthlyStatuses MonthlyExpenseStatus[]
+
+  @@map("recurring_expenses")
+}
+
+// 月次支出状態
+model MonthlyExpenseStatus {
+  id                  String   @id @default(cuid())
+  recurringExpenseId  String
+  month               String   // YYYY-MM形式
+  status              String   // 'pending' | 'confirmed'
+  amount              Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // リレーション
+  recurringExpense    RecurringExpense @relation(fields: [recurringExpenseId], references: [id], onDelete: Cascade)
+
+  @@unique([recurringExpenseId, month])
+  @@map("monthly_expense_statuses")
+}
+
+// イベント・スケジュール
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  date        String   // YYYY-MM-DD形式
+  time        String?  // HH:MM形式
+  category    String
+  participants String[] // JSON配列として保存
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("events")
+}
+
+// 家事タスク
+model HouseworkTask {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  frequency   String?  // 'daily', 'weekly', 'monthly'など
+  estimatedTime Int?   // 分単位
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  assignedPerson Person? @relation(fields: [assignedTo], references: [id])
+  records      HouseworkRecord[]
+
+  @@map("housework_tasks")
+}
+
+// 家事記録
+model HouseworkRecord {
+  id          String   @id @default(cuid())
+  taskId      String
+  completedBy String
+  completedAt DateTime
+  timeSpent   Int?     // 分単位
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  task        HouseworkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  completedByPerson Person @relation(fields: [completedBy], references: [id], onDelete: Cascade)
+
+  @@map("housework_records")
+}
+
+// 月次振り返り
+model MonthlyReflection {
+  id          String   @id @default(cuid())
+  month       String   // YYYY-MM形式
+  content     String
+  mood        String?  // 'good', 'normal', 'bad'など
+  goals       String[] // JSON配列として保存
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("monthly_reflections")
+}
+
+// 月次確認
+model MonthlyConfirmation {
+  id          String   @id @default(cuid())
+  month       String   // YYYY-MM形式
+  isConfirmed Boolean  @default(false)
+  confirmedAt DateTime?
+  comment     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("monthly_confirmations")
+}
+
+// レシピ
+model Recipe {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  cookingTime Int?     // 分単位
+  servings    Int?
+  difficulty  String?  // 'easy', 'medium', 'hard'
+  instructions String[] // JSON配列として保存
+  tags        String[] // JSON配列として保存
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  ingredients RecipeIngredient[]
+  steps       RecipeStep[]
+  cookingRecords CookingRecord[]
+  createdBy   String
+  createdByPerson Person @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@map("recipes")
+}
+
+// レシピ材料
+model RecipeIngredient {
+  id       String @id @default(cuid())
+  recipeId String
+  name     String
+  amount   String
+  unit     String?
+  order    Int
+
+  // リレーション
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("recipe_ingredients")
+}
+
+// レシピ手順
+model RecipeStep {
+  id          String @id @default(cuid())
+  recipeId    String
+  stepNumber  Int
+  description String
+  time        Int?   // 分単位
+  imageUrl    String?
+
+  // リレーション
+  recipe      Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@map("recipe_steps")
+}
+
+// 料理記録
+model CookingRecord {
+  id          String   @id @default(cuid())
+  recipeId    String
+  cookedBy    String
+  cookedAt    DateTime
+  rating      Int?     // 1-5の評価
+  comment     String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  recipe      Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  cookedByPerson Person @relation(fields: [cookedBy], references: [id], onDelete: Cascade)
+
+  @@map("cooking_records")
+}

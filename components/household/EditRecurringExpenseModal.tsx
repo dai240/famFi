@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
-import type { RecurringExpense, Person, Category } from '@/app/page';
+import type { RecurringExpense, Person, Category } from '@/types';
 
 interface EditRecurringExpenseModalProps {
   isOpen: boolean;

@@ -1,7 +1,7 @@
 'use client';
 
 import { Home, List, Calendar, ClipboardList, Settings, ChefHat } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +17,9 @@ interface BottomNavigationProps {
 }
 
 export function BottomNavigation({ currentView, onViewChange }: BottomNavigationProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
   const navItems = [
     { icon: Home, label: 'ホーム', id: 'dashboard' },
     { 
@@ -58,6 +61,44 @@ export function BottomNavigation({ currentView, onViewChange }: BottomNavigation
     return currentView === item.id;
   };
 
+  // ページ遷移の処理
+  const handleNavigation = (view: string) => {
+    switch (view) {
+      case 'dashboard':
+        router.push('/dashboard');
+        break;
+      case 'expenses':
+        router.push('/household?view=expenses');
+        break;
+      case 'expense-management':
+        router.push('/household?view=expense-management');
+        break;
+      case 'income':
+        router.push('/household?view=income');
+        break;
+      case 'history':
+        router.push('/household?view=history');
+        break;
+      case 'events':
+        router.push('/schedule');
+        break;
+      case 'housework':
+        router.push('/housework');
+        break;
+      case 'recipes':
+        router.push('/recipe');
+        break;
+      case 'categories':
+        router.push('/household?view=categories');
+        break;
+      case 'people':
+        router.push('/management');
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-50 safe-area-pb">
       <div className="grid grid-cols-6 h-14 md:h-16">
@@ -86,7 +127,7 @@ export function BottomNavigation({ currentView, onViewChange }: BottomNavigation
                   {item.submenu.map((subItem) => (
                     <DropdownMenuItem
                       key={subItem.id}
-                      onClick={() => onViewChange(subItem.id)}
+                      onClick={() => handleNavigation(subItem.id)}
                       className={currentView === subItem.id ? 'bg-blue-50 text-blue-700' : ''}
                     >
                       {subItem.label}
@@ -100,7 +141,7 @@ export function BottomNavigation({ currentView, onViewChange }: BottomNavigation
           return (
             <button
               key={item.id}
-              onClick={() => onViewChange(item.id)}
+              onClick={() => handleNavigation(item.id)}
               className={`flex flex-col items-center justify-center gap-0.5 md:gap-1 transition-colors px-1 ${
                 active 
                   ? 'text-blue-600 bg-blue-50' 

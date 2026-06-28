@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useState } from 'react';
-import type { Expense, Person, Category } from '@/app/page';
+import type { Expense, Person, Category } from '@/types';
 
 interface ExpenseHistoryProps {
   expenses: Expense[];

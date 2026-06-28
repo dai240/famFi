@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AmountInput } from '@/components/household/AmountInput';
-import type { Event, Person } from '@/app/page';
+import type { Event, Person } from '@/types';
 
 interface EventManagementProps {
   events: Event[];

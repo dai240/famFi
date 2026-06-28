@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, isSameMonth } from 'date-fns';
-import type { Income, Person } from '@/app/page';
+import type { Income, Person } from '@/types';
 
 interface IncomeManagementProps {
   income: Income[];

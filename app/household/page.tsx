@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ExpenseList } from "@/components/household/ExpenseList";
 import { ExpenseManagement } from "@/components/household/ExpenseManagement";
@@ -11,9 +12,12 @@ import { AddExpenseModal } from "@/components/household/AddExpenseModal";
 import { AddRecurringExpenseModal } from "@/components/household/AddRecurringExpenseModal";
 import { ConfirmExpenseModal } from "@/components/household/ConfirmExpenseModal";
 import { useDashboard } from "@/hooks/useDashboard";
-import type { MonthlyExpenseStatus, RecurringExpense } from "@/app/page";
+import type { MonthlyExpenseStatus, RecurringExpense } from "@/types";
 
 export default function HouseholdPage() {
+  const searchParams = useSearchParams();
+  const viewParam = searchParams.get('view');
+
   const {
     currentMonth,
     people,
@@ -36,6 +40,13 @@ export default function HouseholdPage() {
 
   // householdページ用の状態
   const [currentView, setCurrentView] = useState<'expenses' | 'expense-management' | 'income' | 'history' | 'categories'>('expenses');
+
+  // クエリパラメータに基づいてビューを決定
+  useEffect(() => {
+    if (viewParam && ['expenses', 'expense-management', 'income', 'history', 'categories'].includes(viewParam)) {
+      setCurrentView(viewParam as 'expenses' | 'expense-management' | 'income' | 'history' | 'categories');
+    }
+  }, [viewParam]);
 
   // モーダル状態
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);

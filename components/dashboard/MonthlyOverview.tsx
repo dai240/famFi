@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Expense, Income, Person, MonthlyReflection, MonthlyConfirmation } from '@/app/page';
+import type { Expense, Income, Person, MonthlyReflection, MonthlyConfirmation } from '@/types';
 
 interface MonthlyOverviewProps {
   currentMonth: Date;

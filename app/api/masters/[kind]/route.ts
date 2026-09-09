@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth/server';
 import { withLedgerDb } from '@/lib/prisma';
 import { ApiError, apiError, assertSameOrigin, json, readJson } from '@/lib/api';
 import { partyFields, paymentSourceFields } from '@/lib/ledger';
-import { validateSource, clearOtherDefaults } from '@/lib/master-service';
+import { validateSource, clearOtherDefaults, validatePersonDisplayName } from '@/lib/master-service';
 export const dynamic = 'force-dynamic';
 export async function POST(request: Request, context: { params: Promise<{ kind: string }> }) {
   try {
@@ -14,7 +14,7 @@ export async function POST(request: Request, context: { params: Promise<{ kind: 
         const { id, ...input } = partyFields.extend({ id: z.string().uuid() }).strict().parse(body);
         const old = await tx.party.findUnique({ where: { id } });
         if (old) { if (Object.entries(input).some(([k,v]) => old[k as keyof typeof old] !== v)) throw new ApiError(409, '保存内容が競合しました。'); return old; }
-        if (await tx.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' } } })) throw new ApiError(409, '同名の人物・共用資金があります。');
+        await validatePersonDisplayName(tx, id, input.name);
         if (await tx.party.count() >= 100) throw new ApiError(422, '人物・共用資金は100件までです。');
         await tx.$executeRaw`insert into famfi.parties(id,user_id,name,kind,archived) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.kind},${input.archived})`;
         return tx.party.findUniqueOrThrow({ where: { id } });
@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ kind: 
       await validateSource(tx, input);
       if (await tx.paymentSource.count() >= 100) throw new ApiError(422, '支払元は100件までです。');
       await clearOtherDefaults(tx,id,input.isDefault);
-      await tx.$executeRaw`insert into famfi.payment_sources(id,user_id,name,method,funding_party_id,archived,default_treatment,is_default) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.method},${input.fundingPartyId}::uuid,${input.archived},${input.defaultTreatment},${input.isDefault})`;
+      await tx.$executeRaw`insert into famfi.payment_sources(id,user_id,name,method,funding_party_id,archived,default_treatment,is_default,owner_label) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.method},${input.fundingPartyId}::uuid,${input.archived},${input.defaultTreatment},${input.isDefault},${input.ownerLabel})`;
       return tx.paymentSource.findUniqueOrThrow({ where: { id } });
     });
     const { userId: _owner, ...row } = result; return json(row, 201);

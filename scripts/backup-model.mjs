@@ -7,18 +7,23 @@ export const backupTables = [
   { key: 'settlements', table: 'settlements', fields: ['id','userId','expenseId','amount','date','fromPartyId','toPartyId','memo','createdAt','cancelledAt'] },
 ];
 export const sqlColumn = key => key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+const calendarDates = new Set(['date','startMonth','endMonth','period']);
+// PostgreSQL DATE is not an instant. pg's local-midnight Date parsing loses a day in JST.
+export const backupSelectColumns = fields => fields.map(key => `${sqlColumn(key)}${calendarDates.has(key)?'::text':''} as "${key}"`).join(',');
 export const householdBackupTables = [
   ...backupTables.map(dataset=>({...dataset,fields:[...dataset.fields,...(dataset.key==='parties'?['systemKey']:dataset.key==='paymentSources'?['defaultTreatment','isDefault']:dataset.key==='expenses'?['paymentTreatment','beneficiaryKind','beneficiaryText','usedByText','recordedByPartyId','updatedByPartyId']:[])]})),
   {key:'recurringRules',table:'recurring_rules',fields:['id','userId','name','amountMode','amount','frequency','startMonth','endMonth','dueDay','categoryId','paymentSourceId','paymentTreatment','usedByPartyId','usedByText','beneficiaryKind','beneficiaryPartyId','beneficiaryText','memo','archived','version','createdAt','updatedAt']},
   {key:'recurringOccurrences',table:'recurring_occurrences',fields:['id','userId','ruleId','period','state','expenseId','version','updatedAt']},
   {key:'auditEvents',table:'audit_events',fields:['id','userId','entityType','entityId','action','actorPartyId','beforeData','afterData','createdAt']},
 ];
-export async function captureHouseholdBackup(query,actorId){
+export const profileBackupTables = householdBackupTables.map(dataset => ({...dataset, fields:[...dataset.fields,
+  ...(dataset.key==='parties'?['nickname','profileConfirmed']:dataset.key==='paymentSources'?['ownerLabel']:[])]}));
+export async function captureHouseholdBackup(query,actorId,format='famfi-expenses/v5'){
   const member=(await query('select ledger_id,party_id from famfi.household_members where user_id=$1',[actorId])).rows[0];
   if(!member)throw new Error('An active household member is required');
   const household=(await query('select id,name from famfi.households')).rows[0];
-  const payload={format:'famfi-expenses/v4',exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household};
-  for(const dataset of householdBackupTables)payload[dataset.key]=(await query(`select ${dataset.fields.map(key=>`${sqlColumn(key)} as "${key}"`).join(',')} from famfi.${dataset.table} order by id`)).rows;
+  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household};
+  for(const dataset of format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from famfi.${dataset.table} order by id`)).rows;
   return payload;
 }
 export function normalizeBackupRows(rows, fields) {

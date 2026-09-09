@@ -61,6 +61,8 @@ model Party {
   archived  Boolean @default(false)
   version   Int     @default(1)
   systemKey String? @map("system_key")
+  nickname String?
+  profileConfirmed Boolean @default(false) @map("profile_confirmed")
 
   @@unique([userId, id])
   @@map("parties")
@@ -77,6 +79,7 @@ model PaymentSource {
   version          Int     @default(1)
   defaultTreatment String  @default("review") @map("default_treatment")
   isDefault        Boolean @default(false) @map("is_default")
+  ownerLabel       String? @map("owner_label")
 
   @@unique([userId, id])
   @@map("payment_sources")

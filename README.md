@@ -45,6 +45,9 @@ npm run build
 npm run test:db
 npm run test:stack
 # 別ターミナルで実行
+npm run test:profile-browser
+npm run test:profile-api
+npm run test:profile-settings-browser
 npm run test:api
 npm run test:ledger-api
 npm run test:browser
@@ -58,6 +61,8 @@ npm run test:household-browser
 検証画面は `http://127.0.0.1:3101`。架空の認証と使い捨てのローカルPostgresを使い、実メールやSupabaseには接続しません。ログインは `fixture0@example.invalid` / `111111`。終了は Ctrl+C、検証データは破棄されます。別パスの基盤リポジトリは `INFRA_PATH` で指定できます。
 
 同時実行の検証は `FAMFI_TEST_PG_BIN=/absolute/path/to/postgres/bin npm run test:stack` で独立PostgreSQL 17を使います。未指定時は簡易PGliteです。検証ポート3101・55432・55433が空いていることを確認してください。
+
+初回の本人確認も検証する場合は、新しいstackで `test:profile-browser` を最初に実行し、続けて `test:profile-api` / `test:profile-settings-browser` と既存テストを実行してください。通常の画面確認では初回ダイアログで夫のまま確認できます。表示名と支払元の仕様は [本人確認](docs/member-profiles.md) を参照してください。
 夫婦のローカル共有テストでは同じ架空メール欄に `777777` を入れると妻セッションになります。これはテストダブルであり、実メール配信や本番の妻アカウント確認ではありません。実装・UIテストがDBに作る記録はすべて使い捨てです。
 
 通常の開発サーバーは `npm run dev`。接続設定は `.env.example` と運用手順を参照してください。本番DBをPreviewやテストに使い回さないでください。

@@ -13,6 +13,8 @@ import { MasterManager } from './MasterManager';
 import { SettlementWorkspace } from './SettlementWorkspace';
 import { RecurringWorkspace } from './RecurringWorkspace';
 import { HistoryView } from './HistoryView';
+import { ProfileDialog } from './ProfileDialog';
+import { paymentSourceGroups } from '@/lib/household';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Masters, categoryName, settlementLabels, settlementState, treatmentLabels } from '@/lib/ledger';
 import { ExpenseRecord, ExpenseResponse, PAGE_SIZE, formatExpenseDate, formatYen, shiftMonth } from '@/lib/expenses';
@@ -23,6 +25,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const [category, setCategory] = useState('');
   const [view,setView] = useState('expenses');
   const [managing,setManaging] = useState(false);
+  const [profileOpen,setProfileOpen] = useState(false);
   const [filterOpen,setFilterOpen] = useState(false);
   const [person,setPerson] = useState(''); const [paymentSource,setPaymentSource] = useState(''); const [settlement,setSettlement] = useState('');
   const [treatment,setTreatment] = useState('');
@@ -64,10 +67,10 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     return () => controller.abort();
   }, [month, category, person, paymentSource, settlement, treatment, search, page, revision, queryKey]);
   useEffect(() => {
-    const onFocus = () => { if (!editor && !deleting && !managing) refresh(); };
+    const onFocus = () => { if (!editor && !deleting && !managing && !profileOpen) refresh(); };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-  }, [editor, deleting, managing, refresh]);
+  }, [editor, deleting, managing, profileOpen, refresh]);
   function changeMonth(value: string) {
     if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(value)) return;
     setMonth(value); setPage(1);
@@ -114,10 +117,12 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const categoryMap = new Map(categories.map(c => [c.id, c]));
   const pages = Math.max(1, Math.ceil((data?.filteredCount ?? 0) / PAGE_SIZE));
   const hasFilters = Boolean(category || person || paymentSource || settlement || treatment || search);
+  const self = data?.parties.find(p=>p.id===data.selfPartyId);
+  const firstProfile = self?.profileConfirmed === false && ['owner','partner'].includes(self.systemKey ?? '');
   return <div className="expense-app">
     <header className="expense-header"><div className="expense-header-inner">
       <Link href="/expenses" className="famfi-brand"><ReceiptText aria-hidden="true" />famFi</Link>
-      <span className="header-section">{data?.householdName ?? '支出管理'}{data?.selfPartyId && <small> · {data.parties.find(p=>p.id===data.selfPartyId)?.name}</small>}</span>
+      <button type="button" className="header-section profile-header" title="表示名の設定" aria-label="表示名の設定" disabled={!self} onClick={()=>{toast.dismiss();setProfileOpen(true);}}><span>{data?.householdName ?? '支出管理'}</span>{self&&<strong>{self.name}</strong>}</button>
       <Button variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
       <Button variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
@@ -145,7 +150,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
               <div className="ledger-heading"><h2 id="ledger-title">支出履歴 <span>{data.filteredCount}件</span></h2><div className="ledger-filter-actions"><CategorySelect label="カテゴリで絞り込み" value={category} onChange={filter} categories={categories} allowAll /><Button variant="ghost" size="icon" title="詳細な絞り込み" aria-label="詳細な絞り込み" aria-expanded={filterOpen} onClick={()=>setFilterOpen(!filterOpen)}><SlidersHorizontal /></Button></div></div>
               {filterOpen && <div className="ledger-filters"><form className="search-form" onSubmit={e=>{e.preventDefault();setSearch(searchDraft);setPage(1);}}><input aria-label="内容・メモを検索" maxLength={120} value={searchDraft} onChange={e=>setSearchDraft(e.target.value)} /><Button variant="outline" size="icon" aria-label="検索" title="検索"><Search /></Button></form><div className="filter-grid">
                 <div><label>人物・共用資金</label><ReferenceSelect label="人物・共用資金で絞り込み" value={person} emptyLabel="すべて" options={data.parties} onChange={v=>{setPerson(v??'');setPage(1);}} /></div>
-                <div><label>支払元</label><ReferenceSelect label="支払元で絞り込み" value={paymentSource} emptyLabel="すべて" options={data.paymentSources} onChange={v=>{setPaymentSource(v??'');setPage(1);}} /></div>
+                <div><label>支払元</label><ReferenceSelect label="支払元で絞り込み" value={paymentSource} emptyLabel="すべて" options={[]} groups={paymentSourceGroups(data,paymentSource,true)} onChange={v=>{setPaymentSource(v??'');setPage(1);}} /></div>
                 <div><label>支払いの扱い</label><ReferenceSelect label="支払いの扱いで絞り込み" value={treatment} emptyLabel="すべて" options={Object.entries(treatmentLabels).map(([id,name])=>({id,name}))} onChange={v=>{setTreatment(v??'');setPage(1);}} /></div>
                 <div><label>精算状態</label><ReferenceSelect label="精算状態で絞り込み" value={settlement} emptyLabel="すべて" options={Object.entries(settlementLabels).map(([id,name])=>({id,name}))} onChange={v=>{setSettlement(v??'');setPage(1);}} /></div>
               </div></div>}
@@ -178,6 +183,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     {view === 'expenses' && <div className="mobile-add"><Button className="primary-action" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>}
     {editor && data && <ExpenseEditor key={editor.key} expense={editor.expense} initial={editor.initial} initialMonth={month} masters={data} onMastersChanged={mastersChanged} onClose={() => setEditor(null)} onSaved={row => { setEditor(null); if(!editor.expense || row.date.slice(0,7)!==month) {setPage(1);setMonth(row.date.slice(0,7));} refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} onDuplicate={row=>setEditor({expense:null,initial:row,key:crypto.randomUUID()})} />}
     {managing && data && <MasterManager masters={data} onChange={mastersChanged} onClose={()=>setManaging(false)} />}
+    {self&&(firstProfile||profileOpen)&&<ProfileDialog key={self.id} person={self} firstTime={firstProfile} onSaved={masters=>{mastersChanged(masters);setProfileOpen(false);toast.success('表示名を保存しました');}} onClose={()=>setProfileOpen(false)} onLogout={logout} />}
     <Dialog open={Boolean(deleting)} onOpenChange={open => { if (!open && !busy) setDeleting(null); }}><DialogContent className="expense-dialog"><DialogHeader><DialogTitle>支出を削除しますか？</DialogTitle><DialogDescription>{deleting ? `${formatExpenseDate(deleting.date)} / ${deleting.description || categoryMap.get(deleting.categoryId)?.name} / ${formatYen(deleting.amount)}` : ''}</DialogDescription></DialogHeader><p className="muted-text">この操作は取り消せません。</p>{deleteError && <p role="alert" className="form-error">{deleteError}</p>}<div className="editor-save"><Button variant="outline" disabled={busy} onClick={() => setDeleting(null)}>キャンセル</Button><Button variant="destructive" disabled={busy} onClick={remove}>{busy ? <LoaderCircle className="animate-spin" /> : <Trash2 />}削除する</Button></div></DialogContent></Dialog>
   </div>;
 }

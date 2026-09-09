@@ -7,10 +7,27 @@
 .expense-app button, .expense-dialog button { gap: 8px; }
 .expense-app button { min-height: 40px; }
 .expense-header { border-bottom: 1px solid #e5e9e7; }
-.expense-header-inner { max-width: 1120px; margin: auto; height: 72px; display: flex; align-items: center; gap: 28px; padding: 0 32px; }
+.expense-header-inner { max-width: 1120px; margin: auto; min-height: 72px; display: flex; align-items: center; gap: 28px; padding: 12px 32px; }
+.expense-header-inner > :not(.header-section) { flex-shrink: 0; }
 .famfi-brand { display: inline-flex; align-items: center; gap: 10px; font-size: 25px; font-weight: 750; line-height: 1.2; color: #233b31; }
 .famfi-brand svg { width: 28px; height: 28px; color: #16806a; }
 .header-section { flex: 1; color: #64736d; font-size: 13px; }
+.profile-header { min-width: 0; text-align: left; background: transparent; border: 0; line-height: 1.35; overflow-wrap: anywhere; }
+.profile-header span, .profile-header strong { display: block; }
+.profile-header strong { color: #25382d; font-size: 14px; }
+.profile-header:hover strong { text-decoration: underline; }
+.profile-header:focus-visible { outline: 2px solid #16806a; outline-offset: 4px; }
+.profile-first > button:last-child { display: none; }
+.profile-identity { margin: 0; padding: 12px 0; border-bottom: 1px solid #e5e9e7; }
+.profile-identity > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.profile-identity dt { color: #64736d; font-size: 13px; }
+.profile-identity dd { font-weight: 600; }
+.profile-dialog .editor-save { flex-wrap: wrap; }
+.profile-dialog .editor-save button { min-height: 44px; flex: 1 1 auto; }
+.profile-dialog .profile-mismatch { align-self: flex-start; padding-left: 0; font-size: 13px; }
+.source-name-preview { padding: 10px 0; color: #16806a; overflow-wrap: anywhere; font-size: 14px; }
+.reference-group-label { padding-top: 12px; color: #64736d; font-size: 12px; overflow-wrap: anywhere; }
+.category-option > span:last-child { white-space: normal; overflow-wrap: anywhere; }
 .expense-main { max-width: 1120px; margin: auto; padding: 38px 32px 72px; }
 .workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 30px; }
 .workspace-heading > div { min-width: 0; }
@@ -221,7 +238,7 @@
   .master-list .master-child { padding-left: 10px; }
   .settlement-entry { gap: 8px; }
   .settlement-list > li { gap: 2px; }
-  .expense-header-inner { height: 60px; padding: 0 20px; gap: 12px; }
+  .expense-header-inner { min-height: 72px; padding: 8px 16px; gap: 8px; }
   .header-section { min-width: 0; }
   .header-section small { white-space: nowrap; }
   .workspace-tabs [role=tab] { flex: 1; padding: 8px 4px; font-size: 12px; }

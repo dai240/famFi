@@ -3,19 +3,19 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { ApiError } from './api';
 import { ExpenseFields, expenseDateForStorage, querySchema, serializeExpense } from './expenses';
-import { Masters, orderedCategories } from './ledger';
+import { Masters, orderedCategories, sourceDisplayName } from './ledger';
 
 export const expenseInclude = { settlements: { orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }] } };
 export async function readMasters(tx: Prisma.TransactionClient): Promise<Masters> {
   const categories = await tx.category.findMany();
-  const parties = await tx.party.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] });
+  const parties = (await tx.party.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] })).map(p => ({ ...p, name: p.nickname ?? p.name }));
   const paymentSources = await tx.paymentSource.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }] });
   const member = await tx.householdMember.findFirst();
   const household = await tx.household.findFirst();
   return {
     categories: orderedCategories(categories.map(({ userId: _owner, ...c }) => c)),
     parties: parties.map(({ userId: _owner, ...p }) => ({ ...p, kind: p.kind as 'person' | 'shared' })),
-    paymentSources: paymentSources.map(({ userId: _owner, ...p }) => ({ ...p, method: p.method as Masters['paymentSources'][number]['method'], defaultTreatment: p.defaultTreatment as Masters['paymentSources'][number]['defaultTreatment'] })),
+    paymentSources: paymentSources.map(({ userId: _owner, ...p }) => ({ ...p, storedName: p.name, name: sourceDisplayName(p, parties), method: p.method as Masters['paymentSources'][number]['method'], defaultTreatment: p.defaultTreatment as Masters['paymentSources'][number]['defaultTreatment'] })),
     selfPartyId: member?.partyId, householdName: household?.name,
   };
 }

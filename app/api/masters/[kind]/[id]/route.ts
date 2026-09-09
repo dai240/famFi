@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth/server';
 import { withLedgerDb } from '@/lib/prisma';
 import { ApiError, apiError, assertSameOrigin, json, readJson } from '@/lib/api';
 import { partyFields, paymentSourceFields } from '@/lib/ledger';
-import { validateSource, clearOtherDefaults } from '@/lib/master-service';
+import { validateSource, clearOtherDefaults, validatePersonDisplayName } from '@/lib/master-service';
 export const dynamic = 'force-dynamic';
 export async function PUT(request: Request, context: { params: Promise<{ kind: string; id: string }> }) {
   try {
@@ -17,7 +17,7 @@ export async function PUT(request: Request, context: { params: Promise<{ kind: s
         if (old.version !== version) throw new ApiError(409, '変更されています。開き直してください。');
         if (old.systemKey) throw new ApiError(400, '夫・妻・家計の共用資金は固定項目です。');
         if (old.kind !== input.kind) throw new ApiError(400, '登録後に人物・共用資金の種類は変更できません。');
-        if (await tx.party.findFirst({ where: { name: { equals: input.name, mode: 'insensitive' }, NOT: { id } } })) throw new ApiError(409, '同名の人物・共用資金があります。');
+        await validatePersonDisplayName(tx, id, input.name);
         return tx.party.update({ where: { id }, data: { name: input.name, archived: input.archived, version: { increment: 1 } } });
       }
       const { version, ...input } = paymentSourceFields.extend({ version: z.number().int().positive() }).strict().parse(body);

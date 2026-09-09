@@ -4,13 +4,14 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { decryptBackup } from './backup.mjs';
-import { backupTables, householdBackupTables, normalizeBackupRows, sqlColumn } from './backup-model.mjs';
+import { backupTables, householdBackupTables, profileBackupTables, normalizeBackupRows, sqlColumn } from './backup-model.mjs';
 
 export async function verifyBackupRestore(backup) {
   assert.match(backup.ownerId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  const isV4 = backup.format === 'famfi-expenses/v4';
+  const isV5 = backup.format === 'famfi-expenses/v5';
+  const isV4 = backup.format === 'famfi-expenses/v4' || isV5;
   const isV3 = backup.format === 'famfi-expenses/v3' || isV4;
-  const tables = isV4 ? householdBackupTables : backupTables;
+  const tables = isV5 ? profileBackupTables : isV4 ? householdBackupTables : backupTables;
   if(isV4){assert.equal(backup.household?.id,backup.ownerId);for(const dataset of tables)assert.ok(Array.isArray(backup[dataset.key]));}
   if (isV3) for (const key of ['parties','paymentSources','settlements']) assert.ok(Array.isArray(backup[key]));
   const restoredExpenses = backup.expenses.map(expense => {
@@ -27,7 +28,7 @@ export async function verifyBackupRestore(backup) {
     await db.exec('create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;');
     const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infra', 'supabase/migrations');
     for (const file of (await readdir(migrations)).sort()) {
-      if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(file) && (isV4 || !file.includes('household_workflow'))) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
+      if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(file) && (isV4 || !/household_workflow|member_profiles/.test(file))) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
     }
     const other = randomUUID();
     await db.query('insert into auth.users(id) values ($1), ($2)', [backup.ownerId, other]);

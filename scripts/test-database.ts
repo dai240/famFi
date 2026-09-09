@@ -17,7 +17,7 @@ let checks = 0;
 try {
   await db.exec(`create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;`);
   for (const filename of (await readdir(path.join(root, 'supabase/migrations'))).sort()) {
-    if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(filename) && !filename.includes('household_workflow')) await db.exec(await readFile(path.join(root, 'supabase/migrations', filename), 'utf8'));
+    if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(filename) && !/household_workflow|member_profiles/.test(filename)) await db.exec(await readFile(path.join(root, 'supabase/migrations', filename), 'utf8'));
   }
   await db.exec(`insert into auth.users values ('${owner}'), ('${other}'), ('${outsider}'); insert into famfi.memberships(user_id) values ('${owner}'), ('${other}'); create schema unrelated; create table unrelated.private_data(id int);`);
   async function asUser<T>(user: string, fn: () => Promise<T>) {

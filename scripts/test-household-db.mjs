@@ -19,13 +19,14 @@ try {
   await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);revoke all on schema public from public;');
   const dir=path.resolve('../personal-apps-infra/supabase/migrations');
   const files=(await readdir(dir)).sort().filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(f));
-  for(const f of files.filter(f=>!f.includes('household_workflow'))) await db.exec(await readFile(path.join(dir,f),'utf8'));
+  for(const f of files.filter(f=>!/household_workflow|member_profiles/.test(f))) await db.exec(await readFile(path.join(dir,f),'utf8'));
   await db.exec(`insert into auth.users values('${owner}'),('${wife}'),('${other}'),('${outsider}');insert into famfi.memberships(user_id) values('${owner}');insert into famfi.expenses(id,user_id,amount,date,category_id) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','${owner}',1234,'2026-09-09','food');`);
   const before=(await db.query('select * from famfi.expenses')).rows[0];
   await db.exec(await readFile(path.join(dir,files.find(f=>f.includes('household_workflow'))),'utf8'));
   const after=(await db.query('select * from famfi.expenses')).rows[0];
   for(const key of Object.keys(before)) equal(after[key],before[key]);
   equal(after.payment_treatment,'legacy');
+  await db.exec(await readFile(path.join(dir,files.find(f=>f.includes('member_profiles'))),'utf8'));
   await db.exec(`insert into famfi.memberships(user_id) values('${wife}'),('${other}');insert into famfi.household_members(user_id,ledger_id,party_id) select '${wife}','${owner}',id from famfi.parties where user_id='${owner}' and system_key='partner';select famfi.provision_household('${other}');create schema unrelated;create table unrelated.private_data(id int);`);
   equal((await as(owner,'select * from famfi.category_entries')).length,24);
   equal((await as(wife,'select * from famfi.payment_sources')).length,8);
@@ -68,9 +69,13 @@ try {
   await as(owner,'delete from famfi.expenses where id=$1',[generatedId]);
   equal((await as(owner,'select state,expense_id from famfi.recurring_occurrences where id=$1',[occurrenceId]))[0],{state:'open',expense_id:null});
   await as(owner,"update famfi.recurring_occurrences set state='skipped' where id=$1",[occurrenceId]);
+  await as(owner,"update famfi.parties set nickname='検証本人',profile_confirmed=true,version=version+1 where id=$1",[husband]);
+  await as(owner,"insert into famfi.payment_sources(id,user_id,name,method,funding_party_id,default_treatment) values(gen_random_uuid(),$1,'夫の現金','cash',$2,'advance')",[owner,husband]);
   await db.exec('begin;set local session authorization famfi_app;');await db.query("select set_config('app.user_id',$1,true)",[owner]);
   const snapshot=await captureHouseholdBackup((sql,values)=>db.query(sql,values),owner);await db.exec('rollback;set session authorization postgres;reset role;');
   equal(await verifyBackupRestore(snapshot),{expenses:2,categories:24});
   equal(snapshot.recurringRules.length,1);equal(snapshot.recurringOccurrences[0].state,'skipped');assert.ok(snapshot.auditEvents.length>5);checks++;
+  equal(snapshot.format,'famfi-expenses/v5');equal(snapshot.parties.find(p=>p.id===husband).nickname,'検証本人');
+  equal(snapshot.paymentSources.filter(s=>s.name==='夫の現金'&&s.ownerLabel===null).length,1);
   console.log(`PASS: ${checks} household migration, preservation, sharing, audit and isolation checks`);
 } finally {await db.close();}

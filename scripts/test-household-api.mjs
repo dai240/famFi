@@ -31,7 +31,7 @@ const directId=randomUUID(),direct={...shared,amount:25000,paymentSourceId:wifeC
 const before=await(await result(owner,'/api/expenses?month=2026-07&treatment=direct')).json();await result(owner,'/api/expenses','POST',{...direct,id:directId},201);
 const after=await(await result(wife,'/api/expenses?month=2026-07&treatment=direct')).json();equal(after.filteredTotal,before.filteredTotal+25000);assert.ok(after.directContributions.some(p=>p.partyId===partner&&p.amount>=25000));checks++;
 const exportCsv=await(await result(owner,'/api/expenses/export?month=2026-07&treatment=direct')).text();assert.ok(exportCsv.includes('直接負担・返金なし'));assert.ok(exportCsv.includes('妻のカード'));checks+=2;
-await result(owner,'/api/masters/parties/'+husband,'PUT',{name:'rename fixed',kind:'person',archived:false,version:1},400);
+await result(owner,'/api/masters/parties/'+husband,'PUT',{name:'rename fixed',kind:'person',archived:false,version:masters.parties.find(p=>p.id===husband).version},400);
 await result(owner,'/api/masters/payment-sources','POST',{id:randomUUID(),name:'Missing funding',method:'card'},400);
 await result(wife,'/api/masters/payment-sources/'+wifeCard.id,'PUT',{...sourceFields(wifeCard),fundingPartyId:husband,version:wifeCard.version},409);
 const rule={id:randomUUID(),name:'Monthly API '+randomUUID().slice(0,8),amountMode:'fixed',amount:4000,frequency:'monthly',startMonth:'2028-01',endMonth:'2028-12',dueDay:31,categoryId:'utilities',paymentSourceId:wifeCard.id,paymentTreatment:'advance',usedByPartyId:partner,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',memo:'fixture',archived:false};
@@ -68,4 +68,4 @@ await result(owner,'/api/recurring/'+yearly.id+'/occurrences','POST',{action:'po
 const response=await owner(occurrencePath,'POST',post,'https://evil.example');equal(response.status,403);
 console.log('PASS: '+checks+' household HTTP sharing/defaults/required fields/audit/recurring/idempotency/concurrency checks');
 function without(value,keys){return Object.fromEntries(Object.entries(value).filter(([key])=>!keys.includes(key)));}
-function sourceFields(row){return without(row,['id','version']);}
+function sourceFields(row){return without(row,['id','version','storedName']);}

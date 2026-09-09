@@ -4,7 +4,7 @@ import { Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ExpenseFields, formatYen } from '@/lib/expenses';
 import { Masters, treatmentLabels } from '@/lib/ledger';
-import { paymentSuggestion, paymentSummary, personLabel } from '@/lib/household';
+import { paymentSourceGroups, paymentSuggestion, paymentSummary, personLabel } from '@/lib/household';
 import { ReferenceSelect } from './ReferenceSelect';
 
 export function PaymentFields({fields,masters,onChange,disabled=false,financialLocked=false,onManage,recurring=false}:{
@@ -20,7 +20,7 @@ export function PaymentFields({fields,masters,onChange,disabled=false,financialL
   const paymentDisabled=disabled||financialLocked;
   return <div className="expense-details payment-fields">
     <div className="field-heading"><label htmlFor="expense-payment">支払元</label>{onManage&&<Button type="button" size="icon" variant="ghost" title="支払元を管理" aria-label="支払元を管理" disabled={disabled} onClick={()=>onManage('payment-sources')}><Settings2 /></Button>}</div>
-    <ReferenceSelect id="expense-payment" label="支払元" value={fields.paymentSourceId} disabled={paymentDisabled} allowEmpty={false} emptyLabel="選択してください" options={masters.paymentSources.filter(p=>!p.archived||p.id===fields.paymentSourceId)} onChange={id=>onChange(paymentSuggestion(masters,id,fields.amount))} />
+    <ReferenceSelect id="expense-payment" label="支払元" value={fields.paymentSourceId} disabled={paymentDisabled} allowEmpty={false} emptyLabel="選択してください" options={[]} groups={paymentSourceGroups(masters,fields.paymentSourceId)} onChange={id=>onChange(paymentSuggestion(masters,id,fields.amount))} />
     <label htmlFor="expense-treatment">支払いの扱い</label><ReferenceSelect id="expense-treatment" label="支払いの扱い" value={fields.paymentTreatment} allowEmpty={false} disabled={paymentDisabled} options={modes.map(id=>({id,name:treatmentLabels[id as keyof typeof treatmentLabels]}))} onChange={mode=>{if(mode&&mode!=='legacy')onChange(paymentSuggestion(masters,fields.paymentSourceId,fields.amount,mode as ExpenseFields['paymentTreatment']));}} />
     {source&&<div className={`payment-outcome ${fields.paymentTreatment}`} role="status"><span>資金：{personLabel(source.fundingPartyId,masters)}</span><strong>{paymentSummary(fields,masters)}{fields.reimbursementStatus==='required'&&!recurring&&` ${formatYen(fields.reimbursementAmount)}`}</strong></div>}
     <div className="field-heading"><label htmlFor="expense-used-by">購入・支払いをした人</label>{onManage&&<Button type="button" size="icon" variant="ghost" title="人物を管理" aria-label="人物を管理" disabled={disabled} onClick={()=>onManage('parties')}><Settings2 /></Button>}</div>

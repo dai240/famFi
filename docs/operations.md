@@ -13,7 +13,7 @@
 7. 本番で支出の登録・再表示・編集・削除・CSV・ログアウト・再ログインを確認する。別端末でも同じ記録が見えることを確認する。テスト入力は本人が分かる名前で作り、実記録と混ぜない。
 8. 初回バックアップを取得し、ローカルの使い捨てDBで復旧する。確認後に基盤台帳のfamFiを `connected` へ更新する。
 
-2026-09-09: 本人がログイン用メールアドレスを確定し、Productionの許可アドレスを設定した。共有Authの招待・通常ログインのテンプレートは、既存リンクを残してコード表示を追加した。初回登録の画面/APIと権限拒否をローカルで確認済み。実メールの受信・本人による本番ログインは未確認で、画面を公開しただけでは利用開始完了としない。招待の送信・membershipの最新状況は基盤リポジトリの `docs/status.md` を確認する。
+2026-09-09: 本人メール・Productionの許可アドレス・famFi membershipを設定済み。招待メールのコードで共有Authのメール確認は完了したが、その後の本番DB処理で成果物の不足ファイルによるエラーが起きた。修正版を反映した後、通常の `/login` で新しい確認コードを使う。初回招待を再送したり、消費済みコードを使い直したりしない。アプリへのログイン・実支出の確認は未完了。最新状況は基盤リポジトリの `docs/status.md` を参照する。
 
 Supabase標準SMTPの宛先はOrganizationメンバーに限定される。別名アドレスも同じメールボックスだから使えるとは扱わない。配信制限があるため、招待の再送や確認コードのテスト送信を繰り返さない。配信設定の変更は共有Auth全体に影響する。
 
@@ -24,7 +24,8 @@ Supabase標準SMTPの宛先はOrganizationメンバーに限定される。別�
 - CAはSupabase管理画面のConnectから取得した公開証明書。`certs/supabase-ca.crt` を各APIの成果物に含める。`rejectUnauthorized: false` や `NODE_TLS_REJECT_UNAUTHORIZED=0` は禁止。
 - プールのホストは `aws-1-ap-southeast-1.pooler.supabase.com:6543`、ユーザー名は `famfi_app.fpptihhtyhehpjvmtuqt`。管理者の接続情報で代用しない。
 - `.private/`、すべてのローカルenv、秘密鍵はGitとVercelアップロードの両方から除外する。
-- Nextのトレースでもローカルenvと `.private/` を除外する。ビルド後に `npm run check:artifact` で秘密設定の非同梱とCA同梱を確認する。
+- Nextのトレースでもローカルenvと `.private/` を除外する。Prismaの `query_compiler_bg.wasm` は動的に読み込まれるため、CAとともに各APIの `outputFileTracingIncludes` へ明示する。必要ファイルの追記方法は [Next.jsの公式手順](https://nextjs.org/docs/15/app/api-reference/config/next-config-js/output) を参照。
+- `npm run build` の最後に成果物検査を自動実行する。`npm run check:artifact` でも、秘密設定の非同梱、CA・Prismaコンパイラの同梱、トレースされたファイルだけでのPrisma初期化を再確認できる。この検査は実DBや本番資格情報を使わない。Vercelへアップロードするscriptsはこの検査ファイルだけで、資格情報の設定スクリプト等は引き続き除外する。
 - 本番ドメインは `https://famfi-nu.vercel.app`。`APP_ORIGIN` はこのOriginに限定する。Preview URLでの書き込みは許可しない。
 - VercelとGitHubの自動連携は未接続。現時点では、確認・コミット・push後に `npx vercel --prod --yes --scope day56s-projects` で公開する。デプロイがReadyになり、APIの未認証拒否も確認する。
 

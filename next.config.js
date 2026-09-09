@@ -2,7 +2,9 @@
 const nextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
-  outputFileTracingIncludes: { '/api/**/*': ['./certs/supabase-ca.crt'] },
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./certs/supabase-ca.crt', './node_modules/.prisma/client/query_compiler_bg.wasm'],
+  },
   outputFileTracingExcludes: { '**': ['./.env', './.env.*', './.private/**/*'] },
   async redirects() {
     return ['dashboard', 'household', 'management', 'people', 'housework', 'recipe', 'schedule']

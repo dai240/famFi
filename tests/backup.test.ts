@@ -20,5 +20,9 @@ test('runtime backup fields restore exactly and remain owner-only', async () => 
   const categories = [{ id: 'food', name: 'Food', color: '#16806A', sortOrder: 10 }];
   const expense = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', userId: ownerId, amount: 980, date: '2026-09-09T00:00:00.000Z', categoryId: 'food', description: 'Restore fixture', memo: 'Line 1\nLine 2', version: 2, createdAt: '2026-09-09T10:00:00.000Z', updatedAt: '2026-09-09T10:01:00.000Z' };
   assert.deepEqual(await verifyBackupRestore({ ownerId, categories, expenses: [expense] }), { expenses: 1, categories: 1 });
+  const monthly = { ...expense, date: '2026-09-01T00:00:00.000Z', datePrecision: 'month' };
+  assert.deepEqual(await verifyBackupRestore({ format: 'famfi-expenses/v2', ownerId, categories, expenses: [monthly] }), { expenses: 1, categories: 1 });
+  await assert.rejects(verifyBackupRestore({ format: 'famfi-expenses/v2', ownerId, categories, expenses: [expense] }));
+  await assert.rejects(verifyBackupRestore({ format: 'famfi-expenses/v2', ownerId, categories, expenses: [{ ...monthly, date: '2026-09-09' }] }));
   await assert.rejects(verifyBackupRestore({ ownerId, categories, expenses: [{ ...expense, userId: '22222222-2222-4222-8222-222222222222' }] }));
 });

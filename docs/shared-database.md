@@ -21,7 +21,7 @@
 
 2026-09-09 に支出MVPと本人のメールコードログインを確認しました。Prismaコンパイラの同梱漏れを修正後、本番でテスト支出の保存・再表示・編集・削除・CSV出力、支出を含む暗号化バックアップとローカル復元が成功しています。テスト支出1件は本人の承認後に削除し、再読み込みと専用runtimeの読み取りで支出0件・0円、カテゴリ10件、本人の有効なmembership1件を確認しました。本番への復元はしていません。実機スマホ・別端末確認は未完了です。最新状態は管理リポジトリの `docs/status.md` と `docs/famfi-onboarding-2026-09-09.md` を確認してください。
 
-- 適用済みSQL: 管理リポジトリの `20260909095423_famfi_expense_mvp.sql`。
+- 適用済みSQL: 管理リポジトリの `20260909095423_famfi_expense_mvp.sql` と `20260909122110_famfi_expense_date_precision.sql`。後者は支出に月のみ/日付指定の区別を追加し、既存データを維持する。
 - 実テーブル: `famfi.memberships`、`famfi.categories`、`famfi.expenses`。RLSを有効化・強制。
 - 接続: 非所有者の `famfi_app` LOGIN が `famfi_runtime` の限定権限を継承。接続数上限10、アプリ側プール最大2。
 - `prisma/schema.prisma` はこの3モデルだけを対象とする。旧モデルは `docs/drafts/future-models.prisma.txt` に退避し、適用しない。

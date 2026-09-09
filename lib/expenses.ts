@@ -10,7 +10,7 @@ export const dateSchema = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])-\d{2}$/, '�
   }, '存在する日付を入力してください');
 export const expenseFields = z.object({
   amount: z.number().int().min(1).max(999999999),
-  date: dateSchema,
+  date: z.union([dateSchema, monthSchema]),
   categoryId: z.enum(categoryIds),
   description: z.string().trim().max(120).default(''),
   memo: z.string().trim().max(1000).default(''),
@@ -56,11 +56,22 @@ export function shiftMonth(month: string, delta: number) {
 export function formatYen(amount: number) {
   return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(amount);
 }
+export function expenseDateForStorage(value: string) {
+  const date = z.union([dateSchema, monthSchema]).parse(value);
+  const datePrecision = date.length === 7 ? 'month' : 'day';
+  return { date: new Date(`${datePrecision === 'month' ? `${date}-01` : date}T00:00:00.000Z`), datePrecision };
+}
+export function formatExpenseDate(value: string, compact = false) {
+  const month = Number(value.slice(5, 7));
+  if (value.length === 7) return `${compact ? '' : `${value.slice(0, 4)}年`}${month}月（月のみ）`;
+  const day = Number(value.slice(8, 10));
+  return compact ? `${month}/${day}` : `${value.slice(0, 4)}年${month}月${day}日`;
+}
 export function serializeExpense(row: {
-  id: string; amount: number; date: Date; categoryId: string; description: string;
+  id: string; amount: number; date: Date; datePrecision: string; categoryId: string; description: string;
   memo: string; version: number; createdAt: Date; updatedAt: Date;
 }): ExpenseRecord {
-  return { id: row.id, amount: row.amount, date: row.date.toISOString().slice(0, 10),
+  return { id: row.id, amount: row.amount, date: row.date.toISOString().slice(0, row.datePrecision === 'month' ? 7 : 10),
     categoryId: row.categoryId as ExpenseFields['categoryId'], description: row.description,
     memo: row.memo, version: row.version, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
@@ -72,7 +83,7 @@ export function csvCell(value: string | number) {
 }
 export function expenseCsv(rows: ExpenseRecord[], categories: ExpenseCategory[]) {
   const names = new Map(categories.map(c => [c.id, c.name]));
-  const lines = [['日付', '金額（円）', 'カテゴリ', '内容', 'メモ', 'ID'],
-    ...rows.map(row => [row.date, row.amount, names.get(row.categoryId) ?? row.categoryId, row.description, row.memo, row.id])];
+  const lines = [['日付', '金額（円）', 'カテゴリ', '内容', 'メモ', 'ID', '日付の精度'],
+    ...rows.map(row => [row.date, row.amount, names.get(row.categoryId) ?? row.categoryId, row.description, row.memo, row.id, row.date.length === 7 ? '月のみ' : '日付指定'])];
   return '\uFEFF' + lines.map(line => line.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }

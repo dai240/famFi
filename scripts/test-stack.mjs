@@ -10,7 +10,7 @@ const db = new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;');
 const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infra', 'supabase/migrations');
 for (const file of (await readdir(migrations)).sort()) {
-  if (/shared_foundation|shared_runtime_admin_membership|famfi_expense_mvp/.test(file)) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
+  if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(file)) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
 }
 const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'];
 await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'); set session authorization famfi_app;`);

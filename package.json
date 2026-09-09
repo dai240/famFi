@@ -11,6 +11,7 @@
     "test:db": "tsx scripts/test-database.ts",
     "test:stack": "node scripts/test-stack.mjs",
     "test:api": "node scripts/test-api.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
     "check:runtime": "tsx scripts/check-runtime.mjs",
     "check:artifact": "node scripts/check-artifact.mjs",
     "backup": "tsx scripts/backup.mjs",
@@ -88,6 +89,7 @@
     "@electric-sql/pglite": "0.5.8",
     "@electric-sql/pglite-socket": "0.2.11",
     "openpgp": "6.3.1",
+    "playwright": "1.62.1",
     "prisma": "6.19.3",
     "tsx": "4.23.13"
   }

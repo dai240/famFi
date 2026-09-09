@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ExpenseEditor } from './ExpenseEditor';
-import { ExpenseRecord, ExpenseResponse, PAGE_SIZE, formatYen, shiftMonth } from '@/lib/expenses';
+import { CategorySelect } from './CategorySelect';
+import { ExpenseRecord, ExpenseResponse, PAGE_SIZE, formatExpenseDate, formatYen, shiftMonth } from '@/lib/expenses';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
 
 export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
@@ -51,6 +52,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     setMonth(value); setPage(1);
   }
   function filter(value: string) { setCategory(value); setPage(1); }
+  function openEditor(expense: ExpenseRecord | null) { toast.dismiss(); setEditor({ expense }); }
   function failure(error: unknown) {
     if (error instanceof RequestError && error.status === 401) window.location.replace('/login');
     else toast.error(errorMessage(error));
@@ -95,7 +97,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     </div></header>
     <main className="expense-main">
       <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
-        <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => setEditor({ expense: null })}><Plus />支出を記録</Button>
+        <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button>
       </div>
       <div className="expense-toolbar">
         <div className="month-selector"><Button variant="ghost" size="icon" title="前の月" aria-label="前の月" disabled={month === '2000-01'} onClick={() => changeMonth(shiftMonth(month, -1))}><ChevronLeft /></Button>
@@ -112,12 +114,12 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
           <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>記録数</span><strong>{data.count}<small> 件</small></strong></div></section>
           <div className="expense-body">
             <section className="expense-ledger" aria-labelledby="ledger-title">
-              <div className="ledger-heading"><h2 id="ledger-title">支出履歴 <span>{data.filteredCount}件</span></h2><select aria-label="カテゴリで絞り込み" value={category} onChange={e => filter(e.target.value)}><option value="">すべてのカテゴリ</option>{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-              {data.expenses.length === 0 ? <div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{category ? 'このカテゴリの記録はありません' : 'この月の記録はありません'}</p><Button variant="outline" onClick={() => setEditor({ expense: null })}><Plus />支出を記録</Button></div>
+              <div className="ledger-heading"><h2 id="ledger-title">支出履歴 <span>{data.filteredCount}件</span></h2><CategorySelect label="カテゴリで絞り込み" value={category} onChange={filter} categories={categories} allowAll /></div>
+              {data.expenses.length === 0 ? <div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{category ? 'このカテゴリの記録はありません' : 'この月の記録はありません'}</p><Button variant="outline" onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
                 : <div className="ledger-rows">{data.expenses.map(expense => {
                   const cat = categoryMap.get(expense.categoryId);
-                  return <button className="expense-row" key={expense.id} onClick={() => setEditor({ expense })} aria-label={`${expense.date} ${expense.description || cat?.name} ${expense.amount}円を編集`}>
-                    <time dateTime={expense.date}>{Number(expense.date.slice(5, 7))}/{Number(expense.date.slice(8, 10))}</time>
+                  return <button className="expense-row" key={expense.id} onClick={() => openEditor(expense)} aria-label={`${formatExpenseDate(expense.date)} ${expense.description || cat?.name} ${expense.amount}円を編集`}>
+                    <time dateTime={expense.date}>{expense.date.length === 7 ? <>{Number(expense.date.slice(5, 7))}月<small>月のみ</small></> : formatExpenseDate(expense.date, true)}</time>
                     <div className="expense-row-content"><strong>{expense.description || cat?.name}</strong><span><i className="category-dot" style={{ backgroundColor: cat?.color }} />{cat?.name}{expense.memo && <span className="row-memo">{expense.memo}</span>}</span></div>
                     <strong className="row-amount">{formatYen(expense.amount)}</strong><Pencil className="row-edit" aria-hidden="true" />
                   </button>;
@@ -133,8 +135,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
           </div>
         </>}
     </main>
-    <div className="mobile-add"><Button className="primary-action" disabled={!data || loading} onClick={() => setEditor({ expense: null })}><Plus />支出を記録</Button></div>
+    <div className="mobile-add"><Button className="primary-action" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
     {editor && <ExpenseEditor expense={editor.expense} categories={categories} onClose={() => setEditor(null)} onSaved={row => { setEditor(null); setCategory(''); setPage(1); setMonth(row.date.slice(0, 7)); refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} />}
-    <Dialog open={Boolean(deleting)} onOpenChange={open => { if (!open && !busy) setDeleting(null); }}><DialogContent className="expense-dialog"><DialogHeader><DialogTitle>支出を削除しますか？</DialogTitle><DialogDescription>{deleting ? `${deleting.date} / ${deleting.description || categoryMap.get(deleting.categoryId)?.name} / ${formatYen(deleting.amount)}` : ''}</DialogDescription></DialogHeader><p className="muted-text">この操作は取り消せません。</p>{deleteError && <p role="alert" className="form-error">{deleteError}</p>}<div className="editor-save"><Button variant="outline" disabled={busy} onClick={() => setDeleting(null)}>キャンセル</Button><Button variant="destructive" disabled={busy} onClick={remove}>{busy ? <LoaderCircle className="animate-spin" /> : <Trash2 />}削除する</Button></div></DialogContent></Dialog>
+    <Dialog open={Boolean(deleting)} onOpenChange={open => { if (!open && !busy) setDeleting(null); }}><DialogContent className="expense-dialog"><DialogHeader><DialogTitle>支出を削除しますか？</DialogTitle><DialogDescription>{deleting ? `${formatExpenseDate(deleting.date)} / ${deleting.description || categoryMap.get(deleting.categoryId)?.name} / ${formatYen(deleting.amount)}` : ''}</DialogDescription></DialogHeader><p className="muted-text">この操作は取り消せません。</p>{deleteError && <p role="alert" className="form-error">{deleteError}</p>}<div className="editor-save"><Button variant="outline" disabled={busy} onClick={() => setDeleting(null)}>キャンセル</Button><Button variant="destructive" disabled={busy} onClick={remove}>{busy ? <LoaderCircle className="animate-spin" /> : <Trash2 />}削除する</Button></div></DialogContent></Dialog>
   </div>;
 }

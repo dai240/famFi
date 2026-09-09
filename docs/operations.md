@@ -53,11 +53,15 @@ npm run backup:restore-check -- <出力された.json.pgpファイル>
 
 1. 元DBを変更する前に最新データも退避し、復元対象の本人UUID・件数・日付範囲を確認する。内容をチャットに貼らない。
 2. 管理リポジトリのマイグレーションを空のローカルDBへ適用する。ローカルに同じUUIDのAuth代替行とmembershipを準備する。共有本番DBをリセットしない。
-3. `decryptBackup` でメモリ内復号し、保存された `id / userId / amount / date / categoryId / description / memo / version / createdAt / updatedAt` をパラメータ化INSERTで `famfi.expenses` へ復元する。SQL列名は `user_id / category_id / created_at / updated_at`。日付はdate、タイムスタンプはtimestamptzとして保存する。
+3. `decryptBackup` でメモリ内復号し、保存された `id / userId / amount / date / datePrecision / categoryId / description / memo / version / createdAt / updatedAt` をパラメータ化INSERTで `famfi.expenses` へ復元する。SQL列名は `user_id / date_precision / category_id / created_at / updated_at`。日付はdate、タイムスタンプはtimestamptzとして保存する。v2の `datePrecision` は必須で、月のみは `month` と月初日を組にして保持する。旧v1で精度がないものは `day` として扱う。
 4. 復元先の本人コンテキストで件数・月別合計・全項目を照合し、他ユーザーから見えないことも確認する。`npm run test:db` に暗号化バックアップからの復元例がある。
 5. 本番への反映は差分と競合を確認してから、対象famFiの本人行だけを管理作業で反映する。Authユーザー全体の削除や共有プロジェクト全体の巻き戻しをしない。
 
 ## 検証範囲と残リスク
+
+2026-09-09の月のみ入力・カテゴリ色・スマホ表示修正は、単体12、ローカルDB34、API63、Chromium/WebKitの6画面条件ずつ182項目とビルドで確認した。`date_precision` 追加時は既存支出1件を暗号化バックアップし、全項目が変更前と一致することを専用runtimeで確認した。実機の再確認は別途必要。
+
+月のみを保存した後は、この機能を持たない旧デプロイへ戻さない。旧画面を開いたままの端末は更新する。DB列を削除したり月のみを日付指定へ一括変換したりせず、問題があれば精度を保持する修正を前進適用する。
 
 ローカル統合テストは実際のNext APIとPrismaを通すが、Authは架空のローカルサーバー。メール配信・実Supabaseセッション・別端末確認は別途必要。実接続の `npm run check:runtime` は非認証コンテキストの非公開性、他スキーマ・DDL・管理ロールへの拒否を確認し、実ユーザーデータを書き込まない。
 

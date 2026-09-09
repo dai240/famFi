@@ -1,7 +1,7 @@
 import { requireUser } from '@/lib/auth/server';
 import { withUserDb } from '@/lib/prisma';
 import { ApiError, apiError, assertSameOrigin, json, readJson } from '@/lib/api';
-import { PAGE_SIZE, createExpenseSchema, monthRange, querySchema, serializeExpense } from '@/lib/expenses';
+import { PAGE_SIZE, createExpenseSchema, expenseDateForStorage, monthRange, querySchema, serializeExpense } from '@/lib/expenses';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,12 +30,13 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const user = await requireUser();
     const input = createExpenseSchema.parse(await readJson(request));
+    const storedDate = expenseDateForStorage(input.date);
     const result = await withUserDb(user.id, async tx => {
       // The client retains this UUID across retries, preventing ambiguous network failures from duplicating a record.
       // Prisma createMany also names default metadata columns, which this role must not insert.
       const inserted = await tx.$executeRaw`
-        insert into famfi.expenses (id, user_id, amount, date, category_id, description, memo)
-        values (${input.id}::uuid, ${user.id}::uuid, ${input.amount}, ${input.date}::date,
+        insert into famfi.expenses (id, user_id, amount, date, date_precision, category_id, description, memo)
+        values (${input.id}::uuid, ${user.id}::uuid, ${input.amount}, ${storedDate.date}::date, ${storedDate.datePrecision},
                 ${input.categoryId}, ${input.description}, ${input.memo})
         on conflict (id) do nothing`;
       const expense = await tx.expense.findUnique({ where: { id: input.id } });

@@ -17,7 +17,7 @@ let checks = 0;
 try {
   await db.exec(`create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;`);
   for (const filename of (await readdir(path.join(root, 'supabase/migrations'))).sort()) {
-    if (/shared_foundation|shared_runtime_admin_membership|famfi_expense_mvp/.test(filename)) await db.exec(await readFile(path.join(root, 'supabase/migrations', filename), 'utf8'));
+    if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(filename)) await db.exec(await readFile(path.join(root, 'supabase/migrations', filename), 'utf8'));
   }
   await db.exec(`insert into auth.users values ('${owner}'), ('${other}'), ('${outsider}'); insert into famfi.memberships(user_id) values ('${owner}'), ('${other}'); create schema unrelated; create table unrelated.private_data(id int);`);
   async function asUser<T>(user: string, fn: () => Promise<T>) {
@@ -52,6 +52,13 @@ try {
   await rejects(owner, 'create schema forbidden');
   await rejects(owner, 'set role postgres');
   await rejects(owner, `update famfi.expenses set amount=0 where id='${expense}'`);
+  await count(owner, "select count(*) n from famfi.expenses where date_precision='day'", 1);
+  await rejects(owner, `update famfi.expenses set date_precision='year' where id='${expense}'`);
+  await rejects(owner, `update famfi.expenses set date_precision='month' where id='${expense}'`);
+  await asUser(owner, () => db.exec(`update famfi.expenses set date='2026-09-01',date_precision='month' where id='${expense}'`)); checks++;
+  await count(owner, "select count(*) n from famfi.expenses where date_precision='month' and date >= '2026-09-01' and date < '2026-10-01'", 1);
+  await count(other, 'select count(*) n from famfi.expenses', 0);
+  await rejects(other, `insert into famfi.expenses(id,user_id,amount,date,date_precision,category_id) values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','${owner}',980,'2026-09-01','month','food')`);
   await asUser(other, () => db.exec(`update famfi.expenses set amount=7; delete from famfi.expenses;`));
   await count(owner, 'select amount n from famfi.expenses', 980);
   await asUser(owner, () => db.exec(`update famfi.expenses set amount=1080,version=version+1,updated_at=now() where id='${expense}' and version=1`));
@@ -68,8 +75,8 @@ try {
   await count(owner, 'select count(*) n from famfi.expenses', 0);
   // Restore verification uses a disposable local DB, never the shared remote project.
   const row = restored.expenses[0] as Record<string, unknown>;
-  await db.query(`insert into famfi.expenses(id,user_id,amount,date,category_id,description,memo,version,created_at,updated_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-    ['id','user_id','amount','date','category_id','description','memo','version','created_at','updated_at'].map(key => row[key]));
+  await db.query(`insert into famfi.expenses(id,user_id,amount,date,category_id,description,memo,version,created_at,updated_at,date_precision) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    ['id','user_id','amount','date','category_id','description','memo','version','created_at','updated_at','date_precision'].map(key => row[key]));
   await count(owner, 'select amount n from famfi.expenses', 1080);
   const restoredRows = await asUser(owner, () => db.query('select * from famfi.expenses'));
   assert.deepEqual(JSON.parse(JSON.stringify(restoredRows.rows)), JSON.parse(JSON.stringify(rows.rows))); checks++;

@@ -35,6 +35,7 @@ model Expense {
   userId      String   @map("user_id") @db.Uuid
   amount      Int
   date        DateTime @db.Date
+  datePrecision String @default("day") @map("date_precision")
   categoryId  String   @map("category_id")
   description String   @default("")
   memo        String   @default("")

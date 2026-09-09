@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createExpenseSchema, csvCell, dateSchema, expenseCsv, expenseDateForStorage, formatExpenseDate, monthRange, querySchema, serializeExpense, shiftMonth, todayInJapan, updateExpenseSchema } from '../lib/expenses';
 
-const input = { id: '11111111-1111-4111-8111-111111111111', amount: 980, date: '2026-09-09', categoryId: 'food' };
+const input = { id: '11111111-1111-4111-8111-111111111111', amount: 980, date: '2026-09-09', categoryId: 'food',paymentSourceId:'22222222-2222-4222-8222-222222222222',paymentTreatment:'review',usedByPartyId:'33333333-3333-4333-8333-333333333333',beneficiaryKind:'family' };
 test('expense defaults and strict input ownership', () => {
   assert.equal(createExpenseSchema.parse(input).description, '');
   assert.equal(createExpenseSchema.safeParse({ ...input, userId: 'other' }).success, false);

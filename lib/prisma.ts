@@ -23,19 +23,23 @@ export function getPrisma() {
   return prismaClient;
 }
 
-export async function withUserDb<T>(userId: string, action: (tx: Prisma.TransactionClient) => Promise<T>) {
+export type LedgerContext = { ledgerId: string; partyId: string; userId: string };
+
+export async function withUserDb<T>(userId: string, action: (tx: Prisma.TransactionClient, context: LedgerContext) => Promise<T>) {
   return getPrisma().$transaction(async tx => {
     await tx.$queryRaw`select set_config('app.user_id', ${userId}, true)`;
     const membership = await tx.membership.findUnique({ where: { userId } });
     if (!membership?.active) throw new ApiError(403, 'famFiの利用許可がありません。');
-    return action(tx);
+    const member = await tx.householdMember.findUnique({ where: { userId } });
+    if (!member) throw new ApiError(403, '家計簿への参加設定がありません。');
+    return action(tx, { ledgerId: member.ledgerId, partyId: member.partyId, userId });
   }, { maxWait: 5000, timeout: 10000 });
 }
 
-export function withLedgerDb<T>(userId: string, action: (tx: Prisma.TransactionClient) => Promise<T>) {
-  return withUserDb(userId, async tx => {
-    // One owner's short mutations are serialized across instances, before any row locks.
-    await tx.$queryRaw`select pg_advisory_xact_lock(hashtextextended(${'famfi-ledger:' + userId}, 0))::text`;
-    return action(tx);
+export function withLedgerDb<T>(userId: string, action: (tx: Prisma.TransactionClient, context: LedgerContext) => Promise<T>) {
+  return withUserDb(userId, async (tx, context) => {
+    // Both household members use the same lock, before any row locks.
+    await tx.$queryRaw`select pg_advisory_xact_lock(hashtextextended(${'famfi-ledger:' + context.ledgerId}, 0))::text`;
+    return action(tx, context);
   });
 }

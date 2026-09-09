@@ -24,7 +24,7 @@ export async function requireUser() {
   return user;
 }
 export function allowedEmail(email: string) {
-  const allowed = process.env.FAMFI_ALLOWED_EMAIL?.trim().toLowerCase();
-  if (!allowed) throw new ApiError(503, '利用アカウントを準備中です。');
-  return email.trim().toLowerCase() === allowed;
+  const allowed = process.env.FAMFI_ALLOWED_EMAIL?.split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+  if (!allowed?.length) throw new ApiError(503, '利用アカウントを準備中です。');
+  return allowed.includes(email.trim().toLowerCase());
 }

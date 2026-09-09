@@ -1,10 +1,10 @@
 'use client';
 import { FormEvent, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, LoaderCircle, Pencil, Plus, RefreshCw, Save } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, LoaderCircle, LockKeyhole, Pencil, Plus, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Category, Masters, Party, PaymentSource, categoryFields, partyFields, paymentMethods, paymentSourceFields } from '@/lib/ledger';
+import { Category, Masters, Party, PaymentSource, categoryFields, partyFields, paymentMethods, paymentSourceFields, treatmentLabels } from '@/lib/ledger';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
 import { ReferenceSelect } from './ReferenceSelect';
 
@@ -48,9 +48,9 @@ export function MasterManager({ masters, onChange, onClose, initialKind = 'categ
           const cat = 'color' in item ? item : null;
           const siblings = cat ? masters.categories.filter(c => c.parentId === cat.parentId) : [];
           return <li key={item.id} className={cat?.parentId ? 'master-child' : ''}>
-            <button className="master-name" disabled={busy} onClick={() => setEditing({ item, key: item.id })} aria-label={`${item.name}を編集`}>
+            <button className="master-name" disabled={busy || ('systemKey' in item && Boolean(item.systemKey))} onClick={() => setEditing({ item, key: item.id })} aria-label={`${item.name}を編集`}>
               {cat && <i className="category-swatch" style={{ backgroundColor: cat.color }} />}
-              <span><strong>{item.name}</strong><small>{item.archived ? '使用停止' : cat?.parentId ? masters.categories.find(c => c.id === cat.parentId)?.name : 'kind' in item ? item.kind === 'person' ? '人物' : '共用資金・家族全体' : 'method' in item ? `${paymentMethods[item.method]} / ${masters.parties.find(p => p.id === item.fundingPartyId)?.name ?? '持ち主未設定'}` : '親カテゴリ'}</small></span><Pencil aria-hidden="true" />
+              <span><strong>{item.name}</strong><small>{item.archived ? '使用停止' : cat?.parentId ? masters.categories.find(c => c.id === cat.parentId)?.name : 'kind' in item ? item.kind === 'person' ? '人物' : '共用資金・家族全体' : 'method' in item ? `${paymentMethods[item.method]} / ${masters.parties.find(p => p.id === item.fundingPartyId)?.name ?? '持ち主未設定'}` : '親カテゴリ'}</small></span>{'systemKey' in item && item.systemKey ? <LockKeyhole aria-label="固定" /> : <Pencil aria-hidden="true" />}
             </button>
             {cat && <div className="master-order"><Button size="icon" variant="ghost" title="上へ" aria-label={`${item.name}を上へ`} disabled={busy || siblings[0]?.id === item.id} onClick={() => reorder(cat,-1)}><ArrowUp /></Button><Button size="icon" variant="ghost" title="下へ" aria-label={`${item.name}を下へ`} disabled={busy || siblings.at(-1)?.id === item.id} onClick={() => reorder(cat,1)}><ArrowDown /></Button></div>}
           </li>;
@@ -71,9 +71,12 @@ function MasterForm({ kind, item, masters, onSaved, onCancel, onBusyChange }: { 
   const [method, setMethod] = useState<PaymentSource['method']>(item && 'method' in item ? item.method : 'card');
   const [fundingPartyId, setFunding] = useState(item && 'fundingPartyId' in item ? item.fundingPartyId : null);
   const [archived, setArchived] = useState(item?.archived ?? false);
+  const [defaultTreatment,setDefaultTreatment] = useState<PaymentSource['defaultTreatment']>(item && 'defaultTreatment' in item ? item.defaultTreatment : 'review');
+  const [isDefault,setIsDefault] = useState(item && 'isDefault' in item ? item.isDefault : false);
+  const sharedFunding = masters.parties.find(p=>p.id===fundingPartyId)?.kind==='shared';
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const lock = useRef(false);
   const category = { name, color, parentId, archived, sortOrder: item && 'sortOrder' in item ? item.sortOrder : Math.min(100000, Math.max(0,...masters.categories.map(c => c.sortOrder))+10) };
-  const body = kind === 'categories' ? category : kind === 'parties' ? { name, kind: partyKind, archived } : { name, method, fundingPartyId, archived };
+  const body = kind === 'categories' ? category : kind === 'parties' ? { name, kind: partyKind, archived } : { name, method, fundingPartyId, archived, defaultTreatment, isDefault };
   const baseline = useRef(JSON.stringify(body));
   function cancel() { if (!busy && (JSON.stringify(body) === baseline.current || window.confirm('入力中の変更を破棄しますか？'))) onCancel(); }
   async function save(event: FormEvent) {
@@ -98,9 +101,11 @@ function MasterForm({ kind, item, masters, onSaved, onCancel, onBusyChange }: { 
     {kind === 'parties' && <fieldset disabled={busy || Boolean(item)}><legend>種類</legend><div className="date-mode">{(['person','shared'] as const).map(value => <label key={value}><input type="radio" name="party-kind" checked={partyKind===value} onChange={() => setPartyKind(value)} /><span>{value === 'person' ? '人物' : '共用資金・家族全体'}</span></label>)}</div></fieldset>}
     {kind === 'payment-sources' && <>
       <label htmlFor="master-method">支払方法</label><ReferenceSelect id="master-method" label="支払方法" value={method} disabled={busy} options={Object.entries(paymentMethods).map(([id,name]) => ({ id,name }))} emptyLabel="選択してください" onChange={v => { if (v) setMethod(v as PaymentSource['method']); }} />
-      <label htmlFor="master-funding">資金の持ち主</label><ReferenceSelect id="master-funding" label="資金の持ち主" value={fundingPartyId} disabled={busy} options={masters.parties.filter(p => !p.archived || p.id === fundingPartyId)} onChange={setFunding} />
+      <label htmlFor="master-funding">資金の持ち主</label><ReferenceSelect id="master-funding" label="資金の持ち主" value={fundingPartyId} disabled={busy} options={masters.parties.filter(p => !p.archived || p.id === fundingPartyId)} allowEmpty={false} emptyLabel="選択してください" onChange={id=>{setFunding(id);setDefaultTreatment(masters.parties.find(p=>p.id===id)?.kind==='shared'?'shared':'advance');}} />
+      <label htmlFor="master-treatment">初期の支払いの扱い</label><ReferenceSelect id="master-treatment" label="初期の支払いの扱い" value={defaultTreatment} disabled={busy} allowEmpty={false} options={(sharedFunding?['shared','review']:['advance','direct','review']).map(id=>({id,name:treatmentLabels[id as keyof typeof treatmentLabels]}))} onChange={v=>{if(v)setDefaultTreatment(v as PaymentSource['defaultTreatment']);}} />
+      <label className="check-label"><input type="checkbox" checked={isDefault} disabled={busy || archived || Boolean(item && 'isDefault' in item && item.isDefault)} onChange={e=>setIsDefault(e.target.checked)} />新規支出の初期値</label>
     </>}
-    {item && <label className="check-label"><input type="checkbox" checked={archived} disabled={busy} onChange={e => setArchived(e.target.checked)} />使用停止</label>}
+    {item && <label className="check-label"><input type="checkbox" checked={archived} disabled={busy || (kind==='payment-sources' && isDefault)} onChange={e => setArchived(e.target.checked)} />使用停止</label>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="editor-save"><Button type="button" variant="outline" disabled={busy} onClick={cancel}>キャンセル</Button><Button className="primary-action" disabled={busy}>{busy ? <LoaderCircle className="animate-spin" /> : <Save />}保存</Button></div>
   </form>;

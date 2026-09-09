@@ -12,7 +12,9 @@
 .famfi-brand svg { width: 28px; height: 28px; color: #16806a; }
 .header-section { flex: 1; color: #64736d; font-size: 13px; }
 .expense-main { max-width: 1120px; margin: auto; padding: 38px 32px 72px; }
-.workspace-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+.workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 30px; }
+.workspace-heading > div { min-width: 0; }
+.workspace-heading > button { flex-shrink: 0; }
 .section-eyebrow { color: #6c7972; font-size: 12px; margin-bottom: 5px; }
 .workspace-heading h1 { font-size: 28px; line-height: 1.3; font-weight: 700; }
 .primary-action { background: #16765e !important; color: #fff !important; min-height: 44px; }
@@ -96,6 +98,44 @@
 .expense-form .field-heading label { margin-top: 0; }
 .expense-form .details-toggle { margin-top: 10px; justify-content: flex-start; padding-left: 0; border-top: 1px solid #e5e9e7; border-radius: 0; }
 .expense-details { display: flex; flex-direction: column; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid #e5e9e7; min-width: 0; }
+.payment-fields { border-top: 1px solid #e5e9e7; margin-top: 8px; padding-top: 8px; }
+.payment-outcome { display: grid; gap: 4px; padding: 10px 12px; border-left: 3px solid #16806a; background: #f4f8f6; font-size: 12px; overflow-wrap: anywhere; }
+.payment-outcome span { color: #536459; }
+.payment-outcome strong { font-weight: 550; }
+.payment-outcome.advance { border-color: #b27e29; background: #fcf8ed; }
+.payment-outcome.direct { border-color: #8062a8; background: #f8f6fa; }
+.record-attribution { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 11px; color: #67796f; }
+.record-attribution button { margin-left: auto; }
+.expense-entry-dialog { display: flex; flex-direction: column; overflow: hidden; }
+.expense-entry-dialog > .expense-form { min-height: 0; overflow-y: auto; padding-right: 3px; overscroll-behavior: contain; }
+.expense-entry-dialog > .editor-actions, .expense-entry-dialog > .editor-save { flex-shrink: 0; border-top: 1px solid #e5e9e7; padding-top: 12px; margin-top: 0; }
+.direct-contributions, .recurring-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 14px 0; border-bottom: 1px solid #e5e9e7; font-size: 13px; }
+.direct-contributions h2 { font-size: 13px; font-weight: 500; }
+.settlement-status.direct { background: #f0eaf6; color: #685180; }
+.recurring-list { margin-top: 16px; }
+.recurring-list > li { padding: 16px 0; border-bottom: 1px solid #e1e7e3; }
+.recurring-item-main { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.recurring-item-main > div { min-width: 0; overflow-wrap: anywhere; }
+.recurring-item-main strong { display: block; font-size: 15px; font-weight: 600; }
+.recurring-item-main span, .recurring-item-main small { display: flex; gap: 6px; align-items: center; margin-top: 6px; color: #66756b; font-size: 12px; }
+.recurring-amount { flex-shrink: 0; text-align: right; }
+.recurring-amount span { justify-content: flex-end; }
+.recurring-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.recurring-actions button:first-child { margin-right: auto; }
+.recurring-workspace h1 { font-size: 22px; }
+.history-view li { border-bottom: 1px solid #e1e7e3; padding: 14px 0; }
+.history-view summary { cursor: pointer; overflow-wrap: anywhere; }
+.history-view summary strong { font-size: 14px; font-weight: 550; }
+.history-view summary > span { display: block; font-size: 11px; color: #66756b; margin-top: 6px; }
+.history-view dl { margin-top: 12px; font-size: 12px; }
+.history-view dl > div { display: grid; grid-template-columns: minmax(60px, 110px) minmax(0, 1fr); gap: 12px; padding: 6px 0; }
+.history-view dt { color: #66756b; }
+.history-view dd { overflow-wrap: anywhere; white-space: pre-wrap; }
+.history-view del { color: #826363; }
+.workspace-tabs [role=tablist] { max-width: 100%; height: auto; display: flex; gap: 0; }
+.workspace-tabs [role=tab] { min-width: 0; white-space: nowrap; min-height: 40px; font-size: 13px; padding: 8px 20px; }
+[data-sonner-toaster], [data-sonner-toast]:not(:has(button)) { pointer-events: none !important; }
+[data-sonner-toast] button { pointer-events: auto; }
 .editor-tools { display: flex; align-items: center; }
 .master-dialog { max-width: 560px; }
 .master-tabs { width: 100%; display: grid; grid-template-columns: 1fr 1.4fr 1fr; height: auto; }
@@ -175,7 +215,11 @@
   .master-list .master-child { padding-left: 10px; }
   .settlement-entry { gap: 8px; }
   .settlement-list > li { gap: 2px; }
-  .expense-header-inner { height: 60px; padding: 0 20px; gap: 20px; }
+  .expense-header-inner { height: 60px; padding: 0 20px; gap: 12px; }
+  .header-section { min-width: 0; }
+  .header-section small { white-space: nowrap; }
+  .workspace-tabs [role=tab] { flex: 1; padding: 8px 4px; font-size: 12px; }
+  .recurring-workspace .workspace-heading h1 { font-size: 22px; }
   .famfi-brand { font-size: 22px; }
   .expense-main { padding: 26px 20px 110px; }
   .workspace-heading { margin-bottom: 20px; }

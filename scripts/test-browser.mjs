@@ -49,9 +49,9 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
       const boxes = await dialog.evaluate(element => {
         const date = element.querySelector('#expense-date').getBoundingClientRect();
         const category = element.querySelector('#expense-category').getBoundingClientRect();
-        return { dateBottom: date.bottom, categoryTop: category.top, width: element.clientWidth, scrollWidth: element.scrollWidth };
+        return { dateTop: date.top, categoryBottom: category.bottom, width: element.clientWidth, scrollWidth: element.scrollWidth };
       });
-      check(dateBox.width > 0 && categoryBox.width > 0 && boxes.dateBottom <= boxes.categoryTop, 'Date and category must not overlap');
+      check(dateBox.width > 0 && categoryBox.width > 0 && boxes.categoryBottom <= boxes.dateTop, 'Category precedes date without overlap');
       check(boxes.scrollWidth <= boxes.width, 'Dialog must not overflow horizontally');
       await page.screenshot({ path: path.join(output, `${label}-date.png`), animations: 'disabled' });
       await dialog.getByRole('combobox', { name: 'カテゴリ', exact: true }).click();

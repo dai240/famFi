@@ -19,6 +19,24 @@ model Membership {
   @@schema("famfi")
 }
 
+model Household {
+  id   String @id @db.Uuid
+  name String
+
+  @@map("households")
+  @@schema("famfi")
+}
+
+model HouseholdMember {
+  userId   String @id @map("user_id") @db.Uuid
+  ledgerId String @map("ledger_id") @db.Uuid
+  partyId  String @map("party_id") @db.Uuid
+
+  @@unique([ledgerId, partyId])
+  @@map("household_members")
+  @@schema("famfi")
+}
+
 model Category {
   userId    String    @map("user_id") @db.Uuid
   id        String
@@ -36,12 +54,13 @@ model Category {
 }
 
 model Party {
-  id       String  @id @db.Uuid
-  userId   String  @map("user_id") @db.Uuid
-  name     String
-  kind     String
-  archived Boolean @default(false)
-  version  Int     @default(1)
+  id        String  @id @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  name      String
+  kind      String
+  archived  Boolean @default(false)
+  version   Int     @default(1)
+  systemKey String? @map("system_key")
 
   @@unique([userId, id])
   @@map("parties")
@@ -49,13 +68,15 @@ model Party {
 }
 
 model PaymentSource {
-  id             String  @id @db.Uuid
-  userId         String  @map("user_id") @db.Uuid
-  name           String
-  method         String
-  fundingPartyId String? @map("funding_party_id") @db.Uuid
-  archived       Boolean @default(false)
-  version        Int     @default(1)
+  id               String  @id @db.Uuid
+  userId           String  @map("user_id") @db.Uuid
+  name             String
+  method           String
+  fundingPartyId   String? @map("funding_party_id") @db.Uuid
+  archived         Boolean @default(false)
+  version          Int     @default(1)
+  defaultTreatment String  @default("review") @map("default_treatment")
+  isDefault        Boolean @default(false) @map("is_default")
 
   @@unique([userId, id])
   @@map("payment_sources")
@@ -82,12 +103,78 @@ model Expense {
   reimbursementFromPartyId String?      @map("reimbursement_from_party_id") @db.Uuid
   reimbursementToPartyId   String?      @map("reimbursement_to_party_id") @db.Uuid
   reimbursementAmount      Int          @default(0) @map("reimbursement_amount")
+  paymentTreatment         String       @default("legacy") @map("payment_treatment")
+  beneficiaryKind          String       @default("unknown") @map("beneficiary_kind")
+  beneficiaryText          String       @default("") @map("beneficiary_text")
+  usedByText               String       @default("") @map("used_by_text")
+  recordedByPartyId        String?      @map("recorded_by_party_id") @db.Uuid
+  updatedByPartyId         String?      @map("updated_by_party_id") @db.Uuid
   category                 Category     @relation(fields: [userId, categoryId], references: [userId, id], onDelete: Restrict)
   settlements              Settlement[]
 
   @@unique([userId, id])
   @@index([userId, date(sort: Desc), id])
   @@map("expenses")
+  @@schema("famfi")
+}
+
+model RecurringRule {
+  id                 String    @id @db.Uuid
+  userId             String    @map("user_id") @db.Uuid
+  name               String
+  amountMode         String    @map("amount_mode")
+  amount             Int?
+  frequency          String
+  startMonth         DateTime  @map("start_month") @db.Date
+  endMonth           DateTime? @map("end_month") @db.Date
+  dueDay             Int?      @map("due_day")
+  categoryId         String    @map("category_id")
+  paymentSourceId    String    @map("payment_source_id") @db.Uuid
+  paymentTreatment   String    @map("payment_treatment")
+  usedByPartyId      String?   @map("used_by_party_id") @db.Uuid
+  usedByText         String    @default("") @map("used_by_text")
+  beneficiaryKind    String    @map("beneficiary_kind")
+  beneficiaryPartyId String?   @map("beneficiary_party_id") @db.Uuid
+  beneficiaryText    String    @default("") @map("beneficiary_text")
+  memo               String    @default("")
+  archived           Boolean   @default(false)
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, id])
+  @@map("recurring_rules")
+  @@schema("famfi")
+}
+
+model RecurringOccurrence {
+  id        String   @id @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  ruleId    String   @map("rule_id") @db.Uuid
+  period    DateTime @db.Date
+  state     String
+  expenseId String?  @map("expense_id") @db.Uuid
+  version   Int      @default(1)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, ruleId, period])
+  @@unique([userId, expenseId])
+  @@map("recurring_occurrences")
+  @@schema("famfi")
+}
+
+model AuditEvent {
+  id           String   @id @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id")
+  action       String
+  actorPartyId String   @map("actor_party_id") @db.Uuid
+  beforeData   Json?    @map("before_data")
+  afterData    Json?    @map("after_data")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("audit_events")
   @@schema("famfi")
 }
 

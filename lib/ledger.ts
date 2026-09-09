@@ -7,17 +7,22 @@ export const categoryFields = z.object({ name: z.string().trim().min(1).max(40),
 export const partyFields = z.object({ name: z.string().trim().min(1).max(40), kind: z.enum(['person', 'shared']), archived: z.boolean().default(false) }).strict();
 export const paymentMethods = { cash: '現金', card: 'クレジットカード', bank: '口座・振込', emoney: '電子マネー', other: 'その他' } as const;
 export const paymentSourceFields = z.object({ name: z.string().trim().min(1).max(60), method: z.enum(['cash','card','bank','emoney','other']),
-  fundingPartyId: optionalId, archived: z.boolean().default(false) }).strict();
+  fundingPartyId: z.string().uuid(), archived: z.boolean().default(false),
+  defaultTreatment: z.enum(['shared','advance','direct','review']).default('review'), isDefault: z.boolean().default(false) }).strict();
+export const treatmentLabels = { legacy: '未設定', shared: '共通資金で支払い', advance: '立替・あとで精算', direct: '直接負担・返金なし', custom: '精算内容を指定', review: 'あとで確認' } as const;
 export const expenseDetails = {
   usedByPartyId: optionalId, beneficiaryPartyId: optionalId, paidByPartyId: optionalId, paymentSourceId: optionalId,
   reimbursementStatus: z.enum(['unknown', 'not_required', 'required']).default('unknown'),
   reimbursementFromPartyId: optionalId, reimbursementToPartyId: optionalId,
   reimbursementAmount: z.number().int().min(0).max(999999999).default(0),
+  paymentTreatment: z.enum(['legacy','shared','advance','direct','custom','review']).default('legacy'),
+  beneficiaryKind: z.enum(['unknown','family','party','other']).default('unknown'),
+  beneficiaryText: z.string().trim().max(80).default(''), usedByText: z.string().trim().max(80).default(''),
 };
-export type Party = z.infer<typeof partyFields> & { id: string; version: number };
-export type PaymentSource = z.infer<typeof paymentSourceFields> & { id: string; version: number };
+export type Party = z.infer<typeof partyFields> & { id: string; version: number; systemKey?: string | null };
+export type PaymentSource = Omit<z.infer<typeof paymentSourceFields>,'fundingPartyId'> & { id: string; version: number; fundingPartyId: string | null };
 export type Category = z.infer<typeof categoryFields> & { id: string; version: number };
-export type Masters = { categories: Category[]; parties: Party[]; paymentSources: PaymentSource[] };
+export type Masters = { categories: Category[]; parties: Party[]; paymentSources: PaymentSource[]; selfPartyId?: string; householdName?: string };
 export type SettlementRecord = { id: string; expenseId: string; amount: number; date: string; fromPartyId: string; toPartyId: string; memo: string; createdAt: string; cancelledAt: string | null };
 export const settlementLabels = { unknown: '要確認', not_required: '精算不要', unsettled: '未精算', partial: '一部精算', settled: '精算済み' } as const;
 export type SettlementState = keyof typeof settlementLabels;

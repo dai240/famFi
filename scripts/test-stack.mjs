@@ -14,8 +14,8 @@ const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infr
 for (const file of (await readdir(migrations)).sort()) {
   if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(file)) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
 }
-const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'];
-await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'); ${realPostgres ? '' : 'set session authorization famfi_app;'} `);
+const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
+await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'), ('${ids[3]}'); select famfi.provision_household('${ids[0]}'); select famfi.provision_household('${ids[1]}'); insert into famfi.household_members(user_id,ledger_id,party_id) select '${ids[3]}','${ids[0]}',id from famfi.parties where user_id='${ids[0]}' and system_key='partner'; ${realPostgres ? '' : 'set session authorization famfi_app;'} `);
 const pg = realPostgres ? null : new PGLiteSocketServer({ db, host: '127.0.0.1', port: 55432, maxConnections: 2 });
 await pg?.start();
 function user(index) {
@@ -36,7 +36,7 @@ const auth = createServer(async (request, response) => {
   let result = {};
   let status = 200;
   if (request.url.startsWith('/auth/v1/verify')) {
-    const index = (body.type === 'invite' ? ['444444', '555555', '666666'] : ['111111', '222222', '333333']).indexOf(body.token);
+    const index = (body.type === 'invite' ? ['444444', '555555', '666666', '888888'] : ['111111', '222222', '333333', '777777']).indexOf(body.token);
     if (index < 0) { status = 400; result = { msg: 'Invalid fixture code' }; }
     else result = session(index);
   } else if (request.url.startsWith('/auth/v1/user')) {

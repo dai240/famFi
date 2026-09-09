@@ -8,10 +8,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   try {
     assertSameOrigin(request); const user = await requireUser(); const id = z.string().uuid().parse((await context.params).id);
     z.object({}).strict().parse(await readJson(request));
-    await withLedgerDb(user.id, async tx => {
+    await withLedgerDb(user.id, async (tx, scope) => {
       const record = await tx.settlement.findUnique({ where: { id } });
       if (!record) throw new ApiError(404, '精算記録が見つかりません。');
-      await lockedExpense(tx, user.id, record.expenseId);
+      await lockedExpense(tx, scope.ledgerId, record.expenseId);
       if (record.cancelledAt) return;
       await tx.settlement.update({ where: { id }, data: { cancelledAt: new Date() } });
       await tx.expense.update({ where: { id: record.expenseId }, data: { version: { increment: 1 }, updatedAt: new Date() } });

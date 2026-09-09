@@ -2,8 +2,8 @@ import { generateKey, readKey, readPrivateKey, createMessage, readMessage, encry
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
+import { captureHouseholdBackup } from './backup-model.mjs';
 import { databaseOptions } from '../lib/database-config.ts';
 
 export const backupDirectory = path.join(homedir(), '.local/share/famfi-backups');
@@ -26,8 +26,9 @@ export async function decryptBackup(filename, directory = backupDirectory) {
   const key = await readPrivateKey({ armoredKey: await readFile(path.join(directory, 'keys/private.asc'), 'utf8') });
   const { data } = await decrypt({ message: await readMessage({ binaryMessage: new Uint8Array(await readFile(filename)) }), decryptionKeys: key });
   const payload = JSON.parse(data);
-  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
+  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3', 'famfi-expenses/v4'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
   if (payload.format === 'famfi-expenses/v3' && !['parties','paymentSources','settlements'].every(key => Array.isArray(payload[key]))) throw new Error('Invalid ledger backup');
+  if (payload.format === 'famfi-expenses/v4' && (!payload.household || !['parties','paymentSources','settlements','recurringRules','recurringOccurrences','auditEvents'].every(key=>Array.isArray(payload[key])))) throw new Error('Invalid household backup');
   return payload;
 }
 async function main() {
@@ -39,22 +40,17 @@ async function main() {
   }
   if (command !== 'create' || !/^[0-9a-f-]{36}$/i.test(arg ?? '')) throw new Error('Use init, create <owner UUID>, or verify <encrypted file>');
   const connection = process.env.FAMFI_BACKUP_DATABASE_URL ?? (await readFile(new URL('../.private/database-url', import.meta.url), 'utf8')).trim();
-  process.env.DATABASE_URL = connection;
-  const db = new PrismaClient({ adapter: new PrismaPg(databaseOptions(connection, 'production'), { schema: 'famfi' }) });
+  const db = new pg.Client(databaseOptions(connection, 'production'));
+  await db.connect();
   try {
-    const payload = await db.$transaction(async tx => {
-      await tx.$executeRaw`set transaction read only`;
-      await tx.$queryRaw`select set_config('app.user_id', ${arg}, true)`;
-      const membership = await tx.membership.findUnique({ where: { userId: arg } });
-      if (!membership?.active) throw new Error('The owner must be provisioned before taking a backup');
-      return { format: 'famfi-expenses/v3', exportedAt: new Date().toISOString(), ownerId: arg,
-        categories: await tx.category.findMany(), parties: await tx.party.findMany(), paymentSources: await tx.paymentSource.findMany(),
-        settlements: await tx.settlement.findMany({ orderBy: { id: 'asc' } }), expenses: await tx.expense.findMany({ where: { userId: arg }, orderBy: { id: 'asc' } }) };
-    }, { isolationLevel: 'RepeatableRead', timeout: 10000 });
+    await db.query('begin isolation level repeatable read read only');
+    await db.query("select set_config('app.user_id',$1,true)",[arg]);
+    const payload=await captureHouseholdBackup((sql,values)=>db.query(sql,values),arg);
+    await db.query('rollback');
     const filename = await encryptBackup(payload);
     await decryptBackup(filename);
     console.log(`Encrypted backup created and verified: ${filename}`);
-  } finally { await db.$disconnect(); }
+  } finally { await db.end(); }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
   main().catch(() => { console.error('Backup failed. No secrets or user records are printed.'); process.exitCode = 1; });

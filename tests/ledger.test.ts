@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { categoryFields, masterId, orderedCategories, settlementState } from '../lib/ledger';
 import { createExpenseSchema, createSettlementSchema, expenseCsv, serializeExpense } from '../lib/expenses';
 const from='11111111-1111-4111-8111-111111111111', to='22222222-2222-4222-8222-222222222222';
-const input={ id:from,amount:3000,date:'2026-09',categoryId:'food' };
+const input={ id:from,amount:3000,date:'2026-09',categoryId:'food',paymentSourceId:from,paymentTreatment:'custom',usedByPartyId:to,beneficiaryKind:'family' };
 test('reimbursement requires explicit parties and bounded amount; unknown stays unknown',()=>{
   assert.equal(createExpenseSchema.parse(input).reimbursementStatus,'unknown');
   const valid={...input,reimbursementStatus:'required',reimbursementAmount:1000,reimbursementFromPartyId:from,reimbursementToPartyId:to};

@@ -35,13 +35,13 @@ await result(owner,'/api/masters/parties','POST',person,201);
 await result(owner,'/api/masters/parties','POST',{...person,id:randomUUID()},409);
 await result(owner,`/api/masters/parties/${person.id}`,'PUT',{...withoutId(person),kind:'shared',version:1},400);
 await result(other,`/api/masters/parties/${person.id}`,'PUT',{...withoutId(person),version:1},404);
-const source={id:randomUUID(),name:'API card '+randomUUID().slice(0,8),method:'card',fundingPartyId:person.id,archived:false};
+const source={id:randomUUID(),name:'API card '+randomUUID().slice(0,8),method:'card',fundingPartyId:person.id,archived:false,defaultTreatment:'review',isDefault:false};
 await result(other,'/api/masters/payment-sources','POST',source,400);
 await result(owner,'/api/masters/payment-sources','POST',source,201);
 await result(owner,'/api/masters/payment-sources','POST',source,201);
 await result(owner,'/api/masters/payment-sources','POST',{...source,id:randomUUID()},409);
 await result(owner,'/api/masters/payment-sources','POST',{...source,id:randomUUID(),name:'Invalid method',method:'unsupported'},400);
-const expense={id:randomUUID(),amount:3000,date:'2026-08',categoryId:child.id,description:'API advance '+randomUUID(),memo:'find ledger memo',usedByPartyId:person.id,beneficiaryPartyId:fund.id,paidByPartyId:person.id,paymentSourceId:source.id,reimbursementStatus:'required',reimbursementFromPartyId:fund.id,reimbursementToPartyId:person.id,reimbursementAmount:2500};
+const expense={id:randomUUID(),amount:3000,date:'2026-08',categoryId:child.id,description:'API advance '+randomUUID(),memo:'find ledger memo',usedByPartyId:person.id,beneficiaryPartyId:fund.id,paidByPartyId:person.id,paymentSourceId:source.id,reimbursementStatus:'required',reimbursementFromPartyId:fund.id,reimbursementToPartyId:person.id,reimbursementAmount:2500,paymentTreatment:'custom',beneficiaryKind:'party'};
 await result(owner,'/api/expenses','POST',{...expense,usedByPartyId:fund.id},400);
 await result(other,'/api/expenses','POST',expense,400);
 await result(owner,'/api/expenses','POST',{...expense,reimbursementAmount:3001},400);
@@ -55,7 +55,7 @@ for(const [param,value] of [['category',parent.id],['person',person.id],['paymen
 }
 const list=await(await result(owner,`/api/expenses?month=2026-08&category=${parent.id}`)).json();
 assert.equal(list.total,before.total+3000);assert.equal(list.breakdown.find(g=>g.categoryId===parent.id).amount,3000);checks+=2;
-await result(owner,`/api/expenses/${expense.id}`,'PUT',{amount:3000,date:'2026-08',categoryId:child.id,version:1},409);
+await result(owner,`/api/expenses/${expense.id}`,'PUT',{amount:3000,date:'2026-08',categoryId:child.id,version:1},400);
 const currentChild=updatedMaster.categories.find(c=>c.id===child.id);
 await result(owner,`/api/categories/${child.id}`,'PUT',{...withoutId(currentChild),archived:true});
 await result(owner,'/api/expenses','POST',{...expense,id:randomUUID()},400);
@@ -94,4 +94,4 @@ await result(owner,`/api/expenses/${expense.id}`,'PUT',{...expenseFields(saved),
 const forbidden=await owner('/api/settlements','POST',pay,'https://evil.example');assert.equal(forbidden.status,403);checks++;
 console.log(`PASS: ${checks} ledger HTTP master/ownership/filter/CSV/settlement/conflict/cancellation checks`);
 function withoutId(row){const {id,...rest}=row;return rest;}
-function expenseFields(row){const {id,version,createdAt,updatedAt,settlements,settledAmount,...rest}=row;return rest;}
+function expenseFields(row){const {id,version,createdAt,updatedAt,settlements,settledAmount,recordedByPartyId,updatedByPartyId,...rest}=row;return rest;}

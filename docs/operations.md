@@ -1,5 +1,9 @@
 # famFi 運用手順
 
+## 最新の運用
+
+家計共有版の仕様・公開状況は [夫婦の家計・定期支出](household-workflow.md)、妻の参加は [アカウント追加](household-onboarding.md)。以下の初回利用開始手順と2026-09-09の数値は当時の記録であり、繰り返し招待・共有Auth初期化をしない。
+
 ## 本番利用開始の残作業
 
 対象は `personal-apps` / `fpptihhtyhehpjvmtuqt` のみ。先に基盤リポジトリの最新状態を読むこと。
@@ -27,13 +31,13 @@ Supabase標準SMTPの宛先はOrganizationメンバーに限定される。別�
 - Nextのトレースでもローカルenvと `.private/` を除外する。Prismaの `query_compiler_bg.wasm` は動的に読み込まれるため、CAとともに各APIの `outputFileTracingIncludes` へ明示する。必要ファイルの追記方法は [Next.jsの公式手順](https://nextjs.org/docs/15/app/api-reference/config/next-config-js/output) を参照。
 - `npm run build` の最後に成果物検査を自動実行する。`npm run check:artifact` でも、秘密設定の非同梱、CA・Prismaコンパイラの同梱、トレースされたファイルだけでのPrisma初期化を再確認できる。この検査は実DBや本番資格情報を使わない。Vercelへアップロードするscriptsはこの検査ファイルだけで、資格情報の設定スクリプト等は引き続き除外する。
 - 本番ドメインは `https://famfi-nu.vercel.app`。`APP_ORIGIN` はこのOriginに限定する。Preview URLでの書き込みは許可しない。
-- VercelとGitHubの自動連携は未接続。現時点では、確認・コミット・push後に `npx vercel --prod --yes --scope day56s-projects` で公開する。デプロイがReadyになり、APIの未認証拒否も確認する。
+- VercelとGitHubの自動連携は未接続。DB変更を含む場合は、確認・コミット・push後に `npx vercel --prod --skip-domain --yes --scope day56s-projects` でProduction成果物を先に作り、Ready確認→正本migration適用→専用runtime検証→`npx vercel promote <新しいURL> --yes --scope day56s-projects` の順で切り替える。デプロイがReadyになり、APIの未認証拒否も確認する。
 
 資格情報の初回移送には `scripts/provision-transport.mjs` を使用した。DB内で生成したパスワードを公開鍵で暗号化して移送し、ローカルで復号する。鍵と復号結果は `.private/` のみ。`scripts/configure-production.mjs --vercel` はその資格情報をCLIのstdin経由でProductionに登録する。値を引数・出力に含めない。通常運用で再発行しない。
 
 ## バックアップ
 
-アプリ単位のJSONをOpenPGPで暗号化して保存する。現行v3は利用者別カテゴリ・人物/共用資金・支払元・支出・取消を含む精算履歴を保存する。CSVは便利な持ち出し用で、UUID・更新情報を保つ復旧用バックアップの代替ではない。
+アプリ単位のJSONをOpenPGPで暗号化して保存する。家計共有版のv4は家計名、カテゴリ・人物/共用資金・支払元・支出・精算・定期設定・月別確定/スキップ・変更履歴を保存する。旧v1/v2/v3の復号・対応スキーマへのローカル復元検証も維持する。CSVは便利な持ち出し用で、UUID・更新情報を保つ復旧用バックアップの代替ではない。
 
 ```sh
 npm run backup -- init
@@ -44,7 +48,7 @@ npm run backup:restore-check -- <出力された.json.pgpファイル>
 
 - 保存先: `~/.local/share/famfi-backups/`。ディレクトリ700、鍵・バックアップ600。Git外。
 - DB URLは `.private/database-url` から読む。別環境では `FAMFI_BACKUP_DATABASE_URL` を安全な秘密情報管理から注入する。シェル履歴へ直接書かない。
-- 本人の有効なmembershipを要求し、読み取り専用の一貫したスナップショットで本人の全5データセットを取得する。共有Auth、他アプリ、ロールパスワードは含めない。
+- 本人の有効なアプリ/家計参加を要求し、読み取り専用・Repeatable Readで家計全体の8データセットと家計設定を取得する。引数は実際の認証済み本人Auth UUIDで、取得対象の家計はサーバーの参加設定から解決する。共有Auth、他アプリ、ロールパスワード、他参加者のAuth対応表は含めない。
 - `keys/private.asc` は復号に必須。鍵も同じMacに置くだけではMac紛失に耐えない。鍵の別途暗号化保管先と、バックアップの別端末・別ストレージ保存先を本人と決める。現状は未設定。
 - 当面は利用日の終わりとDB変更前に手動取得する。自動実行は未登録なので、設定完了までは自動バックアップがあると扱わない。
 - 2026-09-09に初期状態（支出0件）と、本番のテスト支出1件を含む状態を暗号化して取得した。後者も `backup:restore-check` でメモリ内の使い捨てDBへ復元し、全項目・他ユーザーへの非公開性を確認済み。本番への復元書込みは行わない。実際の日々の支出を保存した後も再取得する。
@@ -53,7 +57,7 @@ npm run backup:restore-check -- <出力された.json.pgpファイル>
 
 1. 元DBを変更する前に最新データも退避し、復元対象の本人UUID・件数・日付範囲を確認する。内容をチャットに貼らない。
 2. 管理リポジトリのマイグレーションを空のローカルDBへ適用する。ローカルに同じUUIDのAuth代替行とmembershipを準備する。共有本番DBをリセットしない。
-3. `decryptBackup` でメモリ内復号し、`scripts/backup-model.mjs` の固定テーブル・列定義に従いパラメータ化INSERTで復元する。SQL識別子をバックアップ内の任意文字列から組み立てない。親カテゴリ→子カテゴリ→人物→支払元→支出→精算の参照順を守る。ID・所有者・バージョン・日時・取消・相手/金額を含む全項目を維持する。月のみは `month` と月初日を組で保持し、旧v1のみ精度を `day` とする。v1/v2にない追加情報は未設定/精算対象額0へ正規化する。実行例は `scripts/verify-backup-restore.mjs`。
+3. `decryptBackup` でメモリ内復号し、`scripts/backup-model.mjs` の固定テーブル・列定義に従いパラメータ化INSERTで復元する。SQL識別子をバックアップ内の任意文字列から組み立てない。v4は家計設定→親カテゴリ→子カテゴリ→人物→支払元→支出→精算→定期設定→月別実績→変更履歴の参照順を守る。人物IDは保持し、Auth/家計参加の再設定は確認済みの本人に対する別の管理作業とする。ID・所有者・バージョン・日時・取消・相手/金額を含む全項目を維持する。月のみは `month` と月初日を組で保持し、旧v1のみ精度を `day` とする。v1/v2にない追加情報は未設定/精算対象額0へ正規化する。実行例は `scripts/verify-backup-restore.mjs`。
 4. 復元先の本人コンテキストで件数・月別合計・全項目を照合し、他ユーザーから見えないことも確認する。`npm run test:db` に暗号化バックアップからの復元例がある。
 5. 本番への反映は差分と競合を確認してから、対象famFiの本人行だけを管理作業で反映する。Authユーザー全体の削除や共有プロジェクト全体の巻き戻しをしない。
 

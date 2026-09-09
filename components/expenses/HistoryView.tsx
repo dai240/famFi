@@ -1,0 +1,26 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Masters, paymentMethods, treatmentLabels } from '@/lib/ledger';
+import { formatYen } from '@/lib/expenses';
+import { personLabel } from '@/lib/household';
+import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
+type Event={id:string;entityType:string;entityId:string;action:string;actorPartyId:string;beforeData:Record<string,unknown>|null;afterData:Record<string,unknown>|null;createdAt:string};
+const entities:Record<string,string>={expenses:'支出',category_entries:'カテゴリ',parties:'人物・共用資金',payment_sources:'支払元',settlements:'精算',recurring_rules:'定期支出',recurring_occurrences:'定期支出の実績'};
+const fields:Record<string,string>={amount:'金額',date:'日付',date_precision:'日付精度',category_id:'カテゴリ',description:'内容',memo:'メモ',name:'名称',color:'色',parent_id:'親カテゴリ',sort_order:'表示順',archived:'使用停止',kind:'種類',method:'支払方法',funding_party_id:'資金の持ち主',default_treatment:'初期の扱い',is_default:'初期の支払元',used_by_party_id:'購入・支払いをした人',used_by_text:'購入者の名前',beneficiary_kind:'対象',beneficiary_party_id:'対象の人',beneficiary_text:'対象の名前',paid_by_party_id:'資金',payment_source_id:'支払元',payment_treatment:'支払いの扱い',reimbursement_status:'精算の要否',reimbursement_amount:'精算対象額',reimbursement_from_party_id:'返す側',reimbursement_to_party_id:'受け取る側',from_party_id:'返す側',to_party_id:'受け取る側',cancelled_at:'精算取消',amount_mode:'金額の種類',frequency:'周期',start_month:'開始月',end_month:'終了月',due_day:'計上日',period:'対象月',state:'状態'};
+const values:Record<string,string>={family:'家族',party:'指定した人',unknown:'未設定',required:'精算が必要',not_required:'精算不要',fixed:'定額',variable:'変動額',monthly:'毎月',yearly:'毎年',posted:'登録済み',skipped:'スキップ',open:'未登録',month:'月のみ',day:'日付指定',person:'人物',...paymentMethods,...treatmentLabels};
+export function HistoryView({masters,entityType,entityId,revision=0}:{masters:Masters;entityType?:string;entityId?:string;revision?:number}){
+  const [page,setPage]=useState(1);const [reload,setReload]=useState(0);const [data,setData]=useState<{events:Event[];count:number}|null>(null);const [error,setError]=useState('');
+  useEffect(()=>{const controller=new AbortController();setData(null);setError('');const query=new URLSearchParams({page:String(page)});if(entityType)query.set('entityType',entityType);if(entityId)query.set('entityId',entityId);
+    requestJson<{events:Event[];count:number}>('/api/history?'+query,{signal:controller.signal}).then(result=>{if(!controller.signal.aborted)setData(result);}).catch(error=>{if(controller.signal.aborted)return;if(error instanceof RequestError&&error.status===401)window.location.replace('/login');else setError(errorMessage(error));});return()=>controller.abort();
+  },[page,reload,revision,entityType,entityId]);
+  function value(key:string,value:unknown){if(value===null||value===undefined||value==='')return 'なし';if(typeof value==='boolean')return value?'はい':'いいえ';if(['amount','reimbursement_amount'].includes(key))return formatYen(Number(value));if(key.endsWith('party_id'))return personLabel(String(value),masters);if(key==='payment_source_id')return masters.paymentSources.find(p=>p.id===value)?.name??String(value);if(key==='category_id'||key==='parent_id')return masters.categories.find(c=>c.id===value)?.name??String(value);return values[String(value)]??String(value);}
+  if(error)return <div className="workspace-message" role="alert"><p>{error}</p><Button variant="outline" onClick={()=>setReload(n=>n+1)}><RefreshCw />再読み込み</Button></div>;
+  if(!data)return <div className="workspace-message" role="status"><LoaderCircle className="animate-spin" />履歴を読み込み中</div>;
+  return <div className="history-view">{!data.events.length?<p className="workspace-message">変更履歴なし</p>:<ul>{data.events.map(event=>{
+    const before=event.beforeData??{};const after=event.afterData??{};const keys=Object.keys(fields).filter(k=>(k in before||k in after)&&before[k]!==after[k]);
+    const name=after.description||after.name||before.description||before.name||'';
+    return <li key={event.id}><details><summary><strong>{entities[event.entityType]} {event.action==='INSERT'?'登録':event.action==='DELETE'?'削除':'変更'} {String(name)}</strong><span>{new Date(event.createdAt).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})} · {personLabel(event.actorPartyId,masters)}</span></summary><dl>{keys.map(key=><div key={key}><dt>{fields[key]}</dt><dd>{event.action!=='INSERT'&&<del>{value(key,before[key])}</del>}{event.action==='UPDATE'&&<span aria-hidden="true"> → </span>}{event.action!=='DELETE'&&<span>{value(key,after[key])}</span>}</dd></div>)}</dl></details></li>;
+  })}</ul>}{data.count>50&&<nav className="ledger-pagination" aria-label="変更履歴のページ"><Button variant="outline" size="icon" aria-label="履歴の前のページ" disabled={page===1} onClick={()=>setPage(n=>n-1)}><ChevronLeft /></Button><span>{page} / {Math.ceil(data.count/50)}</span><Button variant="outline" size="icon" aria-label="履歴の次のページ" disabled={page*50>=data.count} onClick={()=>setPage(n=>n+1)}><ChevronRight /></Button></nav>}</div>;
+}

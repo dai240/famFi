@@ -1,0 +1,76 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFile, readdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { captureHouseholdBackup } from './backup-model.mjs';
+import { verifyBackupRestore } from './verify-backup-restore.mjs';
+const db = new PGlite();
+const owner='11111111-1111-4111-8111-111111111111', wife='44444444-4444-4444-8444-444444444444', other='22222222-2222-4222-8222-222222222222', outsider='33333333-3333-4333-8333-333333333333';
+let checks=0;
+const equal=(a,b)=>{assert.deepEqual(a,b);checks++;};
+async function as(user,sql,values=[]) {
+  await db.exec('begin; set local session authorization famfi_app;');
+  try { await db.query("select set_config('app.user_id',$1,true)",[user]); const result=await db.query(sql,values); await db.exec('commit'); return result.rows; }
+  catch(error){await db.exec('rollback');throw error;}
+  finally{await db.exec('set session authorization postgres;reset role;');}
+}
+const rejects=async(user,sql,values=[])=>{await assert.rejects(as(user,sql,values));checks++;};
+try {
+  await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);revoke all on schema public from public;');
+  const dir=path.resolve('../personal-apps-infra/supabase/migrations');
+  const files=(await readdir(dir)).sort().filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(f));
+  for(const f of files.filter(f=>!f.includes('household_workflow'))) await db.exec(await readFile(path.join(dir,f),'utf8'));
+  await db.exec(`insert into auth.users values('${owner}'),('${wife}'),('${other}'),('${outsider}');insert into famfi.memberships(user_id) values('${owner}');insert into famfi.expenses(id,user_id,amount,date,category_id) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','${owner}',1234,'2026-09-09','food');`);
+  const before=(await db.query('select * from famfi.expenses')).rows[0];
+  await db.exec(await readFile(path.join(dir,files.find(f=>f.includes('household_workflow'))),'utf8'));
+  const after=(await db.query('select * from famfi.expenses')).rows[0];
+  for(const key of Object.keys(before)) equal(after[key],before[key]);
+  equal(after.payment_treatment,'legacy');
+  await db.exec(`insert into famfi.memberships(user_id) values('${wife}'),('${other}');insert into famfi.household_members(user_id,ledger_id,party_id) select '${wife}','${owner}',id from famfi.parties where user_id='${owner}' and system_key='partner';select famfi.provision_household('${other}');create schema unrelated;create table unrelated.private_data(id int);`);
+  equal((await as(owner,'select * from famfi.category_entries')).length,24);
+  equal((await as(wife,'select * from famfi.payment_sources')).length,8);
+  equal((await as(wife,'select * from famfi.expenses')).length,1);
+  equal((await as(other,'select * from famfi.expenses')).length,0);
+  for(const user of ['',outsider]) equal((await as(user,'select * from famfi.expenses')).length,0);
+  const parties=await as(owner,'select * from famfi.parties');const husband=parties.find(p=>p.system_key==='owner').id;const partner=parties.find(p=>p.system_key==='partner').id;const fund=parties.find(p=>p.system_key==='shared').id;
+  const sources=await as(owner,'select * from famfi.payment_sources');const card=sources.find(s=>s.is_default).id;const personal=sources.find(s=>s.name==='妻のカード').id;
+  const fields='id,user_id,amount,date,category_id,payment_source_id,paid_by_party_id,payment_treatment,used_by_party_id,beneficiary_kind,reimbursement_status';
+  const id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  await as(wife,`insert into famfi.expenses(${fields}) values($1,$2,1000,'2026-09-09','food',$3,$4,'shared',$5,'family','not_required')`,[id,owner,card,fund,partner]);checks++;
+  const row=(await as(owner,'select * from famfi.expenses where id=$1',[id]))[0];equal(row.recorded_by_party_id,partner);equal(row.updated_by_party_id,partner);
+  await as(owner,'update famfi.expenses set description=$1 where id=$2',['shared edit',id]);
+  equal((await as(wife,'select updated_by_party_id from famfi.expenses where id=$1',[id]))[0].updated_by_party_id,husband);
+  equal((await as(owner,'select action,actor_party_id from famfi.audit_events where entity_id=$1 order by created_at',[id])).map(r=>[r.action,r.actor_party_id]),[['INSERT',partner],['UPDATE',husband]]);
+  for(const sql of ['select * from auth.users','select * from unrelated.private_data','select * from platform.apps','create table famfi.forbidden(id int)','update famfi.household_members set party_id=party_id','delete from famfi.audit_events','update famfi.audit_events set action=action',"select famfi.provision_household('33333333-3333-4333-8333-333333333333')"] ) await rejects(owner,sql);
+  await rejects(owner,`insert into famfi.audit_events(user_id,entity_type,entity_id,action,actor_party_id) values($1,'expenses',$2,'INSERT',$3)`,[owner,id,husband]);
+  await rejects(owner,'update famfi.parties set name=$1 where id=$2',['changed',husband]);
+  await rejects(owner,'update famfi.payment_sources set archived=true where id=$1',[card]);
+  await rejects(owner,'update famfi.expenses set recorded_by_party_id=$1 where id=$2',[husband,id]);
+  await rejects(owner,'update famfi.expenses set payment_treatment=$1 where id=$2',['direct',id]);
+  await as(wife,`update famfi.expenses set payment_source_id=$1,paid_by_party_id=$2,payment_treatment='direct' where id=$3`,[personal,partner,id]);
+  equal((await as(owner,'select reimbursement_status from famfi.expenses where id=$1',[id]))[0].reimbursement_status,'not_required');
+  await as(owner,`update famfi.expenses set payment_treatment='advance',reimbursement_status='required',reimbursement_amount=1000,reimbursement_from_party_id=$1,reimbursement_to_party_id=$2 where id=$3`,[fund,partner,id]);
+  await as(wife,`insert into famfi.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id) values(gen_random_uuid(),$1,$2,400,'2026-09-09',$3,$4)`,[owner,id,fund,partner]);
+  await rejects(owner,"update famfi.expenses set amount=1100 where id=$1",[id]);
+  await rejects(owner,'delete from famfi.expenses where id=$1',[id]);
+  await rejects(wife,'update famfi.payment_sources set funding_party_id=$1 where id=$2',[husband,personal]);
+  await rejects(other,`insert into famfi.expenses(${fields}) values(gen_random_uuid(),$1,1000,'2026-09-09','food',$2,$3,'shared',$4,'family','not_required')`,[owner,card,fund,husband]);
+  await db.exec(`update famfi.memberships set active=false where user_id='${wife}'`);
+  equal((await as(wife,'select * from famfi.expenses')).length,0);
+  equal((await as(owner,'select * from famfi.expenses')).length,2);
+  const ruleId='cccccccc-cccc-4ccc-8ccc-cccccccccccc', generatedId='dddddddd-dddd-4ddd-8ddd-dddddddddddd', occurrenceId='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  await as(owner,`insert into famfi.recurring_rules(id,user_id,name,amount_mode,amount,frequency,start_month,due_day,category_id,payment_source_id,payment_treatment,used_by_party_id,beneficiary_kind) values($1,$2,'Monthly fixture','fixed',3000,'monthly','2026-09-01',31,'food',$3,'shared',$4,'family')`,[ruleId,owner,card,husband]);
+  await as(owner,`insert into famfi.expenses(${fields}) values($1,$2,3000,'2026-09-30','food',$3,$4,'shared',$5,'family','not_required')`,[generatedId,owner,card,fund,husband]);
+  await as(owner,`insert into famfi.recurring_occurrences(id,user_id,rule_id,period,state,expense_id) values($1,$2,$3,'2026-09-01','posted',$4)`,[occurrenceId,owner,ruleId,generatedId]);checks++;
+  await rejects(owner,"update famfi.recurring_occurrences set state='open',expense_id=null where id=$1",[occurrenceId]);
+  await rejects(owner,"insert into famfi.recurring_occurrences(id,user_id,rule_id,period,state) values(gen_random_uuid(),$1,$2,'2026-08-01','skipped')",[owner,ruleId]);
+  await rejects(owner,"insert into famfi.recurring_occurrences(id,user_id,rule_id,period,state) values(gen_random_uuid(),$1,$2,'2026-09-01','skipped')",[owner,ruleId]);
+  await as(owner,'delete from famfi.expenses where id=$1',[generatedId]);
+  equal((await as(owner,'select state,expense_id from famfi.recurring_occurrences where id=$1',[occurrenceId]))[0],{state:'open',expense_id:null});
+  await as(owner,"update famfi.recurring_occurrences set state='skipped' where id=$1",[occurrenceId]);
+  await db.exec('begin;set local session authorization famfi_app;');await db.query("select set_config('app.user_id',$1,true)",[owner]);
+  const snapshot=await captureHouseholdBackup((sql,values)=>db.query(sql,values),owner);await db.exec('rollback;set session authorization postgres;reset role;');
+  equal(await verifyBackupRestore(snapshot),{expenses:2,categories:24});
+  equal(snapshot.recurringRules.length,1);equal(snapshot.recurringOccurrences[0].state,'skipped');assert.ok(snapshot.auditEvents.length>5);checks++;
+  console.log(`PASS: ${checks} household migration, preservation, sharing, audit and isolation checks`);
+} finally {await db.close();}

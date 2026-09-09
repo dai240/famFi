@@ -55,7 +55,7 @@ const csvResponse = status(await owner('/api/expenses/export?month=2026-09'), 20
 assert.match(csvResponse.headers.get('cache-control'), /no-store/); checks++;
 const csv = await csvResponse.text(); assert.ok(csv.includes('"\'=1+1"')); assert.ok(csv.includes('2234')); checks += 2;
 status(await anonymous('/api/expenses/export'), 401);
-status(await owner('/api/categories', 'POST', { name: 'not allowed' }), 405);
+status(await owner('/api/categories', 'POST', { name: 'incomplete input' }), 400);
 status(await owner('/api/people'), 404);
 status(await owner('/api/expenses', 'POST', { ...data, memo: 'x'.repeat(20000) }), 413);
 status(await owner(`/api/expenses/${id}`, 'DELETE', { version: 2 }), 200);

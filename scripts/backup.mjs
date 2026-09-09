@@ -26,7 +26,8 @@ export async function decryptBackup(filename, directory = backupDirectory) {
   const key = await readPrivateKey({ armoredKey: await readFile(path.join(directory, 'keys/private.asc'), 'utf8') });
   const { data } = await decrypt({ message: await readMessage({ binaryMessage: new Uint8Array(await readFile(filename)) }), decryptionKeys: key });
   const payload = JSON.parse(data);
-  if (!['famfi-expenses/v1', 'famfi-expenses/v2'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
+  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
+  if (payload.format === 'famfi-expenses/v3' && !['parties','paymentSources','settlements'].every(key => Array.isArray(payload[key]))) throw new Error('Invalid ledger backup');
   return payload;
 }
 async function main() {
@@ -46,8 +47,9 @@ async function main() {
       await tx.$queryRaw`select set_config('app.user_id', ${arg}, true)`;
       const membership = await tx.membership.findUnique({ where: { userId: arg } });
       if (!membership?.active) throw new Error('The owner must be provisioned before taking a backup');
-      return { format: 'famfi-expenses/v2', exportedAt: new Date().toISOString(), ownerId: arg,
-        categories: await tx.category.findMany(), expenses: await tx.expense.findMany({ where: { userId: arg }, orderBy: { id: 'asc' } }) };
+      return { format: 'famfi-expenses/v3', exportedAt: new Date().toISOString(), ownerId: arg,
+        categories: await tx.category.findMany(), parties: await tx.party.findMany(), paymentSources: await tx.paymentSource.findMany(),
+        settlements: await tx.settlement.findMany({ orderBy: { id: 'asc' } }), expenses: await tx.expense.findMany({ where: { userId: arg }, orderBy: { id: 'asc' } }) };
     }, { isolationLevel: 'RepeatableRead', timeout: 10000 });
     const filename = await encryptBackup(payload);
     await decryptBackup(filename);

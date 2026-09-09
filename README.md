@@ -5,6 +5,7 @@
 - 本番: https://famfi-nu.vercel.app
 - 技術構成: Next.js 15 / React 18 / TypeScript / Prisma 6 / Supabase Auth・Postgres
 - 実装済み: メールコード認証、支出の追加・編集・削除、月のみの記録、月別集計、色付きカテゴリ選択・絞り込み、CSV出力。
+- 追加実装: カテゴリマスタ・親子・色変更、人物・共用資金と支払元、任意の立替情報、一部精算・取消履歴、検索・詳細絞り込み・支出複製。範囲と制約は [支出管理の追加仕様](docs/expense-management.md)。
 - 本番確認済み: 本人のメールコードログイン、支出の保存・再表示・編集・削除、月別集計・絞り込み、CSV出力、支出を含む暗号化バックアップとローカル復元。テスト支出は本人の承認後に削除し、0件・0円を確認済み。
 - 残作業: 本番画面からのログアウト後の再ログイン、実機スマホ・別端末での確認、バックアップの別保存先・自動実行。詳細は [最初のゴールと残作業](docs/expense-mvp.md)。
 
@@ -20,6 +21,7 @@ famFi がプロジェクト全体を所有している前提で初期化しな�
 - [共通基盤の管理リポジトリ](https://github.com/dai240/personal-apps-infra)
 - [最初のゴールと残作業](docs/expense-mvp.md)
 - [未実装機能・支払元・立替精算・使いやすさの方針](docs/expense-roadmap.md)
+- [カテゴリ・人物・支払元・精算の実装仕様](docs/expense-management.md)
 - [本番利用開始・バックアップの手順](docs/operations.md)
 
 業務APIは `famfi_app` 専用接続と RLS で保護しています。共有Authに登録されているだけでは、famFiの利用権限はありません。
@@ -42,8 +44,13 @@ npm run test:db
 npm run test:stack
 # 別ターミナルで実行
 npm run test:api
+npm run test:ledger-api
+npm run test:browser
+npm run test:ledger-browser
 ```
 
 検証画面は `http://127.0.0.1:3101`。架空の認証と使い捨てのローカルPostgresを使い、実メールやSupabaseには接続しません。ログインは `fixture0@example.invalid` / `111111`。終了は Ctrl+C、検証データは破棄されます。別パスの基盤リポジトリは `INFRA_PATH` で指定できます。
+
+同時実行の検証は `FAMFI_TEST_PG_BIN=/absolute/path/to/postgres/bin npm run test:stack` で独立PostgreSQL 17を使います。未指定時は簡易PGliteです。検証ポート3101・55432・55433が空いていることを確認してください。
 
 通常の開発サーバーは `npm run dev`。接続設定は `.env.example` と運用手順を参照してください。本番DBをPreviewやテストに使い回さないでください。

@@ -5,17 +5,19 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { localPostgres } from './local-postgres.mjs';
 
-const db = new PGlite();
+const realPostgres = Boolean(process.env.FAMFI_TEST_PG_BIN);
+const db = realPostgres ? await localPostgres(process.env.FAMFI_TEST_PG_BIN,55432) : new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;');
 const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infra', 'supabase/migrations');
 for (const file of (await readdir(migrations)).sort()) {
   if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(file)) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
 }
 const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333'];
-await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'); set session authorization famfi_app;`);
-const pg = new PGLiteSocketServer({ db, host: '127.0.0.1', port: 55432 });
-await pg.start();
+await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'); ${realPostgres ? '' : 'set session authorization famfi_app;'} `);
+const pg = realPostgres ? null : new PGLiteSocketServer({ db, host: '127.0.0.1', port: 55432, maxConnections: 2 });
+await pg?.start();
 function user(index) {
   return { id: ids[index], aud: 'authenticated', role: 'authenticated', email: `fixture${index}@example.invalid`,
     email_confirmed_at: '2026-01-01T00:00:00Z', confirmed_at: '2026-01-01T00:00:00Z',
@@ -62,6 +64,6 @@ console.log('Disposable test stack: http://127.0.0.1:3101/login; fixture0@exampl
 let stopping = false;
 async function stop() {
   if (stopping) return; stopping = true; child.kill('SIGTERM');
-  auth.close(); await pg.stop(); await db.close(); process.exit(0);
+  auth.close(); await pg?.stop(); await db.close(); process.exit(0);
 }
 process.on('SIGINT', stop); process.on('SIGTERM', stop); child.on('exit', stop);

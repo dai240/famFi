@@ -35,6 +35,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
     await page.waitForURL('**/expenses');
     for (const [width, height] of [[320, 700], [390, 844], [430, 932], [390, 600], [844, 390], [1280, 900]]) {
       await page.setViewportSize({ width, height });
+      await page.getByLabel('表示する月').fill('2026-09');
       const label = `browser-${name}-${width}-${height}`;
       console.log(`Checking ${name} ${width}x${height}`);
       await page.locator('.desktop-add:visible, .mobile-add button:visible').click();
@@ -57,7 +58,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
       const options = page.getByRole('listbox');
       await options.waitFor();
       await insideViewport(page, options);
-      check(await options.locator('.category-swatch').count() === 10, 'Every category option has a swatch');
+      check(await options.locator('.category-swatch').count() === await options.getByRole('option').count(), 'Every category option has a swatch');
       await page.screenshot({ path: path.join(output, `${label}-categories.png`), animations: 'disabled' });
       await page.getByRole('option', { name: 'その他', exact: true }).click();
       await dialog.getByRole('combobox', { name: 'カテゴリ', exact: true }).click();

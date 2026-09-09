@@ -1,6 +1,6 @@
 // Canonical SQL is in personal-apps-infra. Never use db push on the shared DB.
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "client"
 }
 
@@ -20,31 +20,91 @@ model Membership {
 }
 
 model Category {
-  id        String @id
-  name      String @unique
+  userId    String    @map("user_id") @db.Uuid
+  id        String
+  name      String
   color     String
-  sortOrder Int    @map("sort_order")
+  sortOrder Int       @map("sort_order")
+  parentId  String?   @map("parent_id")
+  archived  Boolean   @default(false)
+  version   Int       @default(1)
   expenses  Expense[]
 
-  @@map("categories")
+  @@id([userId, id])
+  @@map("category_entries")
+  @@schema("famfi")
+}
+
+model Party {
+  id       String  @id @db.Uuid
+  userId   String  @map("user_id") @db.Uuid
+  name     String
+  kind     String
+  archived Boolean @default(false)
+  version  Int     @default(1)
+
+  @@unique([userId, id])
+  @@map("parties")
+  @@schema("famfi")
+}
+
+model PaymentSource {
+  id             String  @id @db.Uuid
+  userId         String  @map("user_id") @db.Uuid
+  name           String
+  method         String
+  fundingPartyId String? @map("funding_party_id") @db.Uuid
+  archived       Boolean @default(false)
+  version        Int     @default(1)
+
+  @@unique([userId, id])
+  @@map("payment_sources")
   @@schema("famfi")
 }
 
 model Expense {
-  id          String   @id @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  amount      Int
-  date        DateTime @db.Date
-  datePrecision String @default("day") @map("date_precision")
-  categoryId  String   @map("category_id")
-  description String   @default("")
-  memo        String   @default("")
-  version     Int      @default(1)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id                       String       @id @db.Uuid
+  userId                   String       @map("user_id") @db.Uuid
+  amount                   Int
+  date                     DateTime     @db.Date
+  datePrecision            String       @default("day") @map("date_precision")
+  categoryId               String       @map("category_id")
+  description              String       @default("")
+  memo                     String       @default("")
+  version                  Int          @default(1)
+  createdAt                DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+  usedByPartyId            String?      @map("used_by_party_id") @db.Uuid
+  beneficiaryPartyId       String?      @map("beneficiary_party_id") @db.Uuid
+  paidByPartyId            String?      @map("paid_by_party_id") @db.Uuid
+  paymentSourceId          String?      @map("payment_source_id") @db.Uuid
+  reimbursementStatus      String       @default("unknown") @map("reimbursement_status")
+  reimbursementFromPartyId String?      @map("reimbursement_from_party_id") @db.Uuid
+  reimbursementToPartyId   String?      @map("reimbursement_to_party_id") @db.Uuid
+  reimbursementAmount      Int          @default(0) @map("reimbursement_amount")
+  category                 Category     @relation(fields: [userId, categoryId], references: [userId, id], onDelete: Restrict)
+  settlements              Settlement[]
 
+  @@unique([userId, id])
   @@index([userId, date(sort: Desc), id])
   @@map("expenses")
+  @@schema("famfi")
+}
+
+model Settlement {
+  id          String    @id @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  expenseId   String    @map("expense_id") @db.Uuid
+  amount      Int
+  date        DateTime  @db.Date
+  fromPartyId String    @map("from_party_id") @db.Uuid
+  toPartyId   String    @map("to_party_id") @db.Uuid
+  memo        String    @default("")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  expense     Expense   @relation(fields: [userId, expenseId], references: [userId, id], onDelete: Restrict)
+
+  @@index([userId, expenseId])
+  @@map("settlements")
   @@schema("famfi")
 }

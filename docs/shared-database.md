@@ -19,12 +19,13 @@
 
 ## famFi の現状と接続条件
 
-2026-09-09 に支出MVPと本人のメールコードログインを確認しました。Prismaコンパイラの同梱漏れを修正後、本番でテスト支出の保存・再表示・編集・削除・CSV出力、支出を含む暗号化バックアップとローカル復元が成功しています。テスト支出1件は本人の承認後に削除し、再読み込みと専用runtimeの読み取りで支出0件・0円、カテゴリ10件、本人の有効なmembership1件を確認しました。本番への復元はしていません。実機スマホ・別端末確認は未完了です。最新状態は管理リポジトリの `docs/status.md` と `docs/famfi-onboarding-2026-09-09.md` を確認してください。
+2026-09-09 に支出MVPと本人のメールコードログイン、支出CRUD・CSV・暗号化バックアップ・ローカル復元を確認しました。初回のテスト支出は本人承認後に削除済みですが、その後に登録された実支出は削除対象ではありません。カテゴリ・人物・支払元・精算の拡張前には実支出1件を退避しました。本番への復元はしていません。実機スマホ・別端末確認は未完了です。最新の適用状態は管理リポジトリの `docs/status.md` を確認してください。
 
 - 適用済みSQL: 管理リポジトリの `20260909095423_famfi_expense_mvp.sql` と `20260909122110_famfi_expense_date_precision.sql`。後者は支出に月のみ/日付指定の区別を追加し、既存データを維持する。
-- 実テーブル: `famfi.memberships`、`famfi.categories`、`famfi.expenses`。RLSを有効化・強制。
+- 追加SQL: 管理リポジトリの `famfi_expense_management`。利用者別カテゴリ・人物・支払元・精算を追加する。仕様は [追加仕様](expense-management.md)、適用状態は基盤の記録が正本。
+- 拡張後のテーブル: `famfi.memberships`、`famfi.categories`（固定の初期テンプレート）、`famfi.category_entries`、`famfi.parties`、`famfi.payment_sources`、`famfi.expenses`、`famfi.settlements`。RLSを有効化・強制。
 - 接続: 非所有者の `famfi_app` LOGIN が `famfi_runtime` の限定権限を継承。接続数上限10、アプリ側プール最大2。
-- `prisma/schema.prisma` はこの3モデルだけを対象とする。旧モデルは `docs/drafts/future-models.prisma.txt` に退避し、適用しない。
+- `prisma/schema.prisma` は固定テンプレート以外の6モデルだけを対象とする。旧モデルは `docs/drafts/future-models.prisma.txt` に退避し、適用しない。複合FK・DB制約・権限・triggerは基盤のSQLが正本。
 - Authはサーバーの `getUser()` で検証し、同一トランザクションで `app.user_id` と有効なmembershipを確認する。クライアントの `userId` は受け付けない。
 - Auth公開キーは認証用のみ。`famfi` はData APIに公開せず、ブラウザからテーブルを直接取得しない。
 - Supavisor transaction poolerを使用し、Prismaのpg adapterでCA・ホスト名を検証する。TLS検証を無効にしない。

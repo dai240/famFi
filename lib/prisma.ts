@@ -31,3 +31,11 @@ export async function withUserDb<T>(userId: string, action: (tx: Prisma.Transact
     return action(tx);
   }, { maxWait: 5000, timeout: 10000 });
 }
+
+export function withLedgerDb<T>(userId: string, action: (tx: Prisma.TransactionClient) => Promise<T>) {
+  return withUserDb(userId, async tx => {
+    // One owner's short mutations are serialized across instances, before any row locks.
+    await tx.$queryRaw`select pg_advisory_xact_lock(hashtextextended(${'famfi-ledger:' + userId}, 0))::text`;
+    return action(tx);
+  });
+}

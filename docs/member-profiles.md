@@ -44,4 +44,13 @@
 - 適用前の検証済みv4: `famfi-2026-09-09T22-54-48-416Z.json.pgp`（支出1、人物3、支払元8）。内容はGit外の暗号化ファイルにのみ保存した。
 - 公開直前に再取得・ローカル復元済みv4: `famfi-2026-09-09T23-10-53-446Z.json.pgp`。適用後の全旧項目照合にはこのsnapshotを使う。
 
-本番への適用結果は公開後に追記する。
+### 2026-09-10 本番反映
+
+- 実装コミット `62cd3da` をmainへpushし、Vercel `dpl_BtXpHEDbysx2Tm2oixc5d35MWD4T` をProduction/skip-domainで作成。READY後にDB適用・検証し、同一成果物をpromoteした。
+- 公開先: https://famfi-nu.vercel.app/expenses 。固有URL: https://famfi-l0abrv12r-day56s-projects.vercel.app 。Next.js 15.5.25、Vercel build 47秒。公開先のinspectでも上記deploymentを確認した。
+- 対象ref `fpptihhtyhehpjvmtuqt` と既存7履歴を再確認し、正本SQL `20260909231314_famfi_member_profiles.sql` を適用。本番履歴は8件。CLI生成の作業用filenameを実際の適用versionに揃えた。他schema・共有Auth・環境変数・membershipは変更していない。
+- 適用後v5: `famfi-2026-09-09T23-13-24-798Z.json.pgp`。復号・ローカル復元が成功し、適用前v4の全旧項目（支出、カテゴリ、人物、支払元、精算、定期設定/確定、履歴）が一致した。支出1・人物3・支払元8を保持。本人設定の書込み/監査と配偶者設定・他schema・未参加者拒否をROLLBACK付きで確認し、ROLLBACK後も全v5項目が一致した。実runtimeの権限検査11項目も成功。
+- 本番HTTP25項目（未認証401、外部origin403、profileの未対応method405、no-store、画面200）が成功。本人の既存Chromeセッションを再読み込みし、「利用者を確認」「あなた: 夫」「表示名: 夫」「確認して始める」を目視確認した。本人確認の保存、実支出の作成/更新/削除、追加OTP送信は実行せず、本人が確認できる画面で止めた。
+- 対象deploymentに限定した直近1時間のerrorログ検索は0件。常時監視/Drainsの設定は今回確認・変更していない。
+- Security advisorは適用前後で同一。管理者専用台帳の [RLSポリシーなしINFO](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) と共有Authの [漏洩パスワード保護WARN](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) のみ。後者は共有設定なので今回変更しない。性能advisorの既存アクセス判定の [initplan警告](https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan)・[未使用index情報](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index) は別途評価し、今回制約indexを削除していない。
+- 妻の招待と実メールログイン、夫婦の実機操作、バックアップの別保存先・頻度は引き続き別工程。共有基盤の公開記録は `docs/famfi-member-profiles-2026-09-10.md`。

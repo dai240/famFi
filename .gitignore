@@ -37,3 +37,7 @@ next-env.d.ts
 
 /lib/generated/prisma
 .env*
+!.env.example
+/test-results/
+/playwright-report/
+/.private/

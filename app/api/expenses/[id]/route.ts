@@ -1,127 +1,49 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getPrisma } from '@/lib/prisma';
+import { z } from 'zod';
+import { requireUser } from '@/lib/auth/server';
+import { withUserDb } from '@/lib/prisma';
+import { ApiError, apiError, assertSameOrigin, json, readJson } from '@/lib/api';
+import { deleteExpenseSchema, serializeExpense, updateExpenseSchema } from '@/lib/expenses';
 
-// 支出の詳細を取得
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export const dynamic = 'force-dynamic';
+type Context = { params: Promise<{ id: string }> };
+export async function GET(_request: Request, context: Context) {
   try {
-    const { id } = params;
-
-    const prisma = getPrisma();
-    const expense = await prisma.expense.findUnique({
-      where: { id },
-      include: {
-        paidByPerson: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
-    });
-
-    if (!expense) {
-      return NextResponse.json(
-        { error: '支出が見つかりません' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(expense);
-  } catch (error) {
-    console.error('支出詳細取得エラー:', error);
-    return NextResponse.json(
-      { error: '支出の詳細取得に失敗しました' },
-      { status: 500 }
-    );
-  }
+    const user = await requireUser();
+    const id = z.string().uuid().parse((await context.params).id);
+    const row = await withUserDb(user.id, tx => tx.expense.findUnique({ where: { id } }));
+    if (!row) throw new ApiError(404, '支出が見つかりません。');
+    return json(serializeExpense(row));
+  } catch (error) { return apiError(error); }
 }
-
-// 支出を更新
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: Request, context: Context) {
   try {
-    const { id } = params;
-    const body = await request.json();
-    const {
-      description,
-      amount,
-      category,
-      subcategory,
-      date,
-      paidBy,
-      paymentMethod,
-      beneficiaries,
-      comment
-    } = body;
-
-    // バリデーション
-    if (!description || !amount || !category || !date || !paidBy) {
-      return NextResponse.json(
-        { error: '必須項目が不足しています' },
-        { status: 400 }
-      );
-    }
-
-    const prisma = getPrisma();
-    // 支出を更新
-    const updatedExpense = await prisma.expense.update({
-      where: { id },
-      data: {
-        description,
-        amount: parseInt(amount),
-        category,
-        subcategory: subcategory || category,
-        date,
-        paidBy,
-        paymentMethod: paymentMethod || '現金',
-        beneficiaries: beneficiaries || [],
-        comment: comment || null
-      },
-      include: {
-        paidByPerson: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
-      }
+    assertSameOrigin(request);
+    const user = await requireUser();
+    const id = z.string().uuid().parse((await context.params).id);
+    const { version, ...input } = updateExpenseSchema.parse(await readJson(request));
+    const row = await withUserDb(user.id, async tx => {
+      const existing = await tx.expense.findUnique({ where: { id } });
+      if (!existing) throw new ApiError(404, '支出が見つかりません。');
+      const result = await tx.expense.updateMany({ where: { id, userId: user.id, version },
+        data: { ...input, date: new Date(`${input.date}T00:00:00Z`), version: { increment: 1 }, updatedAt: new Date() } });
+      if (!result.count) throw new ApiError(409, '別の画面で変更されています。一覧を更新して開き直してください。');
+      return tx.expense.findUniqueOrThrow({ where: { id } });
     });
-
-    return NextResponse.json(updatedExpense);
-  } catch (error) {
-    console.error('支出更新エラー:', error);
-    return NextResponse.json(
-      { error: '支出の更新に失敗しました' },
-      { status: 500 }
-    );
-  }
+    return json(serializeExpense(row));
+  } catch (error) { return apiError(error); }
 }
-
-// 支出を削除
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: Request, context: Context) {
   try {
-    const { id } = params;
-
-    const prisma = getPrisma();
-    // 支出を削除
-    await prisma.expense.delete({
-      where: { id }
+    assertSameOrigin(request);
+    const user = await requireUser();
+    const id = z.string().uuid().parse((await context.params).id);
+    const { version } = deleteExpenseSchema.parse(await readJson(request));
+    await withUserDb(user.id, async tx => {
+      const row = await tx.expense.findUnique({ where: { id } });
+      if (!row) throw new ApiError(404, '支出が見つかりません。');
+      const deleted = await tx.expense.deleteMany({ where: { id, userId: user.id, version } });
+      if (!deleted.count) throw new ApiError(409, '別の画面で変更されています。一覧を更新してから削除してください。');
     });
-
-    return NextResponse.json({ message: '支出が削除されました' });
-  } catch (error) {
-    console.error('支出削除エラー:', error);
-    return NextResponse.json(
-      { error: '支出の削除に失敗しました' },
-      { status: 500 }
-    );
-  }
+    return json({ deleted: true });
+  } catch (error) { return apiError(error); }
 }

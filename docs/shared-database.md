@@ -19,17 +19,20 @@
 
 ## famFi の現状と接続条件
 
-現状の画面はサンプルデータを使い、DB保存は未接続です。
-共通基盤の準備は、famFi の保存機能が完成したことを意味しません。
+2026-09-09 に支出MVPを実装しました。最初の本人アカウントの登録と、実メールによる本番ログインの確認はまだです。
 
-`prisma/schema.prisma` は未接続の設計案で、デフォルトの `public` を対象にしています。
-接続時にはモデルを `famfi` に限定し、画面・APIとの項目のずれを整理します。
-DB 全体への `db push` やリセットで、この設計をそのまま反映しないでください。
-共有DBのマイグレーションは管理リポジトリに集約します。
+- 適用済みSQL: 管理リポジトリの `20260909095423_famfi_expense_mvp.sql`。
+- 実テーブル: `famfi.memberships`、`famfi.categories`、`famfi.expenses`。RLSを有効化・強制。
+- 接続: 非所有者の `famfi_app` LOGIN が `famfi_runtime` の限定権限を継承。接続数上限10、アプリ側プール最大2。
+- `prisma/schema.prisma` はこの3モデルだけを対象とする。旧モデルは `docs/drafts/future-models.prisma.txt` に退避し、適用しない。
+- Authはサーバーの `getUser()` で検証し、同一トランザクションで `app.user_id` と有効なmembershipを確認する。クライアントの `userId` は受け付けない。
+- Auth公開キーは認証用のみ。`famfi` はData APIに公開せず、ブラウザからテーブルを直接取得しない。
+- Supavisor transaction poolerを使用し、Prismaのpg adapterでCA・ホスト名を検証する。TLS検証を無効にしない。
 
-既存 API は未認証のため、先に本番の `DATABASE_URL` を追加しないでください。
-ログインの検証、famFi の利用許可、専用DBロール、利用者ごとのデータ制限を実装してから接続します。
-Prisma 接続では Supabase Auth の利用者コンテキストは自動で伝わらないため、その受け渡しと RLS を確認します。
+DB全体への `db push` やリセットは禁止です。共有DBの変更履歴は管理リポジトリに集約します。
+他ユーザー・無認証・他スキーマへの拒否は検証済みですが、ローカルの架空AuthでのCRUD検証を本人の本番ログイン検証と混同しないでください。
+
+本人アカウント、バックアップ、デプロイ手順は [運用手順](operations.md) を参照してください。
 
 ## 共用時の注意点
 

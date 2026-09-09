@@ -1,0 +1,13 @@
+.private/
+.env
+.env.*
+.git/
+node_modules/
+.next/
+.vercel/
+docs/
+tests/
+scripts/
+test-results/
+playwright-report/
+*.tsbuildinfo

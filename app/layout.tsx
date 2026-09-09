@@ -1,14 +1,13 @@
 import './globals.css';
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
 import { Toaster } from '@/components/ui/sonner';
 
-const inter = Inter({ subsets: ['latin'] });
-
 export const metadata: Metadata = {
-  title: 'Family Expense Manager',
-  description: 'Relaxed expense tracking for couples',
+  title: 'famFi | 支出管理',
+  description: 'famFiの支出記録',
+  robots: { index: false, follow: false },
 };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#ffffff' };
 
 export default function RootLayout({
   children,
@@ -16,14 +15,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-      </head>
-      <body className={inter.className}>
-        <div className="pb-14 md:pb-0 min-h-screen">
-          {children}
-        </div>
+    <html lang="ja">
+      <body>
+        {children}
         <Toaster />
       </body>
     </html>

@@ -48,6 +48,7 @@ npm run test:stack
 npm run test:api
 npm run test:ledger-api
 npm run test:browser
+npm run test:category-browser
 npm run test:ledger-browser
 npm run test:household-db
 npm run test:household-api

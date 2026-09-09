@@ -63,7 +63,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
       await page.getByRole('option', { name: 'その他', exact: true }).click();
       await dialog.getByRole('combobox', { name: 'カテゴリ', exact: true }).click();
       await page.getByRole('option', { name: '日用品', exact: true }).click();
-      check(await dialog.locator('.category-select .category-swatch').evaluate(el => getComputedStyle(el).backgroundColor) === 'rgb(60, 117, 181)', 'Selected category retains its color');
+      check(await dialog.getByRole('combobox', { name: 'カテゴリ', exact: true }).locator('.category-swatch').evaluate(el => getComputedStyle(el).backgroundColor) === 'rgb(60, 117, 181)', 'Selected category retains its color');
       await dialog.getByRole('radiogroup').getByText('月のみ', { exact: true }).click();
       await dialog.getByLabel('支出月', { exact: true }).fill('2026-09');
       await insideViewport(page, dialog.getByLabel('支出月', { exact: true }));

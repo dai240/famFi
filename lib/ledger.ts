@@ -39,3 +39,14 @@ export function orderedCategories(categories: Category[]) {
 export function categoryName(category: Pick<Category, 'name' | 'parentId'>, categories: Pick<Category, 'id' | 'name'>[]) {
   return category.parentId ? `${categories.find(c => c.id === category.parentId)?.name ?? ''} / ${category.name}` : category.name;
 }
+
+export function categoryChoices(categories: Category[], value: string, includeArchived = false) {
+  const selected = categories.find(category => category.id === value);
+  const parent = selected?.parentId ? categories.find(category => category.id === selected.parentId) : selected;
+  return {
+    parent,
+    parents: categories.filter(category => !category.parentId && (includeArchived || !category.archived || category.id === parent?.id)),
+    children: parent ? categories.filter(category => category.parentId === parent.id &&
+      (includeArchived || category.id === value || (!category.archived && !parent.archived))) : [],
+  };
+}

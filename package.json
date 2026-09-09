@@ -13,6 +13,7 @@
     "test:api": "node scripts/test-api.mjs",
     "test:ledger-api": "node scripts/test-ledger-api.mjs",
     "test:browser": "node scripts/test-browser.mjs",
+    "test:category-browser": "node scripts/test-category-browser.mjs",
     "test:ledger-browser": "node scripts/test-ledger-browser.mjs",
     "test:household-db": "node --import tsx scripts/test-household-db.mjs",
     "test:household-api": "node scripts/test-household-api.mjs",

@@ -1,6 +1,6 @@
 # 夫婦の家計・支払元・定期支出
 
-2026-09-09 合意、2026-09-10 実装。本番反映は検証後に実施し、末尾へ記録する。現時点では本番完了とは扱わない。
+2026-09-09 合意、2026-09-10 実装・本番反映済み。本人は利用可能。妻の招待と実ログインはメール確認待ちであり、完了に含めない。
 
 ## 合意と範囲
 
@@ -57,3 +57,15 @@
 - Chromium/WebKit: 旧日付/カテゴリ182、旧マスタ/精算314、新家計252項目。320px、短い画面、横向き、PC。新家計は5画面条件ずつ、旧機能は6条件ずつ。保存ボタン固定、通知による操作妨害、タブの折返しも修正して再検証した。
 - `npm run build` 成功。31成果物の秘密設定除外、19 APIの公開CA/Prismaコンパイラ同梱を検証。旧レシピ試作画面のimg警告4件は既存であり変更していない。
 - 本番の実支出1件・カテゴリ10件は移行前にv3暗号化snapshotを取得してローカル復元済み。本番への復元は行わない。本番移行と公開確認は以下へ別記する。
+
+## 本番反映の結果
+
+- アプリ `31c77ba` をmainへpush。Vercel Production `dpl_AdUbucYoVVw8Dn77GbzUTGSMfn3o` をドメイン未切替でbuildし、DB検証後にpromoteした。[本番](https://famfi-nu.vercel.app) のinspectと既存本人セッションで新版を確認した。GitHub自動デプロイ連携は未接続。
+- 正本SQLは基盤の `20260909151716_famfi_household_workflow.sql`。直前6件の履歴を照合してfamfiだけに適用し、適用後7件。共有Auth設定・資格情報・他アプリの権限・sateniは変更していない。
+- 既存支出1件の旧項目が全て一致。新規初期マスタは人物3、支払元8、家計カテゴリ24（親10・子14）。定期設定・実績・精算・変更履歴は各0件、家計参加者は本人1名。既存支出の支払元は未設定のまま保持した。
+- 適用直前v3 `famfi-2026-09-09T15-04-11-872Z.json.pgp`、適用直後v4 `famfi-2026-09-09T15-17-28-228Z.json.pgp` をGit外の `~/.local/share/famfi-backups/` へ暗号化保存し、復号検証と空のローカルDBへの復元が成功した。
+- 本番の専用runtimeで立替/直接負担・変更者記録・精算済み金融項目の変更拒否・家計外拒否を確認。架空データの検査は全てROLLBACKし、実支出を変更しなかった。従来の実接続権限拒否11項目も再成功。
+- 本番HTTP20項目（未認証401、no-store、不正Origin403、未許可メソッド405、非公開データを含まない画面shell）を確認。画面shellはHTTP200で、未認証API応答後にブラウザでログインへ移動する既存方式。独立ブラウザで `/expenses` → `/login` を確認した。
+- 本人の既存セッションで旧支出の保持、新規の家族カード/自分（夫）/家族/今日、子カテゴリ、定期支出・変更履歴の表示を確認。新しい実支出の保存・削除・ログアウト・メール再送は行っていない。
+- Security Advisorは意図したplatform既定拒否INFOと、既存の[漏洩パスワード保護OFF](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) WARNのみ。Performance Advisorの[initplan警告](https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan)はfamfi2件・compath4件。新しいmember_selfは既にcurrent_settingをSELECTで包んでおり、参照先membershipを含む実行計画の調査を後続課題とする。他アプリのpolicyや未使用indexを警告解消のために変更しない。
+- 妻の招待、実機iPhone・別端末確認、共通口座管理、バックアップの別保管・定期実行は引き続き未完了。基盤の詳細記録は `docs/famfi-household-workflow-2026-09-10.md`。

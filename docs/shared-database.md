@@ -22,7 +22,7 @@
 2026-09-09 に支出MVPと本人のメールコードログイン、支出CRUD・CSV・暗号化バックアップ・ローカル復元を確認しました。初回のテスト支出は本人承認後に削除済みですが、その後に登録された実支出は削除対象ではありません。カテゴリ・人物・支払元・精算の拡張前には実支出1件を退避しました。本番への復元はしていません。実機スマホ・別端末確認は未完了です。最新の適用状態は管理リポジトリの `docs/status.md` を確認してください。
 
 - 適用済みSQL: 管理リポジトリの `20260909095423_famfi_expense_mvp.sql` と `20260909122110_famfi_expense_date_precision.sql`。後者は支出に月のみ/日付指定の区別を追加し、既存データを維持する。
-- 追加SQL: 管理リポジトリの `famfi_expense_management`。利用者別カテゴリ・人物・支払元・精算を追加する。仕様は [追加仕様](expense-management.md)、適用状態は基盤の記録が正本。
+- 追加SQL: 管理リポジトリの適用済み `20260909133732_famfi_expense_management.sql`。利用者別カテゴリ・人物・支払元・精算を追加した。仕様は [追加仕様](expense-management.md)、適用状態は基盤の記録が正本。
 - 拡張後のテーブル: `famfi.memberships`、`famfi.categories`（固定の初期テンプレート）、`famfi.category_entries`、`famfi.parties`、`famfi.payment_sources`、`famfi.expenses`、`famfi.settlements`。RLSを有効化・強制。
 - 接続: 非所有者の `famfi_app` LOGIN が `famfi_runtime` の限定権限を継承。接続数上限10、アプリ側プール最大2。
 - `prisma/schema.prisma` は固定テンプレート以外の6モデルだけを対象とする。旧モデルは `docs/drafts/future-models.prisma.txt` に退避し、適用しない。複合FK・DB制約・権限・triggerは基盤のSQLが正本。

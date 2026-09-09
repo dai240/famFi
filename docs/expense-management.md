@@ -52,3 +52,9 @@
 - 本番適用前にv2暗号化snapshotを再取得。適用後は専用runtimeで既存項目照合とロールバック付き書込み検査を行い、v3暗号化snapshotを空のローカルDBへ復元して照合する。実記録をテスト用に削除・復元しない。
 
 本番の適用・公開状態は基盤 `docs/status.md` を正本とする。実機iPhoneでの再確認、鍵とbackupの別保存先、自動バックアップは引き続き残作業。
+
+## 本番反映記録
+
+2026-09-09: SQL `20260909133732_famfi_expense_management` を適用し、実支出1件・カテゴリ10件を保持した。専用runtimeによるROLLBACK付きの精算検査、v3暗号化バックアップと空のローカルDBへの復元が成功した。人物・支払元・精算の検証行は残していない。
+
+実装コミット `0cbe643`、Vercel `dpl_53KNsG9VvSacycMnsQwGBA7k2C7j` はProduction READY。本番 https://famfi-nu.vercel.app の既存本人セッションで、支出保持・マスタ管理・立替一覧・入力詳細を確認した。追加APIの未認証/Origin拒否15項目も成功。新機能の本番UIからの保存・精算は実記録を増やさないため実施せず、ローカルAPI/ブラウザと本番の専用runtime検証を組み合わせた。詳細は基盤 `docs/famfi-expense-management-2026-09-09.md`。

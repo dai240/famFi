@@ -38,7 +38,7 @@ async function main(){
       try{
         await client.query("select set_config('app.user_id',$1,true)",[owner]);
         const person=randomUUID(),fund=randomUUID(),source=randomUUID(),expense=randomUUID(),settlement=randomUUID();
-        await client.query("insert into famfi.parties(id,user_id,name,kind) values ($1,$3,$4,'person'),($2,$3,$5,'shared')",[person,fund,owner,`ROLLBACK ${person}`,`ROLLBACK ${fund}`]);
+        await client.query("insert into famfi.parties(id,user_id,name,kind) values ($1,$3,$4,'person'),($2,$3,$5,'shared')",[person,fund,owner,`P ${person}`,`F ${fund}`]);
         await client.query("insert into famfi.payment_sources(id,user_id,name,method,funding_party_id) values ($1,$2,$3,'card',$4)",[source,owner,`ROLLBACK ${source}`,person]);
         await client.query("insert into famfi.expenses(id,user_id,amount,date,date_precision,category_id,description,used_by_party_id,payment_source_id,reimbursement_status,reimbursement_from_party_id,reimbursement_to_party_id,reimbursement_amount) values ($1,$2,3000,'2026-09-01','month','food','ROLLBACK validation',$3,$4,'required',$5,$3,3000)",[expense,owner,person,source,fund]);
         const insert="insert into famfi.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id) values ($1,$2,$3,$4,'2026-09-09',$5,$6)";

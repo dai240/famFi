@@ -19,6 +19,7 @@ famFi がプロジェクト全体を所有している前提で初期化しな�
 - [エージェント向けルール](AGENTS.md)
 - [共通基盤の管理リポジトリ](https://github.com/dai240/personal-apps-infra)
 - [最初のゴールと残作業](docs/expense-mvp.md)
+- [未実装機能・支払元・立替精算・使いやすさの方針](docs/expense-roadmap.md)
 - [本番利用開始・バックアップの手順](docs/operations.md)
 
 業務APIは `famfi_app` 専用接続と RLS で保護しています。共有Authに登録されているだけでは、famFiの利用権限はありません。

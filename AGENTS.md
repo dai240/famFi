@@ -17,3 +17,11 @@ Read `docs/shared-database.md` before any database, Auth, environment-variable, 
 - Preserve other apps' Auth redirect URLs and settings. Document shared-impact changes in the infrastructure repository.
 
 For long tasks, report approximate progress for the current prompt, completed work, remaining work, and any user-input dependency. Do not confuse this percentage with the entire project's completion.
+
+## Expense Product Direction
+
+- Read `docs/expense-roadmap.md` before extending expense features. Keep daily entry usable while adding category management, people, payment sources, and reimbursements incrementally.
+- Distinguish the authenticated recorder/data owner, the person using the purchase, its beneficiaries, its funding source, and any reimbursement parties. Do not infer these from the current `Expense.userId`.
+- Preserve quick entry with optional details and explicit, editable defaults. Unknown information must not silently become personal/shared spending or an equal split.
+- Reimbursement payments and card bill payments must not duplicate purchase expenses. New financial fields need consistent editing, filtering, export, backup, and authorization behavior.
+- Prototype components and archived models are not production features. Document implemented behavior separately from planned acceptance criteria.

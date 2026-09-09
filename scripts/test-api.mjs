@@ -16,6 +16,15 @@ function session() {
 function status(response, expected) { assert.equal(response.status, expected); checks++; return response; }
 const owner = session(), other = session(), outsider = session(), anonymous = session();
 const login = (request, token) => request('/api/auth/verify', 'POST', { email: 'fixture0@example.invalid', token });
+const invited = session(), unapprovedInvite = session();
+status(await invited('/api/auth/verify', 'POST', { email: 'fixture0@example.invalid', token: '444444', type: 'invite' }), 200);
+status(await invited('/api/expenses?month=2026-09'), 200);
+status(await unapprovedInvite('/api/auth/verify', 'POST', { email: 'fixture0@example.invalid', token: '666666', type: 'invite' }), 403);
+status(await unapprovedInvite('/api/expenses?month=2026-09'), 401);
+status(await anonymous('/api/auth/verify', 'POST', { email: 'fixture0@example.invalid', token: '444444', type: 'email' }), 401);
+status(await anonymous('/api/auth/verify', 'POST', { email: 'fixture0@example.invalid', token: '111111', type: 'recovery' }), 400);
+status(await anonymous('/api/auth/verify', 'POST', { email: 'not-allowed@example.invalid', token: '444444', type: 'invite' }), 401);
+status(await invited('/api/auth/logout', 'POST'), 200);
 status(await anonymous('/api/expenses?month=2026-09'), 401);
 status(await login(owner, '111111'), 200);
 status(await login(other, '222222'), 200);

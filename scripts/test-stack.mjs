@@ -34,7 +34,7 @@ const auth = createServer(async (request, response) => {
   let result = {};
   let status = 200;
   if (request.url.startsWith('/auth/v1/verify')) {
-    const index = ['111111', '222222', '333333'].indexOf(body.token);
+    const index = (body.type === 'invite' ? ['444444', '555555', '666666'] : ['111111', '222222', '333333']).indexOf(body.token);
     if (index < 0) { status = 400; result = { msg: 'Invalid fixture code' }; }
     else result = session(index);
   } else if (request.url.startsWith('/auth/v1/user')) {

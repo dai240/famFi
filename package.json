@@ -14,6 +14,7 @@
     "check:runtime": "tsx scripts/check-runtime.mjs",
     "check:artifact": "node scripts/check-artifact.mjs",
     "backup": "tsx scripts/backup.mjs",
+    "backup:restore-check": "tsx scripts/verify-backup-restore.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

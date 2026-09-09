@@ -39,6 +39,7 @@ Supabase標準SMTPの宛先はOrganizationメンバーに限定される。別�
 npm run backup -- init
 npm run backup -- create <確認済みの本人Auth-UUID>
 npm run backup -- verify <出力された.json.pgpファイル>
+npm run backup:restore-check -- <出力された.json.pgpファイル>
 ```
 
 - 保存先: `~/.local/share/famfi-backups/`。ディレクトリ700、鍵・バックアップ600。Git外。
@@ -46,7 +47,7 @@ npm run backup -- verify <出力された.json.pgpファイル>
 - 本人の有効なmembershipを要求し、読み取り専用の一貫したスナップショットで本人の支出とカテゴリを取得する。共有Auth、他アプリ、ロールパスワードは含めない。
 - `keys/private.asc` は復号に必須。鍵も同じMacに置くだけではMac紛失に耐えない。鍵の別途暗号化保管先と、バックアップの別端末・別ストレージ保存先を本人と決める。現状は未設定。
 - 当面は利用日の終わりとDB変更前に手動取得する。自動実行は未登録なので、設定完了までは自動バックアップがあると扱わない。
-- 本人の実支出データの初回バックアップは未実施。暗号化・復号・使い捨てDBへの復元はテスト済み。
+- 2026-09-09に本人の初期状態（支出0件）の暗号化バックアップを取得した。実支出の保存後には再取得する。`backup:restore-check` は本番に接続せず、メモリ内の使い捨てDBへ復元して全項目・他ユーザーへの非公開性を照合する。
 
 ## 復旧
 

@@ -70,4 +70,15 @@
 - `npm audit` はPrisma CLIの `deepmerge-ts` 起因のhigh3件。依存更新は未実施。利用者入力をPrisma設定へ渡さず、対象はビルド設定系。破壊的なdowngradeを自動実行しない。[告知](https://github.com/advisories/GHSA-ggr8-5vv4-36mx)。
 - 新機能ブラウザ412項目（Chromium/WebKit、320×568・390×844・844×390・1280×800）、旧家計ブラウザ252項目が成功。まとめ記録の操作ボタンの横切れと、横画面で日付入力後にモーダル見出しが隠れる問題を修正し、再検証した。
 - 型検査、Lint、Preview用build成功。37成果物からprivate設定を除外、25 APIに公開CA/Prisma compiler同梱、隔離した成果物の初期化も成功。既存レシピのimg警告4件は未変更。使い捨てNext/Auth/PostgreSQLは停止した。
-- 公開HTTPの結果は公開後に追記する。ローカル架空Authの成功を実メールログインと混同しない。
+- 公開HTTP25項目も成功。ローカル架空Authの成功を実メールログインと混同しない。
+
+## 2026-09-10 Preview公開
+
+- URL: https://famfi-preview-day56s-projects.vercel.app/login 。既存Vercelアクセス保護を維持しており、Vercelアカウントでの確認が先に必要。その後famFiには従来の本人メールコードでログインする。
+- アプリ実装 `7c28041` を `preview` へpushし、deployment `dpl_DyUHkpfKHRWCHL82eksSkkx2hA48`（Preview / READY）を公開。固有URLは https://famfi-kf3k43090-day56s-projects.vercel.app 。Next.js 15.5.25、build 50秒。後続commitは運用スクリプト/公開記録のみで、公開中コードは上記commit。
+- 基盤は `97597a7` をmainへpush。別アプリ作業中のファイルは変更/commitに含めず維持した。
+- プロジェクト全体のPreview envは0件を維持し、このdeploymentだけに専用設定を付与。本番targetは `dpl_BtXpHEDbysx2Tm2oixc5d35MWD4T` のまま。通常本番URLのloginは200、Preview aliasは未認証時にVercelへ302となることも確認した。
+- Vercel CLIの認証を使い、famFi側は未ログインの状態で `/login` の検証用表示/送信ボタン、支出/マスタ/予定/まとめ/定期/CSVの401、書込みの不正Origin403、no-storeを25項目確認。実メール送信・本人profile保存・検証家計の支出作成は行っていない。
+- このdeploymentの直近10分のerrorログは0件。常時監視/Drainsは未設定。公開スクリプトのURL取得は、新CLIがstderrにもURLを出す挙動に対応して修正した。初回deployment自体は成功済みで、重複作成していない。
+- 次は本人によるPreview実ログインと入力確認。その後妻のメールを確認してPreview参加・別端末確認へ進む。Vercel GitHub連携、家計の本番移行、日常バックアップ運用は未完了。
+- ローカルでも本番のenvを流用せず、`.env.preview.local` と `FAMFI_DB_SCHEMA=famfi_preview` で生成/実行する。通常の開発検証は `npm run test:stack` の使い捨てDBを使う。

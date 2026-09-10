@@ -21,10 +21,10 @@ const output=await new Promise((resolve,reject)=>{
   child.stdout.on('data',data=>stdout+=data);child.stderr.on('data',data=>stderr+=data);
   child.on('error',reject);child.on('close',code=>{
     let safe=stderr;for(const secret of secrets)safe=safe.replaceAll(secret,'[redacted]');
-    console.log(safe);if(code!==0)reject(new Error('Preview deployment failed'));else resolve(stdout);
+    console.log(safe);if(code!==0)reject(new Error('Preview deployment failed'));else resolve(stdout+'\n'+stderr);
   });
 });
-const url=String(output).trim().split(/\s+/).findLast(value=>/^https:\/\/famfi-[a-z0-9]+-day56s-projects\.vercel\.app$/.test(value));
+const url=String(output).match(/https:\/\/famfi-[a-z0-9]+-day56s-projects\.vercel\.app/g)?.at(-1);
 if(!url)throw new Error('Inspect deployment before assigning the stable alias');
 await writeFile('.private/preview-deployment-url',url+'\n',{mode:0o600});
 console.log('Built preview: '+url);

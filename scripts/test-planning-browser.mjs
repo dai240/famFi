@@ -35,7 +35,9 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const baseline=await(await page.request.get(base+'/api/expenses?month='+month)).json();
       await openMasters(page);await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
       // Reload masters after creating a disposable source through the API.
-      await page.reload();await page.getByLabel('表示する月',{exact:true}).fill(month);
+      await page.reload();await page.getByRole('button',{name:'まとめて登録',exact:true}).waitFor();
+      const loadedMonth=page.waitForResponse(r=>r.url().includes('/api/expenses?month='+month)&&r.status()===200);
+      await page.getByLabel('表示する月',{exact:true}).fill(month);await loadedMonth;
       await page.getByRole('button',{name:'まとめて登録',exact:true}).click();let editor=page.getByRole('dialog',{name:'まとめて登録',exact:true});
       await editor.getByLabel('名称',{exact:true}).fill('請求 '+name);await choose(page,editor,'まとめ記録の支払元','集計用 '+name);await editor.getByLabel('家計の支出額（円）').fill('10000');await editor.getByLabel('今回はまとめ記録で完了').uncheck();await fit(page,editor);await page.screenshot({path:output+'/'+name+'-summary-editor.png',animations:'disabled'});await editor.getByRole('button',{name:'保存',exact:true}).click();await editor.waitFor({state:'hidden'});
       await page.locator('.summary-row').filter({hasText:'請求 '+name}).click();let detail=page.getByRole('dialog',{name:'請求 '+name,exact:true});await detail.getByRole('button',{name:'明細を追加',exact:true}).click();

@@ -24,6 +24,8 @@ For long tasks, report approximate progress for the current prompt, completed wo
 
 ## Expense Product Direction
 
+- Read `docs/calendar-and-notes.md` before changing sharing visibility, calendar or notes. Notes are household-shared, never actual expenses. Preserve month/undated precision, completion and history in v7 backups; v1-v6 restore stays supported. `household_roster()` is a deliberately narrow read-only privilege exception, not an invitation or membership-write API.
+
 - Read `docs/expense-roadmap.md` before extending expense features. Keep daily entry usable while adding category management, people, payment sources, and reimbursements incrementally.
 - Distinguish the authenticated recorder/data owner, the person using the purchase, its beneficiaries, its funding source, and any reimbursement parties. Do not infer these from the current `Expense.userId`.
 - New/edited expenses require a payment source, purchase actor, beneficiary and explicit treatment. Default new entries to the household default source, authenticated person's stable party ID, family and today. Legacy records stay unknown until explicitly edited. Direct household contributions are expenses, not fictional bank deposits or refunds.

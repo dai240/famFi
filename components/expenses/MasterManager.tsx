@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Category, Masters, Party, PaymentSource, categoryFields, partyFields, paymentMethods, paymentSourceFields, sourceDisplayName, treatmentLabels } from '@/lib/ledger';
 import {CostClassSelect} from './CostClassSelect';
-import {CostClass} from '@/lib/cost-class';
+import {CostClass,costClassLabels} from '@/lib/cost-class';
+import {suggestedCategoryCost} from '@/lib/category-defaults';
 import { personRole } from '@/lib/household';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
 import { ReferenceSelect } from './ReferenceSelect';
@@ -27,6 +28,12 @@ export function MasterManager({ masters, onChange, onClose, initialKind = 'categ
   const self = masters.parties.find(p=>p.id===masters.selfPartyId);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const lock = useRef(false);
   const items = kind === 'categories' ? masters.categories : kind === 'parties' ? masters.parties : masters.paymentSources;
+  const suggested=masters.categories.filter(c=>suggestedCategoryCost(c));
+  async function applyDefaults(){
+    if(lock.current||!window.confirm('次のカテゴリの新規入力の初期区分を設定します。過去の支出は変更しません。\n\n'+suggested.map(c=>c.name+'：'+costClassLabels[suggestedCategoryCost(c)!]).join('\n')))return;
+    lock.current=true;setBusy(true);setError('');
+    try{onChange(await requestJson<Masters>('/api/categories/default-costs',{method:'POST',body:JSON.stringify({entries:suggested.map(({id,version})=>({id,version}))})}));}catch(error){setError(errorMessage(error));}finally{lock.current=false;setBusy(false);}
+  }
   async function refresh() { onChange(await requestJson<Masters>('/api/masters')); }
   async function reload() {
     if (lock.current) return; lock.current = true; setBusy(true); setError('');
@@ -50,6 +57,7 @@ export function MasterManager({ masters, onChange, onClose, initialKind = 'categ
         <Tabs value={kind} onValueChange={v => { setKind(v as Kind); setError(''); }}><TabsList className="master-tabs">{Object.entries(labels).map(([key,label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList></Tabs>
         <div className="master-toolbar"><label className="check-label"><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />使用停止も表示</label><div className="toolbar-actions"><Button size="icon" variant="ghost" title="マスタを更新" aria-label="マスタを更新" disabled={busy} onClick={reload}><RefreshCw className={busy ? 'animate-spin':''} /></Button><Button variant="outline" disabled={busy} onClick={() => setEditing({ item: null, key: crypto.randomUUID() })}><Plus />追加</Button></div></div>
         {error && <p className="form-error" role="alert">{error}</p>}
+        {kind==='categories'&&suggested.length>0&&<Button variant="outline" disabled={busy} onClick={applyDefaults}><RefreshCw />初期区分を設定</Button>}
         <ul className="master-list">{items.filter(item => showArchived || !item.archived).map(item => {
           const cat = 'color' in item ? item : null;
           const siblings = cat ? masters.categories.filter(c => c.parentId === cat.parentId) : [];

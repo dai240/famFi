@@ -23,14 +23,15 @@ export const planningBackupTables=profileBackupTables.flatMap(dataset=>[
   {...dataset,fields:[...dataset.fields,...(dataset.key==='categories'?['costClass']:dataset.key==='expenses'?['costClass','summaryId']:dataset.key==='recurringRules'?['costClass','reviewDay','reviewMonthOffset']:dataset.key==='recurringOccurrences'?['snoozedUntil']:[])]},
   ...(dataset.key==='recurringOccurrences'?[{key:'plannedExpenses',table:'planned_expenses',fields:['id','userId','name','date','datePrecision','amount','categoryId','paymentSourceId','memo','reviewAfter','snoozedUntil','state','expenseId','version','createdAt','updatedAt']}]:[]),
 ]);
+export const notesBackupTables=[...planningBackupTables,{key:'householdNotes',table:'household_notes',fields:['id','userId','name','memo','kind','date','datePrecision','completed','version','createdAt','updatedAt']}];
 export async function captureHouseholdBackup(query,actorId,format,schema=process.env.FAMFI_DB_SCHEMA??'famfi'){
   if(!['famfi','famfi_preview'].includes(schema))throw new Error('Unsupported backup schema');
-  if(!format)format=(await query('select to_regclass($1) is not null as planning',[`${schema}.expense_summaries`])).rows[0].planning?'famfi-expenses/v6':'famfi-expenses/v5';
+  if(!format){const features=(await query('select to_regclass($1) is not null as planning,to_regclass($2) is not null as notes',[`${schema}.expense_summaries`,`${schema}.household_notes`])).rows[0];format=features.notes?'famfi-expenses/v7':features.planning?'famfi-expenses/v6':'famfi-expenses/v5';}
   const member=(await query(`select ledger_id,party_id from ${schema}.household_members where user_id=$1`,[actorId])).rows[0];
   if(!member)throw new Error('An active household member is required');
   const household=(await query(`select id,name from ${schema}.households`)).rows[0];
-  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household,...(format==='famfi-expenses/v6'?{environment:schema}: {})};
-  for(const dataset of format==='famfi-expenses/v6'?planningBackupTables:format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from ${schema}.${dataset.table} order by id`)).rows;
+  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household,...(['famfi-expenses/v6','famfi-expenses/v7'].includes(format)?{environment:schema}: {})};
+  for(const dataset of format==='famfi-expenses/v7'?notesBackupTables:format==='famfi-expenses/v6'?planningBackupTables:format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from ${schema}.${dataset.table} order by id`)).rows;
   return payload;
 }
 export function normalizeBackupRows(rows, fields) {

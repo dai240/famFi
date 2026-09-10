@@ -246,3 +246,20 @@ model PlannedExpense {
   @@map("planned_expenses")
   @@schema("famfi")
 }
+
+model HouseholdNote {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  name String
+  memo String @default("")
+  kind String
+  date DateTime? @db.Date
+  datePrecision String @default("none") @map("date_precision")
+  completed Boolean @default(false)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@unique([userId,id])
+  @@map("household_notes")
+  @@schema("famfi")
+}

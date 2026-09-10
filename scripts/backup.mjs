@@ -26,10 +26,11 @@ export async function decryptBackup(filename, directory = backupDirectory) {
   const key = await readPrivateKey({ armoredKey: await readFile(path.join(directory, 'keys/private.asc'), 'utf8') });
   const { data } = await decrypt({ message: await readMessage({ binaryMessage: new Uint8Array(await readFile(filename)) }), decryptionKeys: key });
   const payload = JSON.parse(data);
-  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3', 'famfi-expenses/v4', 'famfi-expenses/v5','famfi-expenses/v6'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
+  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3', 'famfi-expenses/v4', 'famfi-expenses/v5','famfi-expenses/v6','famfi-expenses/v7'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
   if (payload.format === 'famfi-expenses/v3' && !['parties','paymentSources','settlements'].every(key => Array.isArray(payload[key]))) throw new Error('Invalid ledger backup');
-  if (['famfi-expenses/v4','famfi-expenses/v5','famfi-expenses/v6'].includes(payload.format) && (!payload.household || !['parties','paymentSources','settlements','recurringRules','recurringOccurrences','auditEvents'].every(key=>Array.isArray(payload[key])))) throw new Error('Invalid household backup');
-  if(payload.format==='famfi-expenses/v6'&&(!Array.isArray(payload.expenseSummaries)||!Array.isArray(payload.plannedExpenses)))throw new Error('Invalid planning backup');
+  if (['famfi-expenses/v4','famfi-expenses/v5','famfi-expenses/v6','famfi-expenses/v7'].includes(payload.format) && (!payload.household || !['parties','paymentSources','settlements','recurringRules','recurringOccurrences','auditEvents'].every(key=>Array.isArray(payload[key])))) throw new Error('Invalid household backup');
+  if(['famfi-expenses/v6','famfi-expenses/v7'].includes(payload.format)&&(!Array.isArray(payload.expenseSummaries)||!Array.isArray(payload.plannedExpenses)))throw new Error('Invalid planning backup');
+  if(payload.format==='famfi-expenses/v7'&&!Array.isArray(payload.householdNotes))throw new Error('Invalid notes backup');
   return payload;
 }
 async function main() {

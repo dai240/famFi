@@ -15,5 +15,5 @@ try{
   const payload=await captureHouseholdBackup((sql,values)=>db.query(sql,values),owner,undefined,schema);
   await db.query('rollback');
   const file=await encryptBackup(payload,directory);await verifyBackupRestore(await decryptBackup(file,directory));
-  console.log('PASS: v6 summary links, planned expenses, review windows, cost classes, profiles and audit restore exactly; other household rejected. No production connection.');
+  console.log('PASS: '+payload.format+' summary links, notes, planned expenses, review windows, cost classes, profiles and audit restore exactly; other household rejected. No production connection.');
 }finally{await db.end();await rm(directory,{recursive:true,force:true});}

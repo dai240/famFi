@@ -13,10 +13,10 @@ import { MasterManager } from './MasterManager';
 import { HistoryView } from './HistoryView';
 import { CostClassSelect } from './CostClassSelect';
 
-export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onClose, onSaved, onDelete, onDuplicate, saveOverride, title }: {
+export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onClose, onSaved, onDelete, onDuplicate, saveOverride, title, continueEntry=false }: {
   expense: ExpenseRecord | null; initial?: ExpenseRecord; initialMonth: string; masters: Masters; onMastersChanged: (masters: Masters) => void; onClose: () => void;
-  onSaved: (expense: ExpenseRecord) => void; onDelete: (expense: ExpenseRecord) => void; onDuplicate: (expense: ExpenseRecord) => void;
-  saveOverride?:(id:string,fields:ExpenseFields)=>Promise<ExpenseRecord>;title?:string;
+  onSaved: (expense: ExpenseRecord, keepOpen?: boolean) => void; onDelete: (expense: ExpenseRecord) => void; onDuplicate: (expense: ExpenseRecord) => void;
+  saveOverride?:(id:string,fields:ExpenseFields)=>Promise<ExpenseRecord>;title?:string;continueEntry?:boolean;
 }) {
   const seed=expense??initial;
   const [id]=useState(()=>expense?.id??crypto.randomUUID());
@@ -25,6 +25,7 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
   const [lastDay,setLastDay]=useState(fields.date.length===10?fields.date:'');
   const [managing,setManaging]=useState<'categories'|'parties'|'payment-sources'|null>(null);
   const [history,setHistory]=useState(false);
+  const [keepOpen,setKeepOpen]=useState(continueEntry);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');const lock=useRef(false);
   const baseline=useRef(JSON.stringify(fields));const dirty=JSON.stringify(fields)!==baseline.current;
   const financialLocked=Boolean(expense?.settledAmount);
@@ -37,7 +38,7 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
     const monthChanged=Boolean(expense?.summaryId&&expense.date.slice(0,7)!==parsed.data.date.slice(0,7));
     if(monthChanged&&!window.confirm('まとめ記録に含まれる明細の月が変わるため、月別の支出合計が変わります。保存しますか？'))return;
     lock.current=true;setBusy(true);
-    try{const row=saveOverride?await saveOverride(id,parsed.data):await requestJson<ExpenseRecord>(expense?'/api/expenses/'+id:'/api/expenses',{method:expense?'PUT':'POST',body:JSON.stringify({...parsed.data,...(expense?{version:expense.version,allowMonthChange:monthChanged}:{id})})});onSaved(row);}
+    try{const row=saveOverride?await saveOverride(id,parsed.data):await requestJson<ExpenseRecord>(expense?'/api/expenses/'+id:'/api/expenses',{method:expense?'PUT':'POST',body:JSON.stringify({...parsed.data,...(expense?{version:expense.version,allowMonthChange:monthChanged}:{id})})});onSaved(row,keepOpen&&!expense&&!saveOverride);}
     catch(error){if(error instanceof RequestError&&error.status===401)window.location.replace('/login');else setError(errorMessage(error));}
     finally{lock.current=false;setBusy(false);}
   }
@@ -59,6 +60,7 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
         <label htmlFor="expense-memo">メモ <span className="muted-text">任意</span></label><textarea id="expense-memo" maxLength={1000} rows={2} value={fields.memo} disabled={busy} onChange={e=>patch({memo:e.target.value})} />
         {expense&&<div className="record-attribution"><span>記録：{personLabel(expense.recordedByPartyId??null,masters)}</span>{expense.updatedByPartyId&&<span>最終変更：{personLabel(expense.updatedByPartyId,masters)}</span>}<Button type="button" variant="ghost" size="icon" title="この支出の変更履歴" aria-label="この支出の変更履歴" onClick={()=>setHistory(true)}><History /></Button></div>}
         {error&&<p className="form-error" role="alert">{error}</p>}
+        {!expense&&!saveOverride&&<label className="check-label"><input type="checkbox" checked={keepOpen} disabled={busy} onChange={e=>setKeepOpen(e.target.checked)} />保存後も続けて登録</label>}
       </form>
         <div className="editor-actions">{expense&&<div className="editor-tools"><Button type="button" variant="ghost" className="delete-action" disabled={busy||expense.settlements.length>0} onClick={()=>{if(!dirty||window.confirm('入力中の変更を破棄しますか？'))onDelete(expense);}}><Trash2 />削除</Button><Button type="button" variant="ghost" size="icon" title="複製して新しく記録" aria-label="複製して新しく記録" disabled={busy} onClick={()=>{const parsed=validatedExpenseFields.safeParse(fields);if(parsed.success)onDuplicate({...expense,...parsed.data,settlements:[],settledAmount:0});else setError('入力内容を確認してください。');}}><Copy /></Button></div>}<div className="editor-save"><Button type="button" variant="outline" disabled={busy} onClick={close}>キャンセル</Button><Button type="submit" form={'expense-form-'+id} disabled={busy} className="primary-action">{busy?<LoaderCircle className="animate-spin" />:<Save />}保存</Button></div></div>
     </DialogContent>

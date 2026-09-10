@@ -4,15 +4,16 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { decryptBackup } from './backup.mjs';
-import { backupTables, householdBackupTables, profileBackupTables, planningBackupTables, normalizeBackupRows, sqlColumn } from './backup-model.mjs';
+import { backupTables, householdBackupTables, profileBackupTables, planningBackupTables, notesBackupTables, normalizeBackupRows, sqlColumn } from './backup-model.mjs';
 
 export async function verifyBackupRestore(backup) {
   assert.match(backup.ownerId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  const isV6 = backup.format === 'famfi-expenses/v6';
+  const isV7 = backup.format === 'famfi-expenses/v7';
+  const isV6 = backup.format === 'famfi-expenses/v6'||isV7;
   const isV5 = backup.format === 'famfi-expenses/v5'||isV6;
   const isV4 = backup.format === 'famfi-expenses/v4' || isV5;
   const isV3 = backup.format === 'famfi-expenses/v3' || isV4;
-  const tables = isV6?planningBackupTables:isV5 ? profileBackupTables : isV4 ? householdBackupTables : backupTables;
+  const tables = isV7?notesBackupTables:isV6?planningBackupTables:isV5 ? profileBackupTables : isV4 ? householdBackupTables : backupTables;
   if(isV4){assert.equal(backup.household?.id,backup.ownerId);for(const dataset of tables)assert.ok(Array.isArray(backup[dataset.key]));}
   if (isV3) for (const key of ['parties','paymentSources','settlements']) assert.ok(Array.isArray(backup[key]));
   const restoredExpenses = backup.expenses.map(expense => {
@@ -31,6 +32,7 @@ export async function verifyBackupRestore(backup) {
     const files=(await readdir(migrations)).sort();
     const hasProductionPlanning=files.some(file=>/^\d+_famfi_planning\.sql$/.test(file));
     for (const file of files) {
+      if (!isV7 && /_famfi_notes\.sql$/.test(file)) continue;
       if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!preview).*)\.sql$/.test(file) && (isV4 || !/household_workflow|member_profiles/.test(file)) && (isV6 || !/_famfi_planning\.sql$/.test(file))) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
       if(isV6&&!hasProductionPlanning&&/^\d+_famfi_preview_planning\.sql$/.test(file))await db.exec((await readFile(path.join(migrations,file),'utf8')).replaceAll('famfi_preview','famfi'));
     }

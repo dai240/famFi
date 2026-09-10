@@ -9,7 +9,7 @@ test('production planning preserves v5 fields, validates shared history and rest
   const db=new PGlite();const dir='../personal-apps-infra/supabase/migrations';const owner='11111111-1111-4111-8111-111111111111';
   try{
     await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);');
-    const files=(await readdir(dir)).sort();
+    const files=(await readdir(dir)).filter(file=>file<'20260910042034').sort();
     for(const file of files.filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!planning).*)\.sql$/.test(f)))await db.exec(await readFile(dir+'/'+file,'utf8'));
     await db.query('insert into auth.users values($1)',[owner]);await db.query('insert into famfi.memberships(user_id) values($1)',[owner]);await db.query('select famfi.provision_household($1)',[owner]);
     await db.query("insert into famfi.expenses(id,user_id,amount,date,category_id,description) values($1,$1,4321,'2026-09-01','food','Preservation fixture')",[owner]);

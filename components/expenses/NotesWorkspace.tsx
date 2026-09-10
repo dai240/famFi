@@ -1,0 +1,56 @@
+'use client';
+import { FormEvent, useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Download, History, LoaderCircle, Plus, RefreshCw, Save, Search, StickyNote, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { NoteFields, NoteRecord, noteFields, noteIsOverdue } from '@/lib/notes';
+import { formatExpenseDate } from '@/lib/expenses';
+import { Masters } from '@/lib/ledger';
+import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
+import { HistoryView } from './HistoryView';
+
+export function NotesWorkspace({ masters, revision, onChanged }: { masters:Masters; revision:number; onChanged:()=>void }) {
+  const [data,setData]=useState<{rows:NoteRecord[];count:number}|null>(null), [error,setError]=useState('');
+  const [filter,setFilter]=useState('all'), [search,setSearch]=useState(''), [draft,setDraft]=useState(''), [page,setPage]=useState(1);
+  const [editing,setEditing]=useState<{note:NoteRecord|null}|null>(null), [busy,setBusy]=useState(false); const lock=useRef(false);
+  useEffect(()=>{const c=new AbortController();setData(null);setError('');requestJson<{rows:NoteRecord[];count:number}>('/api/notes?'+new URLSearchParams({filter,search,page:String(page)}),{signal:c.signal}).then(d=>{if(c.signal.aborted)return;if(!d.rows.length&&page>1)setPage(1);else setData(d);}).catch(e=>{if(!c.signal.aborted)setError(errorMessage(e));});return()=>c.abort();},[filter,search,page,revision]);
+  async function toggle(note:NoteRecord){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{await requestJson('/api/notes/'+note.id,{method:'PUT',body:JSON.stringify({...noteFields.strip().parse(note),completed:!note.completed,version:note.version})});onChanged();}catch(e){setError(errorMessage(e));}finally{lock.current=false;setBusy(false);}}
+  async function download(){if(lock.current)return;lock.current=true;setBusy(true);setError('');try{const r=await fetch('/api/notes/export',{cache:'no-store'});if(!r.ok)throw new Error((await r.json()).error);const url=URL.createObjectURL(await r.blob());const a=document.createElement('a');a.href=url;a.download='famfi-notes.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){setError(errorMessage(e));}finally{lock.current=false;setBusy(false);}}
+  return <main className="expense-main"><div className="workspace-heading"><div><p className="section-eyebrow">家計で共有</p><h1>共有メモ</h1></div><Button className="primary-action" onClick={()=>setEditing({note:null})}><Plus />追加</Button></div>
+    <div className="notes-toolbar"><div className="date-mode" role="group" aria-label="メモの絞り込み">{Object.entries({all:'すべて',note:'メモ',open:'未完了',completed:'完了'}).map(([key,name])=><button type="button" key={key} aria-pressed={filter===key} onClick={()=>{setFilter(key);setPage(1);}}>{name}</button>)}</div><div className="toolbar-actions"><Button size="icon" variant="ghost" title="メモを更新" aria-label="メモを更新" onClick={onChanged}><RefreshCw /></Button><Button size="icon" variant="outline" title="すべてのメモをCSV出力" aria-label="すべてのメモをCSV出力" disabled={busy} onClick={download}><Download /></Button></div></div>
+    <form className="search-form notes-search" onSubmit={e=>{e.preventDefault();setSearch(draft);setPage(1);}}><input aria-label="共有メモを検索" maxLength={120} value={draft} onChange={e=>setDraft(e.target.value)} /><Button size="icon" variant="outline" title="メモを検索" aria-label="メモを検索"><Search /></Button>{search&&<Button type="button" variant="ghost" onClick={()=>{setSearch('');setDraft('');setPage(1);}}>解除</Button>}</form>
+    {error&&<p className="form-error" role="alert">{error}</p>}
+    {!data&&!error?<p className="workspace-message" role="status"><LoaderCircle className="animate-spin" />メモを読み込み中</p>:data&&(!data.rows.length?<div className="empty-ledger"><StickyNote aria-hidden="true" /><p>{search?'一致するメモはありません':'メモはありません'}</p><Button variant="outline" onClick={()=>setEditing({note:null})}><Plus />メモを追加</Button></div>:<ul className="notes-list">{data.rows.map(note=><li key={note.id} className={note.completed?'completed':''}>
+      {note.kind==='task'?<input type="checkbox" aria-label={note.name+'を'+(note.completed?'未完了に戻す':'完了にする')} checked={note.completed} disabled={busy} onChange={()=>toggle(note)} />:<StickyNote aria-hidden="true" />}
+      <button type="button" className="note-content" onClick={()=>setEditing({note})}><strong>{note.name}</strong>{note.memo&&<p>{note.memo}</p>}<span>{note.date?formatExpenseDate(note.date):'日付なし'}{noteIsOverdue(note)&&<small className="note-overdue">期限を過ぎています</small>}{note.completed&&<small>完了</small>}</span></button>
+    </li>)}</ul>)}
+    {data&&data.count>50&&<nav className="ledger-pagination" aria-label="メモのページ"><Button size="icon" variant="outline" title="前のページ" aria-label="メモの前のページ" disabled={page===1} onClick={()=>setPage(n=>n-1)}><ChevronLeft /></Button><span>{page} / {Math.ceil(data.count/50)}</span><Button size="icon" variant="outline" title="次のページ" aria-label="メモの次のページ" disabled={page*50>=data.count} onClick={()=>setPage(n=>n+1)}><ChevronRight /></Button></nav>}
+    {editing&&<NoteEditor key={editing.note?.id??'new'} note={editing.note} masters={masters} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);onChanged();}} />}
+  </main>;
+}
+
+export function NoteEditor({ note, initialDate=null, masters, onClose, onSaved }: {note:NoteRecord|null; initialDate?:string|null; masters:Masters; onClose:()=>void; onSaved:()=>void}) {
+  const [id]=useState(()=>note?.id??crypto.randomUUID()); const [version,setVersion]=useState(note?.version??1);
+  const [fields,setFields]=useState<NoteFields>(()=>note?noteFields.strip().parse(note):{name:'',memo:'',kind:'note',date:initialDate});
+  const [mode,setMode]=useState<'none'|'day'|'month'>(!fields.date?'none':fields.date.length===7?'month':'day');
+  const [completed,setCompleted]=useState(note?.completed??false), [busy,setBusy]=useState(false), [error,setError]=useState(''), [conflict,setConflict]=useState(false), [history,setHistory]=useState(false);
+  const lock=useRef(false);const baseline=useRef(JSON.stringify({fields,completed}));const dirty=JSON.stringify({fields,completed})!==baseline.current;
+  const patch=(change:Partial<NoteFields>)=>setFields(old=>({...old,...change}));
+  useEffect(()=>{if(!dirty)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
+  function close(){if(!busy&&(!dirty||window.confirm('入力中の変更を破棄しますか？')))onClose();}
+  async function mutate(action:()=>Promise<unknown>){if(lock.current)return;lock.current=true;setBusy(true);setError('');setConflict(false);try{await action();onSaved();}catch(e){setError(errorMessage(e));setConflict(e instanceof RequestError&&e.status===409);}finally{lock.current=false;setBusy(false);}}
+  function save(event:FormEvent){event.preventDefault();const parsed=noteFields.safeParse(fields);if(!parsed.success){setError(parsed.error.issues[0]?.message??'入力内容を確認してください。');return;}if(mode!=='none'&&!fields.date){setError('日付または月を入力してください。');return;}void mutate(()=>requestJson(note?'/api/notes/'+id:'/api/notes',{method:note?'PUT':'POST',body:JSON.stringify({...parsed.data,...(note?{version,completed}:{id})})}));}
+  async function reload(){if(lock.current||!window.confirm('入力中の変更を破棄し、最新のメモを読み込みますか？'))return;lock.current=true;setBusy(true);try{const row=await requestJson<NoteRecord>('/api/notes/'+id);const next=noteFields.strip().parse(row);setFields(next);setCompleted(row.completed);setVersion(row.version);setMode(!row.date?'none':row.date.length===7?'month':'day');baseline.current=JSON.stringify({fields:next,completed:row.completed});setError('');setConflict(false);}catch(e){setError(errorMessage(e));}finally{lock.current=false;setBusy(false);}}
+  return <Dialog open onOpenChange={open=>{if(!open)close();}}><DialogContent className="expense-dialog expense-entry-dialog" onInteractOutside={e=>e.preventDefault()}><DialogHeader><DialogTitle>{note?'共有メモを編集':'共有メモを追加'}</DialogTitle><DialogDescription>家計の参加者に共有</DialogDescription></DialogHeader>
+    <form id={'note-'+id} className="expense-form" onSubmit={save}>
+      <label htmlFor="note-name">件名</label><input id="note-name" required maxLength={120} value={fields.name} disabled={busy} onChange={e=>patch({name:e.target.value})} />
+      <label className="check-label"><input type="checkbox" checked={fields.kind==='task'} disabled={busy} onChange={e=>{patch({kind:e.target.checked?'task':'note'});setCompleted(false);}} />完了チェックを付ける</label>
+      <label htmlFor="note-memo">メモ</label><textarea id="note-memo" rows={5} maxLength={4000} value={fields.memo} disabled={busy} onChange={e=>patch({memo:e.target.value})} />
+      <fieldset className="expense-date-fields" disabled={busy}><legend>{fields.kind==='task'?'期限':'日付'}</legend><div className="date-mode" role="radiogroup" aria-label="メモの日付指定">{(['none','day','month'] as const).map(value=><label key={value}><input type="radio" name="note-date-mode" checked={mode===value} onChange={()=>{setMode(value);patch({date:value==='none'?null:value==='month'?fields.date?.slice(0,7)??null:fields.date?.length===10?fields.date:null});}} /><span>{{none:'なし',day:'日付指定',month:'月のみ'}[value]}</span></label>)}</div>{mode!=='none'&&<input aria-label={mode==='day'?'メモの日付':'メモの月'} type={mode==='day'?'date':'month'} required min={mode==='day'?'2000-01-01':'2000-01'} max={mode==='day'?'2099-12-31':'2099-12'} value={fields.date??''} onChange={e=>patch({date:e.target.value||null})} />}</fieldset>
+      {note&&fields.kind==='task'&&<label className="check-label"><input type="checkbox" checked={completed} disabled={busy} onChange={e=>setCompleted(e.target.checked)} />完了</label>}
+      {error&&<p className="form-error" role="alert">{error}</p>}{conflict&&note&&<Button type="button" variant="outline" disabled={busy} onClick={reload}><RefreshCw />最新を読み込む</Button>}
+    </form>
+    <div className="editor-actions">{note&&<div className="editor-tools"><Button variant="ghost" size="icon" title="メモを削除" aria-label="メモを削除" disabled={busy} onClick={()=>{if(window.confirm('この共有メモを削除しますか？'))void mutate(()=>requestJson('/api/notes/'+id,{method:'DELETE',body:JSON.stringify({version})}));}}><Trash2 /></Button><Button variant="ghost" size="icon" title="メモの変更履歴" aria-label="メモの変更履歴" disabled={busy} onClick={()=>setHistory(true)}><History /></Button></div>}<div className="editor-save"><Button variant="outline" disabled={busy} onClick={close}>キャンセル</Button><Button type="submit" form={'note-'+id} className="primary-action" disabled={busy}>{busy?<LoaderCircle className="animate-spin" />:<Save />}保存</Button></div></div>
+    {history&&note&&<Dialog open onOpenChange={setHistory}><DialogContent className="expense-dialog master-dialog"><DialogHeader><DialogTitle>メモの変更履歴</DialogTitle><DialogDescription className="sr-only">家計内の変更履歴</DialogDescription></DialogHeader><HistoryView masters={masters} entityType="household_notes" entityId={note.id} /></DialogContent></Dialog>}
+  </DialogContent></Dialog>;
+}

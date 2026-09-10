@@ -1,5 +1,7 @@
 # famFi の DB は他の個人アプリと共用です
 
+メモと家計共有表示の最新拡張は [カレンダー・共有メモ](calendar-and-notes.md)。同じfamfi schema内の家計ID/RLSによる区分を継続し、家計ごとにschemaやSupabase projectを自動作成しない。実際の参加設定と人物マスタは別物。自己登録/自己参加は閉じたまま。
+
 2026-09-09 に、famFi 専用として用意されていた Supabase を、個人開発用の共通基盤 `personal-apps` として再利用する方針になりました。
 
 | 項目 | 値 |

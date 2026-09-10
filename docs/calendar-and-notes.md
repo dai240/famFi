@@ -1,6 +1,6 @@
 # 家計の共有・カレンダー・共有メモ
 
-2026-09-10実装。本番公開の結果は末尾に追記する。コード実装と公開確認を区別する。
+2026-09-10実装・本番公開済み。公開結果と確認範囲は末尾に記録する。
 
 ## 共有の境界
 
@@ -55,3 +55,13 @@
 - 実際の各app roleと厳密なTLSでメモ/変更履歴/参加表示、別ユーザー/他schema拒否を確認し、書込みprobeはすべてROLLBACK。Compath state/membership、家計参加者、platform台帳の照合値とAuth件数は変更前と一致した。
 - Security Advisorは変更前と同じ [管理台帳の既定拒否INFO](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) と [共有Authの漏洩パスワード保護OFF WARN](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) のみ。共有Auth設定は変更しない。
 - 実支出やカテゴリの初期区分は自動変更していない。PreviewのDBは拡張したが、Preview公開中のアプリは従来版。新機能の本番公開確認は次節へ記録する。
+
+## 2026-09-10 本番公開
+
+- URL: https://famfi-nu.vercel.app/expenses 。実装 `0507278` をmainへpushし、Production targetでfamfiのPrismaを再生成・再ビルドした。Next.js 15.5.25、Vercel build約1分。`dpl_8VLhAEVwjpTUiX7mw4wBtgc6Mf7u` はREADY。固有URLは https://famfi-j1rak6qvk-day56s-projects.vercel.app 。Preview成果物は使っていない。
+- ドメイン切替前の固有Production URLでHTTP37項目を確認し、同じProduction成果物を通常URLへ切替。切替後もHTTP37項目と通常URLのdeployment IDを再確認した。未認証401・不正Origin403・no-store・本番用ログイン画面を含む。メール送信やAPIからの実家計書込は行わない。
+- 既存の実本人Chromeセッションを再読み込みし、既存支出3件・金額の保持、一覧/カレンダー切替、日別明細、月のみ欄、家計の参加状況、共有メモの空状態と入力フォーム、日付なし/月のみ、中央+の家族カード/本人/家族/今日と連続入力チェックを確認した。入力フォームはキャンセルし、保存/削除/カテゴリ区分の変更はしていない。
+- 390×844pxで本番画面を確認し、確認用viewportを解除した。スマホWebKitを含むCRUDは上記ローカルfixtureでの検証。妻の本番ログインや新しいメモの本番保存を確認したとは扱わない。
+- 公開deploymentの直近10分をerrorレベルで取得し、該当ログは0件。Drains/常時監視・定期backupは今回追加していない。ローカルNext/Auth/PostgreSQLの試験stackは停止し、3101/55432/55433のlistenerなしを確認した。
+- 基盤 `18bdfd6` をmainへpush。別アプリ作業中の変更はcommitに含めず残した。公開記録の追記commitは文書のみであり、公開中のコードは上記実装commit。GitHubのVercel自動デプロイ連携は従来どおり未接続。
+- 次の実利用作業は妻のメール確認と招待/同じ家計への参加設定。家計の自己作成・画面からの招待は後続機能であり、一般登録は閉じたまま。

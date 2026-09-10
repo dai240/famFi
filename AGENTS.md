@@ -24,6 +24,8 @@ For long tasks, report approximate progress for the current prompt, completed wo
 
 ## Expense Product Direction
 
+- Read `docs/sample-data.md` before treating July/August 2026 records as real expenses or removing samples. The explicitly requested Production batch `famfi-sample-summer-2026-v1` contains fictional expenses and provisional recurring rules; preserve unrelated records and all settlement/history constraints.
+
 - Read `docs/calendar-and-notes.md` before changing sharing visibility, calendar or notes. Notes are household-shared, never actual expenses. Preserve month/undated precision, completion and history in v7 backups; v1-v6 restore stays supported. `household_roster()` is a deliberately narrow read-only privilege exception, not an invitation or membership-write API.
 
 - Read `docs/expense-roadmap.md` before extending expense features. Keep daily entry usable while adding category management, people, payment sources, and reimbursements incrementally.

@@ -2,7 +2,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { localPostgres } from './local-postgres.mjs';
@@ -10,6 +10,7 @@ import { localPostgres } from './local-postgres.mjs';
 const realPostgres = Boolean(process.env.FAMFI_TEST_PG_BIN);
 const schema=process.env.FAMFI_TEST_SCHEMA??'famfi_preview';
 if(!['famfi','famfi_preview'].includes(schema))throw new Error('Unsupported fixture schema');
+execFileSync(process.execPath,['scripts/generate-prisma.mjs'],{stdio:'inherit',env:{...process.env,FAMFI_DB_SCHEMA:schema}});
 const db = realPostgres ? await localPostgres(process.env.FAMFI_TEST_PG_BIN,55432) : new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;');
 const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infra', 'supabase/migrations');
@@ -17,8 +18,8 @@ for (const file of (await readdir(migrations)).sort()) {
   if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(file)) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
 }
 const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
-await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'), ('${ids[3]}'); select famfi.provision_household('${ids[0]}'); select famfi.provision_household('${ids[1]}'); insert into famfi.household_members(user_id,ledger_id,party_id) select '${ids[3]}','${ids[0]}',id from famfi.parties where user_id='${ids[0]}' and system_key='partner'; ${realPostgres ? '' : 'set session authorization famfi_app;'} `);
-await db.exec(`reset session authorization;insert into famfi_preview.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'), ('${ids[3]}');select famfi_preview.provision_household('${ids[0]}','検証用家計');select famfi_preview.provision_household('${ids[1]}');insert into famfi_preview.household_members(user_id,ledger_id,party_id) select '${ids[3]}','${ids[0]}',id from famfi_preview.parties where user_id='${ids[0]}' and system_key='partner';${realPostgres?'':'set session authorization famfi_preview_app;'}`);
+await db.exec(`insert into auth.users values ${ids.map(id => `('${id}')`).join(',')}; insert into famfi.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'), ('${ids[3]}'); select famfi.provision_household('${ids[0]}'); select famfi.provision_household('${ids[1]}'); insert into famfi.household_members(user_id,ledger_id,party_id) select '${ids[3]}','${ids[0]}',id from famfi.parties where user_id='${ids[0]}' and system_key='partner';`);
+await db.exec(`reset session authorization;insert into famfi_preview.memberships(user_id) values ('${ids[0]}'), ('${ids[1]}'), ('${ids[3]}');select famfi_preview.provision_household('${ids[0]}','検証用家計');select famfi_preview.provision_household('${ids[1]}');insert into famfi_preview.household_members(user_id,ledger_id,party_id) select '${ids[3]}','${ids[0]}',id from famfi_preview.parties where user_id='${ids[0]}' and system_key='partner';${realPostgres?'':`set session authorization ${schema}_app;`}`);
 const pg = realPostgres ? null : new PGLiteSocketServer({ db, host: '127.0.0.1', port: 55432, maxConnections: 2 });
 await pg?.start();
 function user(index) {
@@ -59,7 +60,7 @@ const auth = createServer(async (request, response) => {
 await new Promise(resolve => auth.listen(55433, '127.0.0.1', resolve));
 const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '-p', '3101'], {
   stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development',
-    DATABASE_URL: `postgresql://${schema}_app:fixture@127.0.0.1:55432/postgres?schema=${schema}`,FAMFI_DB_SCHEMA:schema,
+    DATABASE_URL: `postgresql://${schema}_app:fixture@127.0.0.1:55432/postgres?schema=${schema}`,FAMFI_DB_SCHEMA:schema,FAMFI_TEST_SCHEMA:schema,
     NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55433', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'fixture-publishable-key',
     FAMFI_ALLOWED_EMAIL: 'fixture0@example.invalid', APP_ORIGIN: 'http://127.0.0.1:3101' },
 });

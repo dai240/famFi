@@ -1,6 +1,6 @@
 # 予定・まとめ記録と検証環境
 
-2026-09-10。`preview` ブランチの追加実装。本番 `main` / `famfi-nu.vercel.app` の機能・DBはまだ切り替えない。妻の実メールログインは未完了。
+2026-09-10。Previewで検証した後、本人の依頼により本番 `main` / `famfi-nu.vercel.app` へ反映済み。[本番反映とボトムナビ](production-planning-release.md) を最新記録として優先する。末尾のPreview公開記録は当時の履歴。妻の実メールログインは未完了。
 
 ## 入力を続けられる形
 
@@ -56,7 +56,7 @@
 
 ## バックアップと公開手順
 
-- Previewはv6暗号化バックアップで費用区分・まとめ/明細・予定・確認日・延期を保持。`~/.local/share/famfi-preview-backups/` と専用鍵を使用。本番v5の保存先・鍵とは別。v1〜v5のローカル復元も維持する。
+- 本番・Previewともv6暗号化バックアップで費用区分・まとめ/明細・予定・確認日・延期を保持。Previewは `~/.local/share/famfi-preview-backups/` と専用鍵を使用。本番の保存先・鍵とは別。v1〜v5のローカル復元も維持する。
 - v6復元は空の使い捨てローカルDBで全項目と他家計拒否を検証する。Auth/参加者/資格情報はバックアップ対象外。リモート全体の復元は実行しない。
 - Preview公開: ローカル/API/ブラウザ/復元/ビルドの検証後、`preview` をcommit/pushして `node scripts/deploy-preview.mjs`。READYを確認して検証専用aliasだけを割り当てる。Production aliasは触らない。
 - **Preview deploymentをProductionへpromoteしない。** Previewの生成済みPrisma・環境設定を含むため。本番へ進める際は直前のv5バックアップ/復元、正本SQLのfamfi向けレビュー・適用、既存データ照合、famfi向け再ビルド、ドメイン未切替のProduction検証を経て切り替える。

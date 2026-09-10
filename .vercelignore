@@ -9,6 +9,9 @@ docs/
 tests/
 scripts/*
 !scripts/check-artifact.mjs
+!scripts/generate-prisma.mjs
+.generated/
+lib/generated/prisma/
 test-results/
 playwright-report/
 *.tsbuildinfo

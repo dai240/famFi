@@ -11,6 +11,7 @@ import { CategorySelect } from './CategorySelect';
 import { PaymentFields } from './PaymentFields';
 import { MasterManager } from './MasterManager';
 import { HistoryView } from './HistoryView';
+import { CostClassSelect } from './CostClassSelect';
 
 export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onClose, onSaved, onDelete, onDuplicate, saveOverride, title }: {
   expense: ExpenseRecord | null; initial?: ExpenseRecord; initialMonth: string; masters: Masters; onMastersChanged: (masters: Masters) => void; onClose: () => void;
@@ -33,8 +34,10 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
   async function save(event:FormEvent){
     event.preventDefault();if(lock.current)return;setError('');const parsed=validatedExpenseFields.safeParse(fields);
     if(!parsed.success){setError(parsed.error.issues[0]?.message??'入力内容を確認してください。');return;}
+    const monthChanged=Boolean(expense?.summaryId&&expense.date.slice(0,7)!==parsed.data.date.slice(0,7));
+    if(monthChanged&&!window.confirm('まとめ記録に含まれる明細の月が変わるため、月別の支出合計が変わります。保存しますか？'))return;
     lock.current=true;setBusy(true);
-    try{const row=saveOverride?await saveOverride(id,parsed.data):await requestJson<ExpenseRecord>(expense?'/api/expenses/'+id:'/api/expenses',{method:expense?'PUT':'POST',body:JSON.stringify({...parsed.data,...(expense?{version:expense.version}:{id})})});onSaved(row);}
+    try{const row=saveOverride?await saveOverride(id,parsed.data):await requestJson<ExpenseRecord>(expense?'/api/expenses/'+id:'/api/expenses',{method:expense?'PUT':'POST',body:JSON.stringify({...parsed.data,...(expense?{version:expense.version,allowMonthChange:monthChanged}:{id})})});onSaved(row);}
     catch(error){if(error instanceof RequestError&&error.status===401)window.location.replace('/login');else setError(errorMessage(error));}
     finally{lock.current=false;setBusy(false);}
   }
@@ -43,9 +46,11 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
       <DialogHeader><DialogTitle>{title??(expense?'支出を編集':'支出を記録')}</DialogTitle><DialogDescription className="sr-only">支出の入力</DialogDescription></DialogHeader>
       <form id={'expense-form-'+id} className="expense-form" onSubmit={save}>
         <div className="field-heading"><label htmlFor="expense-category">カテゴリ</label><Button type="button" size="icon" variant="ghost" title="カテゴリを管理" aria-label="カテゴリを管理" disabled={busy} onClick={()=>setManaging('categories')}><Settings2 /></Button></div>
-        <CategorySelect id="expense-category" label="カテゴリ" value={fields.categoryId} disabled={busy} categories={masters.categories} onChange={categoryId=>patch({categoryId})} />
+        <CategorySelect id="expense-category" label="カテゴリ" value={fields.categoryId} disabled={busy} categories={masters.categories} onChange={categoryId=>patch({categoryId,...(!expense?{costClass:masters.categories.find(c=>c.id===categoryId)?.costClass??'unknown'}:{})})} />
         <label htmlFor="expense-amount">金額（円）</label><input id="expense-amount" className="amount-field" type="text" inputMode="numeric" pattern="[0-9]+" maxLength={9} required value={fields.amount||''} disabled={busy||financialLocked} onChange={e=>{const raw=e.target.value.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));if(/^\d*$/.test(raw)){const amount=Number(raw);patch({amount,...(fields.reimbursementStatus==='required'&&fields.reimbursementAmount===fields.amount?{reimbursementAmount:amount}:{})});}}} />
         <label htmlFor="expense-description">内容 <span className="muted-text">任意</span></label><input id="expense-description" maxLength={120} value={fields.description} disabled={busy} onChange={e=>patch({description:e.target.value})} />
+        <label>費用の区分</label><CostClassSelect value={fields.costClass} onChange={costClass=>patch({costClass})} disabled={busy} />
+        {expense?.summaryId&&<p className="muted-text">まとめ記録の明細</p>}
         <PaymentFields fields={fields} masters={masters} onChange={patch} disabled={busy} financialLocked={financialLocked} onManage={setManaging} />
         <fieldset className="expense-date-fields" disabled={busy}><legend>支出日</legend><div className="date-mode" role="radiogroup" aria-label="日付の指定方法">
           <label><input type="radio" name="date-mode" checked={!monthOnly} onChange={()=>{setMonthOnly(false);patch({date:lastDay.slice(0,7)===fields.date?lastDay:''});}} /><span>日付指定</span></label>

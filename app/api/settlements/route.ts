@@ -1,3 +1,4 @@
+import { dbSchema } from "@/lib/database-schema";
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/server';
@@ -11,8 +12,8 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const query = z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), view: z.enum(['open','all']).default('open') }).strict().parse(Object.fromEntries(new URL(request.url).searchParams));
     const result = await withUserDb(user.id, async (tx, scope) => {
-      const base = Prisma.sql`from famfi.expenses e where e.user_id=${scope.ledgerId}::uuid and e.reimbursement_status='required'`;
-      const balance = Prisma.sql`e.reimbursement_amount - coalesce((select sum(s.amount) from famfi.settlements s where s.user_id=e.user_id and s.expense_id=e.id and s.cancelled_at is null),0)`;
+      const base = Prisma.sql`from ${dbSchema}.expenses e where e.user_id=${scope.ledgerId}::uuid and e.reimbursement_status='required'`;
+      const balance = Prisma.sql`e.reimbursement_amount - coalesce((select sum(s.amount) from ${dbSchema}.settlements s where s.user_id=e.user_id and s.expense_id=e.id and s.cancelled_at is null),0)`;
       const filter = query.view === 'open' ? Prisma.sql`and ${balance} > 0` : Prisma.empty;
       const ids = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`select e.id ${base} ${filter} order by e.date desc,e.id limit ${PAGE_SIZE} offset ${(query.page-1)*PAGE_SIZE}`);
       const counts = await tx.$queryRaw<{ count: number }[]>(Prisma.sql`select count(*)::int as count ${base} ${filter}`);
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
       }
       if (expense.version !== input.expenseVersion) throw new ApiError(409, '支出が変更されています。開き直してください。');
       if (expense.reimbursementStatus !== 'required' || input.amount > expense.reimbursementAmount-expense.settledAmount) throw new ApiError(409, '未精算額を超えています。精算状況を更新してください。');
-      await tx.$executeRaw`insert into famfi.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id,memo) values (${input.id}::uuid,${scope.ledgerId}::uuid,${input.expenseId}::uuid,${input.amount},${new Date(input.date+'T00:00:00Z')}::date,${expense.reimbursementFromPartyId}::uuid,${expense.reimbursementToPartyId}::uuid,${input.memo})`;
+      await tx.$executeRaw`insert into ${dbSchema}.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id,memo) values (${input.id}::uuid,${scope.ledgerId}::uuid,${input.expenseId}::uuid,${input.amount},${new Date(input.date+'T00:00:00Z')}::date,${expense.reimbursementFromPartyId}::uuid,${expense.reimbursementToPartyId}::uuid,${input.memo})`;
       await tx.expense.update({ where: { id: input.expenseId }, data: { version: { increment: 1 }, updatedAt: new Date() } });
       return serializeExpense(await tx.expense.findUniqueOrThrow({ where: { id: input.expenseId }, include: expenseInclude }));
     });

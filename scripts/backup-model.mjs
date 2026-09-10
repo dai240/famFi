@@ -7,7 +7,7 @@ export const backupTables = [
   { key: 'settlements', table: 'settlements', fields: ['id','userId','expenseId','amount','date','fromPartyId','toPartyId','memo','createdAt','cancelledAt'] },
 ];
 export const sqlColumn = key => key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-const calendarDates = new Set(['date','startMonth','endMonth','period']);
+const calendarDates = new Set(['date','startMonth','endMonth','period','month','reviewAfter','snoozedUntil']);
 // PostgreSQL DATE is not an instant. pg's local-midnight Date parsing loses a day in JST.
 export const backupSelectColumns = fields => fields.map(key => `${sqlColumn(key)}${calendarDates.has(key)?'::text':''} as "${key}"`).join(',');
 export const householdBackupTables = [
@@ -18,18 +18,24 @@ export const householdBackupTables = [
 ];
 export const profileBackupTables = householdBackupTables.map(dataset => ({...dataset, fields:[...dataset.fields,
   ...(dataset.key==='parties'?['nickname','profileConfirmed']:dataset.key==='paymentSources'?['ownerLabel']:[])]}));
-export async function captureHouseholdBackup(query,actorId,format='famfi-expenses/v5'){
-  const member=(await query('select ledger_id,party_id from famfi.household_members where user_id=$1',[actorId])).rows[0];
+export const planningBackupTables=profileBackupTables.flatMap(dataset=>[
+  ...(dataset.key==='expenses'?[{key:'expenseSummaries',table:'expense_summaries',fields:['id','userId','paymentSourceId','month','amount','name','memo','complete','version','createdAt','updatedAt']}]:[]),
+  {...dataset,fields:[...dataset.fields,...(dataset.key==='categories'?['costClass']:dataset.key==='expenses'?['costClass','summaryId']:dataset.key==='recurringRules'?['costClass','reviewDay','reviewMonthOffset']:dataset.key==='recurringOccurrences'?['snoozedUntil']:[])]},
+  ...(dataset.key==='recurringOccurrences'?[{key:'plannedExpenses',table:'planned_expenses',fields:['id','userId','name','date','datePrecision','amount','categoryId','paymentSourceId','memo','reviewAfter','snoozedUntil','state','expenseId','version','createdAt','updatedAt']}]:[]),
+]);
+export async function captureHouseholdBackup(query,actorId,format=process.env.FAMFI_DB_SCHEMA==='famfi_preview'?'famfi-expenses/v6':'famfi-expenses/v5',schema=process.env.FAMFI_DB_SCHEMA??'famfi'){
+  if(!['famfi','famfi_preview'].includes(schema))throw new Error('Unsupported backup schema');
+  const member=(await query(`select ledger_id,party_id from ${schema}.household_members where user_id=$1`,[actorId])).rows[0];
   if(!member)throw new Error('An active household member is required');
-  const household=(await query('select id,name from famfi.households')).rows[0];
-  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household};
-  for(const dataset of format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from famfi.${dataset.table} order by id`)).rows;
+  const household=(await query(`select id,name from ${schema}.households`)).rows[0];
+  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household,...(format==='famfi-expenses/v6'?{environment:schema}: {})};
+  for(const dataset of format==='famfi-expenses/v6'?planningBackupTables:format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from ${schema}.${dataset.table} order by id`)).rows;
   return payload;
 }
 export function normalizeBackupRows(rows, fields) {
   return [...rows].map(row => Object.fromEntries(fields.map(key => {
     let value = row[key];
-    if (value != null && ['date','createdAt','updatedAt','cancelledAt','startMonth','endMonth','period'].includes(key)) value = ['date','startMonth','endMonth','period'].includes(key) ? new Date(value).toISOString().slice(0,10) : new Date(value).toISOString();
+    if (value != null && (calendarDates.has(key)||['createdAt','updatedAt','cancelledAt'].includes(key))) value = calendarDates.has(key) ? new Date(value).toISOString().slice(0,10) : new Date(value).toISOString();
     return [key,value];
   }))).sort((a,b) => a.id.localeCompare(b.id));
 }

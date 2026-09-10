@@ -7,6 +7,7 @@
 | Supabase project | `personal-apps`（旧 `famFi`） |
 | Project ref | `fpptihhtyhehpjvmtuqt` |
 | famFi の専用スキーマ | `famfi` |
+| famFi の検証スキーマ | `famfi_preview`。専用ロール・利用許可・架空データ。本番とは別家計 |
 | 管理リポジトリ | https://github.com/dai240/personal-apps-infra |
 | ローカル管理場所 | `/Users/dai/study/app/personal-apps-infra` |
 | 別管理のテニス用 DB | `sateni`。このアプリの作業対象ではありません |
@@ -18,6 +19,8 @@
 このリポジトリだけを見て Supabase を初期化・リセットしないでください。
 
 ## famFi の現状と接続条件
+
+2026-09-10、予定・まとめ記録などを本番データから分離して試すため、同じproject内に `famfi_preview` を追加。専用LOGINは `famfi_preview_app`。同じAuthを使用するが参加設定は独立し、本番データを複製しない。新機能の本番移行は未実施。公開・復旧・本番切替の注意は [予定とPreview](planning-and-preview.md) を優先する。
 
 最新の家計共有・支払元必須・定期支出は [夫婦の家計](household-workflow.md)。以下は初回MVPと支出拡張の記録。家計共有版では `households` / `household_members` / `recurring_rules` / `recurring_occurrences` / `audit_events` を追加し、業務行の `user_id` は家計IDとして維持する。本人のAuth UUIDを業務行の所有者へ直接流さず、家計参加を照合する。妻のmembership追加だけではアクセスできず、既存家計への明示的な参加設定が必要。新規家計を作る管理操作と、既存家計への参加は分ける。
 
@@ -39,7 +42,7 @@ DB全体への `db push` やリセットは禁止です。共有DBの変更履�
 
 ## 共用時の注意点
 
-- `famfi` 以外のアプリのスキーマ、共有の認証台帳を勝手に変更しない。
+- famFiが管理する `famfi` / `famfi_preview` 以外のスキーマ、共有の認証台帳を勝手に変更しない。
 - 共通 Auth のユーザー削除・キー変更・設定変更は他アプリにも影響する。
 - 家族に famFi を許可しても、他の個人ツールの利用権限は付けない。
 - スキーマ分割だけで隔離は完成しない。DBロール、権限、RLSを合わせて確認する。

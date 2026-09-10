@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { costClassSchema } from './cost-class';
 
 export const masterId = z.string().regex(/^(food|daily|housing|utilities|transport|communication|health|leisure|clothing|other|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
 const optionalId = z.string().uuid().nullable().default(null);
-export const categoryFields = z.object({ name: z.string().trim().min(1).max(40), color: z.string().regex(/^#[0-9a-f]{6}$/i),
+export const categoryFields = z.object({ costClass: costClassSchema.default('unknown'), name: z.string().trim().min(1).max(40), color: z.string().regex(/^#[0-9a-f]{6}$/i),
   sortOrder: z.number().int().min(0).max(100000), parentId: masterId.nullable().default(null), archived: z.boolean().default(false) }).strict();
 export const partyFields = z.object({ name: z.string().trim().min(1).max(40), kind: z.enum(['person', 'shared']), archived: z.boolean().default(false) }).strict();
 export const paymentMethods = { cash: '現金', card: 'クレジットカード', bank: '口座・振込', emoney: '電子マネー', other: 'その他' } as const;
@@ -32,7 +33,7 @@ export function sourceDisplayName(source: Pick<PaymentSource,'name'|'ownerLabel'
   const owner = parties.find(p => p.id === source.fundingPartyId);
   return source.ownerLabel && owner ? `${owner.name}の${source.ownerLabel}` : source.name;
 }
-export type Category = z.infer<typeof categoryFields> & { id: string; version: number };
+export type Category = Omit<z.infer<typeof categoryFields>,'costClass'> & { costClass?: z.infer<typeof costClassSchema>; id: string; version: number };
 export type Masters = { categories: Category[]; parties: Party[]; paymentSources: PaymentSource[]; selfPartyId?: string; householdName?: string };
 export type SettlementRecord = { id: string; expenseId: string; amount: number; date: string; fromPartyId: string; toPartyId: string; memo: string; createdAt: string; cancelledAt: string | null };
 export const settlementLabels = { unknown: '要確認', not_required: '精算不要', unsettled: '未精算', partial: '一部精算', settled: '精算済み' } as const;

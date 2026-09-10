@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth/server';
 import { withUserDb } from '@/lib/prisma';
 import { apiError, json } from '@/lib/api';
 export const dynamic='force-dynamic';
-const querySchema=z.object({entityType:z.enum(['expenses','category_entries','parties','payment_sources','settlements','recurring_rules','recurring_occurrences']).optional(),entityId:z.string().min(1).max(60).optional(),page:z.coerce.number().int().min(1).max(100000).default(1)}).strict();
+const querySchema=z.object({entityType:z.enum(['expenses','category_entries','parties','payment_sources','settlements','recurring_rules','recurring_occurrences','planned_expenses','expense_summaries']).optional(),entityId:z.string().min(1).max(60).optional(),page:z.coerce.number().int().min(1).max(100000).default(1)}).strict();
 function payload(value:unknown){if(!value||typeof value!=='object'||Array.isArray(value))return null;const {user_id:_ledger,...rest}=value as Record<string,unknown>;return rest;}
 export async function GET(request:Request){
   try{const user=await requireUser();const {page,...where}=querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));

@@ -6,7 +6,7 @@ import pg from 'pg';
 import { captureHouseholdBackup } from './backup-model.mjs';
 import { databaseOptions } from '../lib/database-config.ts';
 
-export const backupDirectory = path.join(homedir(), '.local/share/famfi-backups');
+export const backupDirectory = path.join(homedir(), process.env.FAMFI_DB_SCHEMA==='famfi_preview'?'.local/share/famfi-preview-backups':'.local/share/famfi-backups');
 export async function initializeKeys(directory = backupDirectory) {
   await mkdir(path.join(directory, 'keys'), { recursive: true, mode: 0o700 });
   try { await readFile(path.join(directory, 'keys/private.asc')); return; } catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -26,9 +26,10 @@ export async function decryptBackup(filename, directory = backupDirectory) {
   const key = await readPrivateKey({ armoredKey: await readFile(path.join(directory, 'keys/private.asc'), 'utf8') });
   const { data } = await decrypt({ message: await readMessage({ binaryMessage: new Uint8Array(await readFile(filename)) }), decryptionKeys: key });
   const payload = JSON.parse(data);
-  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3', 'famfi-expenses/v4', 'famfi-expenses/v5'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
+  if (!['famfi-expenses/v1', 'famfi-expenses/v2', 'famfi-expenses/v3', 'famfi-expenses/v4', 'famfi-expenses/v5','famfi-expenses/v6'].includes(payload.format) || !Array.isArray(payload.expenses) || !Array.isArray(payload.categories)) throw new Error('Invalid backup format');
   if (payload.format === 'famfi-expenses/v3' && !['parties','paymentSources','settlements'].every(key => Array.isArray(payload[key]))) throw new Error('Invalid ledger backup');
-  if (['famfi-expenses/v4','famfi-expenses/v5'].includes(payload.format) && (!payload.household || !['parties','paymentSources','settlements','recurringRules','recurringOccurrences','auditEvents'].every(key=>Array.isArray(payload[key])))) throw new Error('Invalid household backup');
+  if (['famfi-expenses/v4','famfi-expenses/v5','famfi-expenses/v6'].includes(payload.format) && (!payload.household || !['parties','paymentSources','settlements','recurringRules','recurringOccurrences','auditEvents'].every(key=>Array.isArray(payload[key])))) throw new Error('Invalid household backup');
+  if(payload.format==='famfi-expenses/v6'&&(!Array.isArray(payload.expenseSummaries)||!Array.isArray(payload.plannedExpenses)))throw new Error('Invalid planning backup');
   return payload;
 }
 async function main() {
@@ -39,7 +40,7 @@ async function main() {
     console.log(`Encrypted backup verified: ${backup.expenses.length} expenses. Contents not displayed.`); return;
   }
   if (command !== 'create' || !/^[0-9a-f-]{36}$/i.test(arg ?? '')) throw new Error('Use init, create <owner UUID>, or verify <encrypted file>');
-  const connection = process.env.FAMFI_BACKUP_DATABASE_URL ?? (await readFile(new URL('../.private/database-url', import.meta.url), 'utf8')).trim();
+  const connection = process.env.FAMFI_BACKUP_DATABASE_URL ?? (await readFile(new URL(process.env.FAMFI_DB_SCHEMA==='famfi_preview'?'../.private/preview-database-url':'../.private/database-url', import.meta.url), 'utf8')).trim();
   const db = new pg.Client(databaseOptions(connection, 'production'));
   await db.connect();
   try {

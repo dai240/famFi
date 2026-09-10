@@ -38,7 +38,7 @@ export function paymentSuggestion(masters: Masters, sourceId: string | null, amo
 export function newExpense(masters: Masters, date = todayInJapan()): ExpenseFields {
   const source = masters.paymentSources.find(p => p.isDefault && !p.archived);
   return {
-    amount: 0, date, categoryId: masters.categories.find(c => !c.parentId && !c.archived)?.id ?? '', description: '', memo: '',
+    costClass: masters.categories.find(c => !c.parentId && !c.archived)?.costClass ?? 'unknown', amount: 0, date, categoryId: masters.categories.find(c => !c.parentId && !c.archived)?.id ?? '', description: '', memo: '',
     usedByPartyId: masters.selfPartyId ?? null, usedByText: '', beneficiaryKind: 'family', beneficiaryPartyId: null, beneficiaryText: '',
     paidByPartyId: null, paymentSourceId: null, paymentTreatment: 'review', reimbursementStatus: 'unknown', reimbursementAmount: 0, reimbursementFromPartyId: null, reimbursementToPartyId: null,
     ...paymentSuggestion(masters,source?.id ?? null,0),

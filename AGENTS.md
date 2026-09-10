@@ -5,7 +5,8 @@ Read `docs/household-workflow.md` and `docs/household-onboarding.md` before chan
 
 - famFi does not own an entire Supabase project. Its intended database is the shared `personal-apps` project (`fpptihhtyhehpjvmtuqt`). Other personal apps use the same project.
 - The `sateni` tennis project (`jyweoovtkxfyyfqhidgx`) is unrelated and must not be modified for famFi work.
-- famFi owns only the `famfi` schema. Do not create application tables in `public` or modify another app's schema.
+- famFi owns `famfi` (production) and the explicitly approved `famfi_preview` sandbox. Read `docs/planning-and-preview.md` before using Preview. Do not create application tables in `public` or modify another app's schema.
+- Preview uses `famfi_preview_app` / `famfi_preview_runtime`, independent memberships and synthetic data. Never copy production data or credentials into Preview, and never promote a Preview-built artifact to Production. Generate Prisma for the target schema and rebuild for Production after its reviewed migration.
 - Canonical migrations and shared operational instructions live in `https://github.com/dai240/personal-apps-infra` (local checkout: `/Users/dai/study/app/personal-apps-infra`). Read that repository's `AGENTS.md` and `docs/status.md` before changes.
 - Do not run a remote DB reset, `prisma migrate reset`, or `prisma db push --accept-data-loss` against the shared project. Review ORM-generated SQL before applying it.
 - `prisma/schema.prisma` contains the expense ledger models, all scoped to `famfi`. Read `docs/expense-management.md` for master ownership and settlement invariants. The canonical SQL is in the infrastructure repository; never use Prisma migrations as a competing history. The old model draft is archived under `docs/drafts/` and must not be applied.
@@ -27,5 +28,6 @@ For long tasks, report approximate progress for the current prompt, completed wo
 - Distinguish the authenticated recorder/data owner, the person using the purchase, its beneficiaries, its funding source, and any reimbursement parties. Do not infer these from the current `Expense.userId`.
 - New/edited expenses require a payment source, purchase actor, beneficiary and explicit treatment. Default new entries to the household default source, authenticated person's stable party ID, family and today. Legacy records stay unknown until explicitly edited. Direct household contributions are expenses, not fictional bank deposits or refunds.
 - Keep recurring schedules separate from actual expenses. Confirm each period manually, require variable amounts, retain skipped/posted history, prevent duplicate posting, and never create loan purchase and repayment expenses automatically.
+- Keep cost classification independent of recurring frequency and amount initialization. Summaries contribute only their unallocated remainder; explicitly linked actuals must not be counted twice. Plans never contribute to actual totals before manual confirmation. Preserve these links and classifications in CSV/history/v6 Preview backups.
 - Reimbursement payments and card bill payments must not duplicate purchase expenses. New financial fields need consistent editing, filtering, export, backup, and authorization behavior.
 - Prototype components and archived models are not production features. Document implemented behavior separately from planned acceptance criteria.

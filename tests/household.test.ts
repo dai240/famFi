@@ -21,7 +21,7 @@ test('funding owner, buyer, beneficiary and reimbursement remain distinct',()=>{
   const direct={...fields,...paymentSuggestion(masters,personal,1200,'direct')};assert.equal(direct.reimbursementStatus,'not_required');assert.equal(direct.reimbursementAmount,0);assert.equal(direct.reimbursementToPartyId,null);assert.equal(direct.amount,1200);
   assert.equal(beneficiaryLabel({...fields,beneficiaryKind:'party',beneficiaryPartyId:husband},{...masters,selfPartyId:wife}),'夫');
 });
-const base={name:'Phone',amountMode:'fixed' as const,amount:3000,frequency:'monthly' as const,startMonth:'2026-01',endMonth:'2026-12',dueDay:31,categoryId:'food',paymentSourceId:personal,paymentTreatment:'advance' as const,usedByPartyId:wife,usedByText:'',beneficiaryKind:'family' as const,beneficiaryPartyId:null,beneficiaryText:'',memo:'',archived:false};
+const base={costClass:'unknown' as const,reviewDay:null,reviewMonthOffset:0,name:'Phone',amountMode:'fixed' as const,amount:3000,frequency:'monthly' as const,startMonth:'2026-01',endMonth:'2026-12',dueDay:31,categoryId:'food',paymentSourceId:personal,paymentTreatment:'advance' as const,usedByPartyId:wife,usedByText:'',beneficiaryKind:'family' as const,beneficiaryPartyId:null,beneficiaryText:'',memo:'',archived:false};
 test('recurring schedule clamps month ends, supports yearly and month-only, never fabricates a variable amount',()=>{
   assert.ok(validatedRecurringFields.safeParse(base).success);assert.equal(dueDate('2024-02',31),'2024-02-29');assert.equal(dueDate('2026-02',31),'2026-02-28');assert.equal(dueDate('2026-09',null),'2026-09');
   for(const [month,expected] of [['2025-12',false],['2026-01',true],['2026-12',true],['2027-01',false]] as const)assert.equal(isDue(base,month),expected);

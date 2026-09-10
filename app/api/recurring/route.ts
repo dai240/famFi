@@ -5,15 +5,18 @@ import { monthSchema } from '@/lib/expenses';
 import { readMasters } from '@/lib/expense-service';
 import { createRecurringSchema, serializeRule } from '@/lib/recurring';
 import { insertRule } from '@/lib/recurring-service';
+import { readAttention,readRecurringState } from '@/lib/planning-service';
 export const dynamic='force-dynamic';
 export async function GET(request:Request) {
   try {
     const user=await requireUser();const month=monthSchema.parse(new URL(request.url).searchParams.get('month'));
-    return json(await withUserDb(user.id,async tx=>({
-      rules:(await tx.recurringRule.findMany({orderBy:[{archived:'asc'},{name:'asc'},{id:'asc'}]})).map(serializeRule),
-      occurrences:(await tx.recurringOccurrence.findMany({where:{period:new Date(month+'-01T00:00:00Z')}})).map(({userId:_owner,updatedAt:_updated,period,...r})=>({...r,period:period.toISOString().slice(0,7)})),
-      masters:await readMasters(tx),
-    })));
+    return json(await withUserDb(user.id,async tx=>{
+      const state=await readRecurringState(tx);
+      const previous=state.occurrences.filter(o=>o.state==='posted'&&o.period<month).sort((a,b)=>b.period.localeCompare(a.period));
+      const latest=new Map<string,string>();for(const o of previous)if(o.expenseId&&!latest.has(o.ruleId))latest.set(o.ruleId,o.expenseId);
+      const expenses=await tx.expense.findMany({where:{id:{in:[...latest.values()]}},select:{id:true,amount:true}});
+      return {rules:state.rules,occurrences:state.occurrences.filter(o=>o.period===month),previousAmounts:Object.fromEntries([...latest].map(([id,expenseId])=>[id,expenses.find(e=>e.id===expenseId)?.amount])),masters:await readMasters(tx),attention:(await readAttention(tx)).items};
+    }));
   }catch(error){return apiError(error);}
 }
 export async function POST(request:Request) {

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Category, Masters, Party, PaymentSource, categoryFields, partyFields, paymentMethods, paymentSourceFields, sourceDisplayName, treatmentLabels } from '@/lib/ledger';
+import {CostClassSelect} from './CostClassSelect';
+import {CostClass} from '@/lib/cost-class';
 import { personRole } from '@/lib/household';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
 import { ReferenceSelect } from './ReferenceSelect';
@@ -72,6 +74,7 @@ function MasterForm({ kind, item, masters, onSaved, onCancel, onBusyChange }: { 
   const [name, setName] = useState(item && 'method' in item ? item.ownerLabel ?? item.storedName ?? item.name : item?.name ?? '');
   const [linkOwner,setLinkOwner] = useState(item && 'method' in item ? Boolean(item.ownerLabel) : true);
   const [color, setColor] = useState(item && 'color' in item ? item.color : colors[0]);
+  const [costClass,setCostClass]=useState<CostClass>(item&&'color' in item?item.costClass??'unknown':'unknown');
   const [parentId, setParent] = useState(item && 'parentId' in item ? item.parentId : null);
   const [partyKind, setPartyKind] = useState<'person'|'shared'>(item && 'kind' in item ? item.kind : 'person');
   const [method, setMethod] = useState<PaymentSource['method']>(item && 'method' in item ? item.method : 'card');
@@ -81,7 +84,7 @@ function MasterForm({ kind, item, masters, onSaved, onCancel, onBusyChange }: { 
   const [isDefault,setIsDefault] = useState(item && 'isDefault' in item ? item.isDefault : false);
   const sharedFunding = masters.parties.find(p=>p.id===fundingPartyId)?.kind==='shared';
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const lock = useRef(false);
-  const category = { name, color, parentId, archived, sortOrder: item && 'sortOrder' in item ? item.sortOrder : Math.min(100000, Math.max(0,...masters.categories.map(c => c.sortOrder))+10) };
+  const category = { name, color, costClass, parentId, archived, sortOrder: item && 'sortOrder' in item ? item.sortOrder : Math.min(100000, Math.max(0,...masters.categories.map(c => c.sortOrder))+10) };
   const ownerLabel = !sharedFunding && linkOwner ? name.trim() || null : null;
   const body = kind === 'categories' ? category : kind === 'parties' ? { name, kind: partyKind, archived } : { name, ownerLabel, method, fundingPartyId, archived, defaultTreatment, isDefault };
   const baseline = useRef(JSON.stringify(body));
@@ -102,6 +105,7 @@ function MasterForm({ kind, item, masters, onSaved, onCancel, onBusyChange }: { 
     <div className="master-form-heading"><Button type="button" size="icon" variant="ghost" aria-label="管理一覧へ戻る" title="戻る" disabled={busy} onClick={cancel}><ArrowLeft /></Button><h3>{labels[kind]}を{item ? '編集' : '追加'}</h3></div>
     {kind !== 'payment-sources' && <><label htmlFor="master-name">名称</label><input id="master-name" autoFocus required maxLength={40} value={name} disabled={busy} onChange={e => setName(e.target.value)} /></>}
     {kind === 'categories' && <>
+      <label>費用の区分の初期値</label><CostClassSelect label="カテゴリの費用区分" value={costClass} onChange={setCostClass} disabled={busy} />
       <label htmlFor="master-parent">親カテゴリ</label><ReferenceSelect id="master-parent" label="親カテゴリ" value={parentId} emptyLabel="なし（親カテゴリとして登録）" disabled={busy || masters.categories.some(c => c.parentId === id)} options={masters.categories.filter(c => !c.parentId && c.id !== id && (!c.archived || c.id === parentId))} onChange={setParent} />
       <label htmlFor="master-color">色</label><div className="color-controls"><input id="master-color" aria-label="カテゴリの色" type="color" value={color} disabled={busy} onChange={e => setColor(e.target.value)} /><div className="color-palette">{colors.map(value => <button key={value} type="button" className="color-button" title={value} aria-label={`色 ${value}`} aria-pressed={color.toLowerCase() === value.toLowerCase()} disabled={busy} style={{ backgroundColor: value }} onClick={() => setColor(value)} />)}</div></div>
     </>}

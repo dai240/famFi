@@ -11,9 +11,10 @@ export function json(data: unknown, status = 200) {
 export function apiError(error: unknown) {
   if (error instanceof ApiError) return json({ error: error.message }, error.status);
   if (error instanceof ZodError || error instanceof SyntaxError) return json({ error: '入力内容を確認してください。' }, 400);
-  const dbError = error as { code?: string; meta?: { code?: string } } | null;
-  if (dbError?.code === 'P2002' || dbError?.meta?.code === '23505') return json({ error: '同じ記録がすでに存在します。内容を確認してください。' }, 409);
-  if (dbError?.code === 'P2003' || ['23503','23514'].includes(dbError?.meta?.code ?? '')) return json({ error: '関連する記録・金額・選択内容を確認してください。' }, 400);
+  const dbError = error as { code?: string; cause?:{originalCode?:string};meta?: { code?: string; driverAdapterError?:{cause?:{originalCode?:string}} } } | null;
+  const sqlState=dbError?.meta?.code??dbError?.meta?.driverAdapterError?.cause?.originalCode??dbError?.cause?.originalCode;
+  if (dbError?.code === 'P2002' || sqlState === '23505') return json({ error: '同じ記録がすでに存在します。内容を確認してください。' }, 409);
+  if (dbError?.code === 'P2003' || ['23503','23514'].includes(sqlState ?? '')) return json({ error: '関連する記録・金額・選択内容を確認してください。' }, 400);
   // Do not log database exceptions: they may contain connection details or user data.
   console.error('famFi request failed', { type: error instanceof Error ? error.name : 'UnknownError' });
   return json({ error: '処理に失敗しました。時間をおいてもう一度お試しください。' }, 503);

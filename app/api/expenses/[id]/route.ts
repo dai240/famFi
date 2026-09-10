@@ -22,10 +22,11 @@ export async function PUT(request: Request, context: Context) {
     const user = await requireUser();
     const id = z.string().uuid().parse((await context.params).id);
     const body = await readJson(request);
-    const { version, ...input } = updateExpenseSchema.parse(body);
+    const { version, allowMonthChange, ...input } = updateExpenseSchema.parse(body);
     const row = await withLedgerDb(user.id, async (tx, scope) => {
       const existing = await lockedExpense(tx, scope.ledgerId, id);
       if (existing.version !== version) throw new ApiError(409, '別の画面で変更されています。一覧を更新して開き直してください。');
+      if(existing.summaryId&&existing.date.slice(0,7)!==input.date.slice(0,7)&&!allowMonthChange)throw new ApiError(409,'まとめ記録の明細の月を変えると、月別合計が変わります。確認してから保存してください。');
       if (!Object.hasOwn(body as object, 'reimbursementStatus') && (existing.reimbursementStatus !== 'unknown' || existing.usedByPartyId || existing.beneficiaryPartyId || existing.paidByPartyId || existing.paymentSourceId)) throw new ApiError(409, '画面を更新してから編集してください。');
       if (existing.settledAmount && (['amount','paymentTreatment','reimbursementStatus','reimbursementAmount','reimbursementFromPartyId','reimbursementToPartyId','paidByPartyId','paymentSourceId'] as const).some(key => existing[key] !== input[key])) throw new ApiError(409, '金額・支払元・精算対象を変更するには、先に精算記録を取り消してください。');
       await validateExpenseReferences(tx, input, existing);

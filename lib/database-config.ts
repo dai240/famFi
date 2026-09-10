@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { databaseEnvironment } from './database-environment';
 
 export function databaseOptions(connection: string, environment = process.env.NODE_ENV) {
   const url = new URL(connection);
   const user = decodeURIComponent(url.username);
+  const { role } = databaseEnvironment();
   const local = environment !== 'production' && ['127.0.0.1', 'localhost'].includes(url.hostname);
-  if (user !== (local ? 'famfi_app' : 'famfi_app.fpptihhtyhehpjvmtuqt') ||
+  if (user !== (local ? role : role + '.fpptihhtyhehpjvmtuqt') ||
       (!local && url.hostname !== 'aws-1-ap-southeast-1.pooler.supabase.com') ||
       url.pathname !== '/postgres' || !['postgres:', 'postgresql:'].includes(url.protocol)) {
     throw new Error('An app-scoped database connection is required');

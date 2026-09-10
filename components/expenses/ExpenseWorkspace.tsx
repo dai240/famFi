@@ -12,6 +12,8 @@ import { ReferenceSelect } from './ReferenceSelect';
 import { MasterManager } from './MasterManager';
 import { SettlementWorkspace } from './SettlementWorkspace';
 import { RecurringWorkspace } from './RecurringWorkspace';
+import { SummaryWorkspace } from './SummaryWorkspace';
+import { costClassLabels,CostClass } from '@/lib/cost-class';
 import { HistoryView } from './HistoryView';
 import { ProfileDialog } from './ProfileDialog';
 import { paymentSourceGroups } from '@/lib/household';
@@ -29,6 +31,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const [filterOpen,setFilterOpen] = useState(false);
   const [person,setPerson] = useState(''); const [paymentSource,setPaymentSource] = useState(''); const [settlement,setSettlement] = useState('');
   const [treatment,setTreatment] = useState('');
+  const [costClass,setCostClass]=useState('');
+  const [attention,setAttention]=useState<number|null>(null);
   const [search,setSearch] = useState(''); const [searchDraft,setSearchDraft] = useState('');
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
@@ -43,7 +47,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const [exporting, setExporting] = useState(false);
   const mutationLock = useRef(false);
   const refresh = useCallback(() => setRevision(n => n + 1), []);
-  const queryKey = JSON.stringify([month,category,person,paymentSource,settlement,treatment,search,page]);
+  const queryKey = JSON.stringify([month,category,person,paymentSource,settlement,treatment,costClass,search,page]);
+  useEffect(()=>{const c=new AbortController();const update=()=>{if(!document.hidden)requestJson<{count:number}>('/api/attention',{signal:c.signal}).then(r=>{if(!c.signal.aborted)setAttention(r.count);}).catch(()=>{if(!c.signal.aborted)setAttention(null);});};update();const timer=setInterval(update,60000);return()=>{c.abort();clearInterval(timer);};},[revision]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError('');
@@ -53,6 +58,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     if (paymentSource) params.set('paymentSource', paymentSource);
     if (settlement) params.set('settlement', settlement);
     if (treatment) params.set('treatment', treatment);
+    if (costClass) params.set('costClass',costClass);
     if (search) params.set('search', search);
     requestJson<ExpenseResponse>(`/api/expenses?${params}`, { signal: controller.signal }).then(result => {
       if (controller.signal.aborted) return;
@@ -65,7 +71,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
       else setError(errorMessage(error));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [month, category, person, paymentSource, settlement, treatment, search, page, revision, queryKey]);
+  }, [month, category, person, paymentSource, settlement, treatment, costClass, search, page, revision, queryKey]);
   useEffect(() => {
     const onFocus = () => { if (!editor && !deleting && !managing && !profileOpen) refresh(); };
     window.addEventListener('focus', onFocus);
@@ -103,7 +109,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     setExporting(true);
     try {
       const params = new URLSearchParams(all ? {} : { month });
-      if (filtered) for (const [key,value] of Object.entries({category,person,paymentSource,settlement,treatment,search})) if(value) params.set(key,value);
+      if (filtered) for (const [key,value] of Object.entries({category,person,paymentSource,settlement,treatment,costClass,search})) if(value) params.set(key,value);
       const response = await fetch(`/api/expenses/export?${params}`, { cache: 'no-store' });
       if (!response.ok) throw new RequestError(response.status, (await response.json()).error);
       const url = URL.createObjectURL(await response.blob());
@@ -116,7 +122,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const categories = data?.categories ?? [];
   const categoryMap = new Map(categories.map(c => [c.id, c]));
   const pages = Math.max(1, Math.ceil((data?.filteredCount ?? 0) / PAGE_SIZE));
-  const hasFilters = Boolean(category || person || paymentSource || settlement || treatment || search);
+  const hasFilters = Boolean(category || person || paymentSource || settlement || treatment || costClass || search);
   const self = data?.parties.find(p=>p.id===data.selfPartyId);
   const firstProfile = self?.profileConfirmed === false && ['owner','partner'].includes(self.systemKey ?? '');
   return <div className="expense-app">
@@ -126,7 +132,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
       <Button variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
       <Button variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
-    <Tabs value={view} onValueChange={value=>{toast.dismiss();setView(value);}} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">定期支出</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
+    <Tabs value={view} onValueChange={value=>{toast.dismiss();setView(value);}} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
     <main className="expense-main" hidden={view !== 'expenses'}>
       <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
         <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button>
@@ -144,6 +150,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         : !data || dataKey !== queryKey ? <section className="workspace-message" role="status"><LoaderCircle className="animate-spin" /><p>支出を読み込み中</p></section>
         : <>
           <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>記録数</span><strong>{data.count}<small> 件</small></strong></div></section>
+          <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
+          <SummaryWorkspace month={month} masters={data} revision={revision} onChanged={refresh} onEdit={openEditor} onMastersChanged={mastersChanged} />
           {Boolean(data.directContributions?.length) && <section className="direct-contributions" aria-label="家計への直接負担"><h2>直接負担・返金なし</h2>{data.directContributions?.map(item=><span key={item.partyId}>{data.parties.find(p=>p.id===item.partyId)?.name} <strong>{formatYen(item.amount)}</strong></span>)}</section>}
           <div className="expense-body">
             <section className="expense-ledger" aria-labelledby="ledger-title">
@@ -153,8 +161,9 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
                 <div><label>支払元</label><ReferenceSelect label="支払元で絞り込み" value={paymentSource} emptyLabel="すべて" options={[]} groups={paymentSourceGroups(data,paymentSource,true)} onChange={v=>{setPaymentSource(v??'');setPage(1);}} /></div>
                 <div><label>支払いの扱い</label><ReferenceSelect label="支払いの扱いで絞り込み" value={treatment} emptyLabel="すべて" options={Object.entries(treatmentLabels).map(([id,name])=>({id,name}))} onChange={v=>{setTreatment(v??'');setPage(1);}} /></div>
                 <div><label>精算状態</label><ReferenceSelect label="精算状態で絞り込み" value={settlement} emptyLabel="すべて" options={Object.entries(settlementLabels).map(([id,name])=>({id,name}))} onChange={v=>{setSettlement(v??'');setPage(1);}} /></div>
+                <div><label>費用の区分</label><ReferenceSelect label="費用の区分で絞り込み" value={costClass} emptyLabel="すべて" options={Object.entries(costClassLabels).map(([id,name])=>({id,name}))} onChange={v=>{setCostClass(v??'');setPage(1);}} /></div>
               </div></div>}
-              {hasFilters && <div className="filter-summary"><span>絞り込み結果 {formatYen(data.filteredTotal)}</span><Button variant="ghost" onClick={()=>{setCategory('');setPerson('');setPaymentSource('');setSettlement('');setTreatment('');setSearch('');setSearchDraft('');setPage(1);}}>条件を解除</Button></div>}
+              {hasFilters && <div className="filter-summary"><span>絞り込み結果 {formatYen(data.filteredTotal)}</span><Button variant="ghost" onClick={()=>{setCategory('');setPerson('');setPaymentSource('');setSettlement('');setTreatment('');setCostClass('');setSearch('');setSearchDraft('');setPage(1);}}>条件を解除</Button></div>}
               {data.expenses.length === 0 ? <div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{category ? 'このカテゴリの記録はありません' : 'この月の記録はありません'}</p><Button variant="outline" onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
                 : <div className="ledger-rows">{data.expenses.map(expense => {
                   const cat = categoryMap.get(expense.categoryId);
@@ -169,7 +178,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
               {pages > 1 && <nav className="ledger-pagination" aria-label="支出一覧のページ"><Button variant="outline" size="icon" aria-label="前のページ" disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></Button><span>{page} / {pages}</span><Button variant="outline" size="icon" aria-label="次のページ" disabled={page >= pages} onClick={() => setPage(page + 1)}><ChevronRight /></Button></nav>}
             </section>
             <aside className="expense-breakdown" aria-labelledby="breakdown-title"><h2 id="breakdown-title">カテゴリ別</h2>
-              {data.count === 0 ? <p className="muted-text">記録なし</p> : <ul>{[...data.breakdown].sort((a, b) => b.amount - a.amount).map(item => {
+              {Boolean(data.summaryRemainder)&&<p className="summary-unclassified">未整理 <strong>{formatYen(data.summaryRemainder??0)}</strong></p>}
+              {data.count === 0 && !data.summaryRemainder ? <p className="muted-text">記録なし</p> : <ul>{[...data.breakdown].sort((a, b) => b.amount - a.amount).map(item => {
                 const cat = categoryMap.get(item.categoryId);
                 return <li key={item.categoryId}><button className="breakdown-button" onClick={() => filter(category === item.categoryId ? '' : item.categoryId)} aria-pressed={category === item.categoryId}><span><i className="category-dot" style={{ backgroundColor: cat?.color }} />{cat?.name}</span><strong>{formatYen(item.amount)}</strong></button><div className="category-track"><div style={{ width: `${item.amount / data.total * 100}%`, backgroundColor: cat?.color }} /></div></li>;
               })}</ul>}

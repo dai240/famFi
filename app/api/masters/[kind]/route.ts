@@ -1,3 +1,4 @@
+import { dbSchema } from "@/lib/database-schema";
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/server';
 import { withLedgerDb } from '@/lib/prisma';
@@ -16,7 +17,7 @@ export async function POST(request: Request, context: { params: Promise<{ kind: 
         if (old) { if (Object.entries(input).some(([k,v]) => old[k as keyof typeof old] !== v)) throw new ApiError(409, '保存内容が競合しました。'); return old; }
         await validatePersonDisplayName(tx, id, input.name);
         if (await tx.party.count() >= 100) throw new ApiError(422, '人物・共用資金は100件までです。');
-        await tx.$executeRaw`insert into famfi.parties(id,user_id,name,kind,archived) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.kind},${input.archived})`;
+        await tx.$executeRaw`insert into ${dbSchema}.parties(id,user_id,name,kind,archived) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.kind},${input.archived})`;
         return tx.party.findUniqueOrThrow({ where: { id } });
       }
       const { id, ...input } = paymentSourceFields.extend({ id: z.string().uuid() }).strict().parse(body);
@@ -25,7 +26,7 @@ export async function POST(request: Request, context: { params: Promise<{ kind: 
       await validateSource(tx, input);
       if (await tx.paymentSource.count() >= 100) throw new ApiError(422, '支払元は100件までです。');
       await clearOtherDefaults(tx,id,input.isDefault);
-      await tx.$executeRaw`insert into famfi.payment_sources(id,user_id,name,method,funding_party_id,archived,default_treatment,is_default,owner_label) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.method},${input.fundingPartyId}::uuid,${input.archived},${input.defaultTreatment},${input.isDefault},${input.ownerLabel})`;
+      await tx.$executeRaw`insert into ${dbSchema}.payment_sources(id,user_id,name,method,funding_party_id,archived,default_treatment,is_default,owner_label) values (${id}::uuid,${scope.ledgerId}::uuid,${input.name},${input.method},${input.fundingPartyId}::uuid,${input.archived},${input.defaultTreatment},${input.isDefault},${input.ownerLabel})`;
       return tx.paymentSource.findUniqueOrThrow({ where: { id } });
     });
     const { userId: _owner, ...row } = result; return json(row, 201);

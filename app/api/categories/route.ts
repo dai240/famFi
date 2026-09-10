@@ -1,3 +1,4 @@
+import { dbSchema } from "@/lib/database-schema";
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/server';
 import { withUserDb, withLedgerDb } from '@/lib/prisma';
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
         return existing;
       }
       await validateCategory(tx, input);
-      await tx.$executeRaw`insert into famfi.category_entries(user_id,id,name,color,sort_order,parent_id,archived) values (${scope.ledgerId}::uuid,${id},${input.name},${input.color},${input.sortOrder},${input.parentId},${input.archived})`;
+      await tx.$executeRaw`insert into ${dbSchema}.category_entries(user_id,id,name,color,sort_order,parent_id,archived,cost_class) values (${scope.ledgerId}::uuid,${id},${input.name},${input.color},${input.sortOrder},${input.parentId},${input.archived},${input.costClass})`;
       return tx.category.findUniqueOrThrow({ where: { userId_id: { userId: scope.ledgerId, id } } });
     });
     const { userId: _owner, ...row } = result; return json(row, 201);

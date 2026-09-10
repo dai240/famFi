@@ -1,9 +1,11 @@
+import { dbSchema } from "@/lib/database-schema";
 import 'server-only';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { ApiError } from './api';
 import { ExpenseFields, expenseDateForStorage, querySchema, serializeExpense } from './expenses';
 import { Masters, orderedCategories, sourceDisplayName } from './ledger';
+import { CostClass } from './cost-class';
 
 export const expenseInclude = { settlements: { orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }] } };
 export async function readMasters(tx: Prisma.TransactionClient): Promise<Masters> {
@@ -13,7 +15,7 @@ export async function readMasters(tx: Prisma.TransactionClient): Promise<Masters
   const member = await tx.householdMember.findFirst();
   const household = await tx.household.findFirst();
   return {
-    categories: orderedCategories(categories.map(({ userId: _owner, ...c }) => c)),
+    categories: orderedCategories(categories.map(({ userId: _owner, ...c }) => ({...c,costClass:c.costClass as CostClass}))),
     parties: parties.map(({ userId: _owner, ...p }) => ({ ...p, kind: p.kind as 'person' | 'shared' })),
     paymentSources: paymentSources.map(({ userId: _owner, ...p }) => ({ ...p, storedName: p.name, name: sourceDisplayName(p, parties), method: p.method as Masters['paymentSources'][number]['method'], defaultTreatment: p.defaultTreatment as Masters['paymentSources'][number]['defaultTreatment'] })),
     selfPartyId: member?.partyId, householdName: household?.name,
@@ -44,6 +46,7 @@ export function sameExpense(input: ExpenseFields, row: ExpenseFields) {
 }
 export async function expenseWhere(tx: Prisma.TransactionClient, userId: string, query: Partial<z.infer<typeof querySchema>>) {
   const where: Prisma.ExpenseWhereInput = { userId };
+  if (query.costClass) where.costClass=query.costClass;
   if (query.month) {
     const start = new Date(`${query.month}-01T00:00:00Z`); const end = new Date(start); end.setUTCMonth(end.getUTCMonth()+1);
     where.date = { gte: start, lt: end };
@@ -58,10 +61,10 @@ export async function expenseWhere(tx: Prisma.TransactionClient, userId: string,
   if (query.search) where.AND = [{ OR: [{ description: { contains: query.search, mode: 'insensitive' } }, { memo: { contains: query.search, mode: 'insensitive' } }] }];
   if (query.settlement === 'unknown' || query.settlement === 'not_required') where.reimbursementStatus = query.settlement;
   else if (query.settlement) {
-    const balance = Prisma.sql`coalesce((select sum(s.amount) from famfi.settlements s where s.user_id=e.user_id and s.expense_id=e.id and s.cancelled_at is null),0)`;
+    const balance = Prisma.sql`coalesce((select sum(s.amount) from ${dbSchema}.settlements s where s.user_id=e.user_id and s.expense_id=e.id and s.cancelled_at is null),0)`;
     const condition = query.settlement === 'settled' ? Prisma.sql`${balance} = e.reimbursement_amount`
       : query.settlement === 'partial' ? Prisma.sql`${balance} > 0 and ${balance} < e.reimbursement_amount` : Prisma.sql`${balance} = 0`;
-    const ids = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`select e.id from famfi.expenses e where e.user_id=${userId}::uuid and e.reimbursement_status='required' and ${condition}`);
+    const ids = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`select e.id from ${dbSchema}.expenses e where e.user_id=${userId}::uuid and e.reimbursement_status='required' and ${condition}`);
     where.id = { in: ids.map(row => row.id) };
   }
   return where;
@@ -76,10 +79,10 @@ export async function insertExpense(tx: Prisma.TransactionClient, ledgerId: stri
   }
   await validateExpenseReferences(tx,input);
   const date = expenseDateForStorage(input.date);
-  const inserted = await tx.$executeRaw`insert into famfi.expenses(id,user_id,amount,date,date_precision,category_id,description,memo,
+  const inserted = await tx.$executeRaw`insert into ${dbSchema}.expenses(id,user_id,amount,date,date_precision,category_id,description,memo,cost_class,
     used_by_party_id,beneficiary_party_id,paid_by_party_id,payment_source_id,reimbursement_status,reimbursement_from_party_id,reimbursement_to_party_id,reimbursement_amount,
     payment_treatment,beneficiary_kind,beneficiary_text,used_by_text)
-    values(${id}::uuid,${ledgerId}::uuid,${input.amount},${date.date}::date,${date.datePrecision},${input.categoryId},${input.description},${input.memo},
+    values(${id}::uuid,${ledgerId}::uuid,${input.amount},${date.date}::date,${date.datePrecision},${input.categoryId},${input.description},${input.memo},${input.costClass},
     ${input.usedByPartyId}::uuid,${input.beneficiaryPartyId}::uuid,${input.paidByPartyId}::uuid,${input.paymentSourceId}::uuid,${input.reimbursementStatus},${input.reimbursementFromPartyId}::uuid,${input.reimbursementToPartyId}::uuid,${input.reimbursementAmount},
     ${input.paymentTreatment},${input.beneficiaryKind},${input.beneficiaryText},${input.usedByText}) on conflict(id) do nothing`;
   const found = await tx.expense.findUnique({ where: { id }, include: expenseInclude });
@@ -87,7 +90,7 @@ export async function insertExpense(tx: Prisma.TransactionClient, ledgerId: stri
   return { row: serializeExpense(found), created: inserted>0 };
 }
 export async function lockedExpense(tx: Prisma.TransactionClient, userId: string, id: string) {
-  const locks = await tx.$queryRaw<{ id: string }[]>`select id from famfi.expenses where user_id=${userId}::uuid and id=${id}::uuid for update`;
+  const locks = await tx.$queryRaw<{ id: string }[]>`select id from ${dbSchema}.expenses where user_id=${userId}::uuid and id=${id}::uuid for update`;
   if (!locks.length) throw new ApiError(404, '支出が見つかりません。');
   return serializeExpense(await tx.expense.findUniqueOrThrow({ where: { id }, include: expenseInclude }));
 }

@@ -3,6 +3,8 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ApiError } from '@/lib/api';
 import { databaseOptions } from '@/lib/database-config';
+import { databaseEnvironment } from '@/lib/database-environment';
+import generatedEnvironment from '@/lib/generated/prisma/environment.json';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -13,7 +15,11 @@ let prismaClient: PrismaClient | undefined;
 export function getPrisma() {
   const connection = process.env.DATABASE_URL;
   if (!connection) throw new ApiError(503, 'データベースを準備中です。');
-  const create = () => new PrismaClient({ adapter: new PrismaPg(databaseOptions(connection), { schema: 'famfi' }) });
+  const { schema } = databaseEnvironment();
+  const create = () => {
+    if (generatedEnvironment.schema !== schema) throw new Error('Database schema and generated client differ');
+    return new PrismaClient({ adapter: new PrismaPg(databaseOptions(connection), { schema }) });
+  };
   if (process.env.NODE_ENV !== 'production') {
     globalForPrisma.prisma ??= create();
     return globalForPrisma.prisma;
@@ -39,7 +45,7 @@ export async function withUserDb<T>(userId: string, action: (tx: Prisma.Transact
 export function withLedgerDb<T>(userId: string, action: (tx: Prisma.TransactionClient, context: LedgerContext) => Promise<T>) {
   return withUserDb(userId, async (tx, context) => {
     // Both household members use the same lock, before any row locks.
-    await tx.$queryRaw`select pg_advisory_xact_lock(hashtextextended(${'famfi-ledger:' + context.ledgerId}, 0))::text`;
+    await tx.$queryRaw`select pg_advisory_xact_lock(hashtextextended(${databaseEnvironment().schema + '-ledger:' + context.ledgerId}, 0))::text`;
     return action(tx, context);
   });
 }

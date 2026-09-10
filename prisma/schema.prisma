@@ -38,6 +38,7 @@ model HouseholdMember {
 }
 
 model Category {
+  costClass String @default("unknown") @map("cost_class")
   userId    String    @map("user_id") @db.Uuid
   id        String
   name      String
@@ -87,6 +88,8 @@ model PaymentSource {
 }
 
 model Expense {
+  costClass String @default("unknown") @map("cost_class")
+  summaryId String? @map("summary_id") @db.Uuid
   id                       String       @id @db.Uuid
   userId                   String       @map("user_id") @db.Uuid
   amount                   Int
@@ -122,6 +125,9 @@ model Expense {
 }
 
 model RecurringRule {
+  costClass String @default("unknown") @map("cost_class")
+  reviewDay Int? @map("review_day")
+  reviewMonthOffset Int @default(0) @map("review_month_offset")
   id                 String    @id @db.Uuid
   userId             String    @map("user_id") @db.Uuid
   name               String
@@ -151,6 +157,7 @@ model RecurringRule {
 }
 
 model RecurringOccurrence {
+  snoozedUntil DateTime? @map("snoozed_until") @db.Date
   id        String   @id @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   ruleId    String   @map("rule_id") @db.Uuid
@@ -196,5 +203,46 @@ model Settlement {
 
   @@index([userId, expenseId])
   @@map("settlements")
+  @@schema("famfi")
+}
+
+model ExpenseSummary {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  paymentSourceId String @map("payment_source_id") @db.Uuid
+  month DateTime @db.Date
+  amount Int
+  name String
+  memo String @default("")
+  complete Boolean @default(false)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@unique([userId,id])
+  @@unique([userId,paymentSourceId,month])
+  @@map("expense_summaries")
+  @@schema("famfi")
+}
+
+model PlannedExpense {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  name String
+  date DateTime @db.Date
+  datePrecision String @map("date_precision")
+  amount Int?
+  categoryId String? @map("category_id")
+  paymentSourceId String? @map("payment_source_id") @db.Uuid
+  memo String @default("")
+  reviewAfter DateTime? @map("review_after") @db.Date
+  snoozedUntil DateTime? @map("snoozed_until") @db.Date
+  state String @default("open")
+  expenseId String? @map("expense_id") @db.Uuid
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@unique([userId,id])
+  @@unique([userId,expenseId])
+  @@map("planned_expenses")
   @@schema("famfi")
 }

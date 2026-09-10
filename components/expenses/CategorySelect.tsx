@@ -5,16 +5,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ExpenseCategory } from '@/lib/expenses';
 import { categoryChoices } from '@/lib/ledger';
 
-export function CategorySelect({ id, label, value, onChange, categories, disabled, allowAll = false }: {
+export function CategorySelect({ id, label, value, onChange, categories, disabled, allowAll = false, optional=false }: {
   id?: string; label: string; value: string; onChange: (value: string) => void;
-  categories: ExpenseCategory[]; disabled?: boolean; allowAll?: boolean;
+  categories: ExpenseCategory[]; disabled?: boolean; allowAll?: boolean; optional?:boolean;
 }) {
   const generatedId = useId();
   const detailId = `${id ?? generatedId}-detail`;
   const { parent, parents, children } = categoryChoices(categories, value, allowAll);
   return <div className={`category-picker${allowAll ? ' category-picker-filter' : ''}`}>
     <CategoryDropdown id={id} label={label} value={parent?.id ?? ''} onChange={onChange} categories={parents} disabled={disabled}
-      emptyLabel={allowAll ? 'すべてのカテゴリ' : undefined} unavailable={category => !allowAll && category.archived && category.id !== value} />
+      emptyLabel={allowAll ? 'すべてのカテゴリ' : optional?'未定':undefined} unavailable={category => !allowAll && category.archived && category.id !== value} />
     {parent && children.length > 0 && <div className="category-detail-field">
       <label htmlFor={detailId}>詳細カテゴリ{!allowAll && <span className="muted-text"> 任意</span>}</label>
       <CategoryDropdown id={detailId} label={allowAll ? '詳細カテゴリで絞り込み' : '詳細カテゴリ'} value={value === parent.id ? '' : value}

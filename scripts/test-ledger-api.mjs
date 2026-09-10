@@ -94,4 +94,4 @@ await result(owner,`/api/expenses/${expense.id}`,'PUT',{...expenseFields(saved),
 const forbidden=await owner('/api/settlements','POST',pay,'https://evil.example');assert.equal(forbidden.status,403);checks++;
 console.log(`PASS: ${checks} ledger HTTP master/ownership/filter/CSV/settlement/conflict/cancellation checks`);
 function withoutId(row){const {id,...rest}=row;return rest;}
-function expenseFields(row){const {id,version,createdAt,updatedAt,settlements,settledAmount,recordedByPartyId,updatedByPartyId,...rest}=row;return rest;}
+function expenseFields(row){const {id,version,createdAt,updatedAt,settlements,settledAmount,recordedByPartyId,updatedByPartyId,summaryId,...rest}=row;return rest;}

@@ -3,6 +3,7 @@ import { withUserDb, withLedgerDb } from '@/lib/prisma';
 import { apiError, assertSameOrigin, json, readJson } from '@/lib/api';
 import { PAGE_SIZE, createExpenseSchema, monthRange, querySchema, serializeExpense } from '@/lib/expenses';
 import { expenseInclude, expenseWhere, readMasters, insertExpense } from '@/lib/expense-service';
+import {readSummaries,summariesMatchFilters} from '@/lib/planning-service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,6 +20,10 @@ export async function GET(request: Request) {
       const totals = await tx.expense.aggregate({ where, _sum: { amount: true }, _count: true });
       const groups = await tx.expense.groupBy({ by: ['categoryId'], where, _sum: { amount: true }, _count: true });
       const filteredTotals = await tx.expense.aggregate({ where: filtered, _sum: { amount: true }, _count: true });
+      const summaries=await readSummaries(tx,{month:where.date.gte});
+      const summaryRemainder=summaries.reduce((sum,s)=>sum+s.remainder,0);
+      const filteredRemainder=summariesMatchFilters(query)?summaries.filter(s=>(!query.paymentSource||s.paymentSourceId===query.paymentSource)&&(!query.search||s.name.includes(query.search)||s.memo.includes(query.search))).reduce((sum,s)=>sum+s.remainder,0):0;
+      const costs=await tx.expense.groupBy({by:['costClass'],where,_sum:{amount:true}});
       const direct = await tx.expense.groupBy({ by: ['paidByPartyId'], where: { ...where, paymentTreatment: 'direct' }, _sum: { amount: true } });
       const breakdown = new Map<string, { categoryId: string; amount: number; count: number }>();
       for (const group of groups) {
@@ -26,8 +31,9 @@ export async function GET(request: Request) {
         const item = breakdown.get(categoryId) ?? { categoryId, amount: 0, count: 0 };
         item.amount += group._sum.amount ?? 0; item.count += group._count; breakdown.set(categoryId, item);
       }
-      return { expenses: expenses.map(serializeExpense), ...masters, total: totals._sum.amount ?? 0,
-        count: totals._count, filteredCount: filteredTotals._count, filteredTotal: filteredTotals._sum.amount ?? 0,
+      return { expenses: expenses.map(serializeExpense), ...masters, total: (totals._sum.amount ?? 0)+summaryRemainder,summaryRemainder,
+        costBreakdown:['fixed','variable','special','unknown'].map(costClass=>({costClass,amount:(costs.find(c=>c.costClass===costClass)?._sum.amount??0)+(costClass==='unknown'?summaryRemainder:0)})),
+        count: totals._count, filteredCount: filteredTotals._count, filteredTotal: (filteredTotals._sum.amount ?? 0)+filteredRemainder,
         breakdown: [...breakdown.values()], directContributions: direct.filter(g => g.paidByPartyId).map(g => ({ partyId: g.paidByPartyId!, amount: g._sum.amount ?? 0 })) };
     }));
   } catch (error) { return apiError(error); }

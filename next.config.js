@@ -2,6 +2,7 @@
 const nextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
+  devIndicators: process.env.FAMFI_TEST_SCHEMA ? false : undefined,
   outputFileTracingIncludes: {
     '/api/**/*': ['./certs/supabase-ca.crt', './node_modules/.prisma/client/query_compiler_bg.wasm'],
   },

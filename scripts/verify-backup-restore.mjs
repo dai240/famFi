@@ -28,9 +28,11 @@ export async function verifyBackupRestore(backup) {
   try {
     await db.exec('create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;');
     const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infra', 'supabase/migrations');
-    for (const file of (await readdir(migrations)).sort()) {
-      if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!preview).*)\.sql$/.test(file) && (isV4 || !/household_workflow|member_profiles/.test(file))) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
-      if(isV6&&/^\d+_famfi_preview_planning\.sql$/.test(file))await db.exec((await readFile(path.join(migrations,file),'utf8')).replaceAll('famfi_preview','famfi'));
+    const files=(await readdir(migrations)).sort();
+    const hasProductionPlanning=files.some(file=>/^\d+_famfi_planning\.sql$/.test(file));
+    for (const file of files) {
+      if (/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!preview).*)\.sql$/.test(file) && (isV4 || !/household_workflow|member_profiles/.test(file)) && (isV6 || !/_famfi_planning\.sql$/.test(file))) await db.exec(await readFile(path.join(migrations, file), 'utf8'));
+      if(isV6&&!hasProductionPlanning&&/^\d+_famfi_preview_planning\.sql$/.test(file))await db.exec((await readFile(path.join(migrations,file),'utf8')).replaceAll('famfi_preview','famfi'));
     }
     const other = randomUUID();
     await db.query('insert into auth.users(id) values ($1), ($2)', [backup.ownerId, other]);

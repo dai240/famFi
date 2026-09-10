@@ -3,6 +3,7 @@ import { chromium,webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import {navigate} from './browser-navigation.mjs';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/household');await mkdir(output,{recursive:true});let checks=0;
 const check=(value,message)=>{assert.ok(value,message);checks++;};
 async function choose(page,scope,label,name){await scope.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
@@ -19,7 +20,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
     for(const [width,height] of [[320,700],[390,844],[390,600],[844,390],[1280,900]]){
       await page.setViewportSize({width,height});await spouse.setViewportSize({width,height});const label=engineName+'-'+width+'-'+height+'-'+Date.now();
       console.log('Checking household '+engineName+' '+width+'x'+height);
-      await page.getByRole('tab',{name:'支出',exact:true}).click();await page.locator('.desktop-add:visible, .mobile-add button:visible').click();
+      await navigate(page,'支出');await page.locator('.desktop-add:visible, .mobile-add button:visible').click();
       let editor=page.getByRole('dialog',{name:'支出を記録',exact:true});await editor.waitFor();
       check((await editor.getByRole('combobox',{name:'支払元',exact:true}).innerText()).includes('家族カード'),'Default family card');
       check((await editor.getByRole('combobox',{name:'購入・支払いをした人',exact:true}).innerText()).includes('自分（夫）'),'Default authenticated buyer');
@@ -41,7 +42,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       await spouse.getByRole('button',{name:'2031年2月（月のみ） 年パス訂正 '+label+' 5000円を編集',exact:true}).click();await wifeEditor.getByRole('button',{name:'この支出の変更履歴',exact:true}).click();
       const history=spouse.getByRole('dialog',{name:'支出の変更履歴',exact:true});await history.locator('summary').first().waitFor();check((await history.innerText()).includes('妻')&&(await history.innerText()).includes('夫'),'Both actors visible in history');await fit(spouse,history);await spouse.screenshot({path:path.join(output,label+'-history.png'),animations:'disabled'});await history.getByRole('button',{name:'Close',exact:true}).click();await wifeEditor.getByRole('button',{name:'キャンセル',exact:true}).click();
       // A period-confirmation flow through the recurring UI, with no automatic actuals.
-      await page.getByRole('tab',{name:/^予定・定期/}).click();const workspace=page.locator('.recurring-workspace');await workspace.getByRole('tab',{name:'定期・この月',exact:true}).click();await workspace.getByLabel('定期支出の表示月').fill('2031-02');await workspace.getByRole('button',{name:'定期支出',exact:true}).click();
+      await navigate(page,'予定・定期');const workspace=page.locator('.recurring-workspace');await workspace.getByRole('tab',{name:'定期・この月',exact:true}).click();await workspace.getByLabel('定期支出の表示月').fill('2031-02');await workspace.getByRole('button',{name:'定期支出',exact:true}).click();
       const ruleEditor=page.getByRole('dialog',{name:'定期支出を追加',exact:true});await ruleEditor.getByLabel('名称',{exact:true}).fill('電気 '+label);await choose(page,ruleEditor,'定期支出の金額の種類','毎回入力');
       await choose(page,ruleEditor,'支払元','妻のカード');await ruleEditor.getByRole('button',{name:'保存',exact:true}).click();await ruleEditor.waitFor({state:'hidden'});
       const item=workspace.locator('.recurring-list > li').filter({hasText:'電気 '+label});await item.getByRole('button',{name:'この月を登録',exact:true}).waitFor();

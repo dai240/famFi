@@ -1,6 +1,7 @@
 // Rerunnable against the disposable stack after profile confirmation tests.
 import { chromium,webkit } from 'playwright';
 import assert from 'node:assert/strict';
+import {openMasters} from './browser-navigation.mjs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/profiles');await mkdir(output,{recursive:true});let checks=0;
@@ -19,7 +20,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const boxes=await header.locator(':scope > *').evaluateAll(elements=>elements.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,end:r.right};}));
       for(let i=1;i<boxes.length;i++)check(boxes[i-1].end<=boxes[i].x+1,'Header controls do not overlap');
     }
-    await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'マスタ管理',exact:true}).click();const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});await manager.getByRole('tab',{name:'支払元',exact:true}).click();await manager.getByRole('button',{name:'追加',exact:true}).click();
+    await page.setViewportSize({width:390,height:844});await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});await manager.getByRole('tab',{name:'支払元',exact:true}).click();await manager.getByRole('button',{name:'追加',exact:true}).click();
     await choose(page,manager,'資金の持ち主','あいうえおかきくけこ');
     check(await manager.getByLabel('持ち主の名前を付ける',{exact:true}).isChecked(),'Personal names link by default');
     const label=('識別名'+engineName+Date.now()+'長い名前のカード').padEnd(40,'あ').slice(0,40),display='あいうえおかきくけこの'+label;

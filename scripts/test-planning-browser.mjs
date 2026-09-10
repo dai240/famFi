@@ -2,6 +2,7 @@
 import {chromium,webkit} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
+import {navigate,openMasters} from './browser-navigation.mjs';
 const base='http://127.0.0.1:3101',output='test-results/planning';
 await mkdir(output,{recursive:true});let checks=0;
 const check=(value,message)=>{assert.ok(value,message);checks++;};
@@ -23,16 +24,16 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
   page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('dialog',d=>d.accept());
   try{
     await page.goto(base+'/login');await page.getByLabel('メールアドレス').fill('fixture0@example.invalid');await page.getByRole('button',{name:'確認コードを送信',exact:true}).click();await page.getByLabel('確認コード',{exact:true}).fill('111111');await page.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL('**/expenses');const initialMasters=await(await page.request.get(base+'/api/masters')).json();if(initialMasters.parties.find(p=>p.id===initialMasters.selfPartyId)?.profileConfirmed===false)await page.getByRole('button',{name:'確認して始める',exact:true}).click();await page.getByRole('button',{name:'マスタ管理',exact:true}).waitFor();
-    check((await page.locator('body').innerText()).includes('検証用の家計簿'),'Preview is visibly identified');
+    check((await page.locator('body').innerText()).includes('検証用の家計簿')===(process.env.FAMFI_TEST_SCHEMA!=='famfi'),'Environment is correctly identified');
     for(const [index,[width,height]] of [[320,568],[390,844],[844,390],[1280,800]].entries()){
       await page.setViewportSize({width,height});const name=engineName+'-'+width+'-'+Date.now(),month='2036-'+String(index+1+(engineName==='webkit'?4:0)).padStart(2,'0');
       console.log('Checking planning '+engineName+' '+width+'x'+height);
-      await page.getByRole('tab',{name:'支出',exact:true}).click();await page.getByLabel('表示する月',{exact:true}).fill(month);
+      await navigate(page,'支出');await page.getByLabel('表示する月',{exact:true}).fill(month);
       const masters=await(await page.request.get(base+'/api/masters')).json();
       const source=await(await page.request.post(base+'/api/masters/payment-sources',{headers:{origin:base},data:{id:crypto.randomUUID(),name:'集計用 '+name,method:'card',fundingPartyId:masters.paymentSources.find(s=>s.isDefault).fundingPartyId,defaultTreatment:'shared'}})).json();
       check(Boolean(source.id),'Fixture payment source created');
       const baseline=await(await page.request.get(base+'/api/expenses?month='+month)).json();
-      await page.getByRole('button',{name:'マスタ管理',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
+      await openMasters(page);await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
       // Reload masters after creating a disposable source through the API.
       await page.reload();await page.getByLabel('表示する月',{exact:true}).fill(month);
       await page.getByRole('button',{name:'まとめて登録',exact:true}).click();let editor=page.getByRole('dialog',{name:'まとめて登録',exact:true});
@@ -42,7 +43,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       await detail.locator('.summary-amounts dd').filter({hasText:'7,000'}).waitFor();await fit(page,detail);await page.screenshot({path:output+'/'+name+'-summary.png',animations:'disabled'});await detail.getByRole('button',{name:'Close',exact:true}).click();
       let result=await(await page.request.get(base+'/api/expenses?month='+month)).json();check(result.total===baseline.total+10000,'Adding detail keeps total unchanged');check(result.expenses.find(e=>e.description==='明細 '+name)?.costClass==='variable','Cost classification persisted');
       // A month-only plan is a forecast until explicitly confirmed.
-      await page.getByRole('tab',{name:/^予定・定期/}).click();const workspace=page.locator('.recurring-workspace');await workspace.getByLabel('定期支出の表示月').fill(month);await workspace.getByRole('tab',{name:'単発の予定',exact:true}).click();await workspace.getByRole('button',{name:'予定を追加',exact:true}).click();
+      await navigate(page,'予定・定期');const workspace=page.locator('.recurring-workspace');await workspace.getByLabel('定期支出の表示月').fill(month);await workspace.getByRole('tab',{name:'単発の予定',exact:true}).click();await workspace.getByRole('button',{name:'予定を追加',exact:true}).click();
       editor=page.getByRole('dialog',{name:'予定を追加',exact:true});await editor.getByLabel('名称',{exact:true}).fill('誕生日 '+name);await editor.getByLabel('予定額（円）',{exact:false}).fill('5000');await choose(page,editor,'予定の支払元','妻のカード');await editor.getByLabel('確認開始日',{exact:false}).fill('2036-12-31');await fit(page,editor);await page.screenshot({path:output+'/'+name+'-plan-editor.png',animations:'disabled'});await editor.getByRole('button',{name:'保存',exact:true}).click();await editor.waitFor({state:'hidden'});
       const planItem=workspace.locator('.recurring-list > li').filter({hasText:'誕生日 '+name});await planItem.getByRole('button',{name:'支出を確定',exact:true}).waitFor();result=await(await page.request.get(base+'/api/expenses?month='+month)).json();check(result.total===baseline.total+10000,'Saving plan does not change actual total');
       await planItem.getByRole('button',{name:'誕生日 '+name+'の確認を後日にする',exact:true}).click();let snooze=page.getByRole('dialog',{name:'確認を後日にする',exact:true});await snooze.getByLabel('次に確認する日').fill('2037-01-01');await fit(page,snooze);await snooze.getByRole('button',{name:'変更',exact:true}).click();await snooze.waitFor({state:'hidden'});await planItem.getByText('確認開始 2037-01-01').waitFor();

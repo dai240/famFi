@@ -1,6 +1,7 @@
 // Uses only the disposable loopback stack; never production accounts or data.
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
+import {navigate} from './browser-navigation.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -145,10 +146,10 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
       await page.getByRole('heading', { name: '支出履歴 2件', exact: true }).waitFor();
       await choose(page, page, 'カテゴリで絞り込み', 'すべてのカテゴリ');
       check(await combo(page, '詳細カテゴリで絞り込み').count() === 0, 'Clearing parent removes detail filter');
-      await page.getByRole('tab', { name: '定期支出', exact: true }).click();
+      await navigate(page,'予定・定期');
       const recurring = page.locator('.recurring-workspace');
       await recurring.getByLabel('定期支出の表示月').fill(month);
-      await recurring.getByRole('button', { name: '追加', exact: true }).click();
+      await recurring.getByRole('button', { name: '定期支出', exact: true }).click();
       const ruleEditor = page.getByRole('dialog', { name: '定期支出を追加', exact: true });
       const ruleName = '定期 ' + label;
       await ruleEditor.getByLabel('名称', { exact: true }).fill(ruleName);
@@ -171,7 +172,7 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
       const occurrence = periods.occurrences.find(row => row.ruleId === rule.id);
       const posted = await (await page.request.get(base + '/api/expenses/' + occurrence.expenseId)).json();
       check(rule.categoryId === child.id && posted.categoryId === child.id, 'Recurring schedule and posted expense keep selected child');
-      await page.getByRole('tab', { name: '支出', exact: true }).click();
+      await navigate(page,'支出');
     }
     // Archive only disposable categories; existing linked expenses must remain editable.
     const current = await (await page.request.get(base + '/api/categories')).json();

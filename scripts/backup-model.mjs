@@ -23,8 +23,9 @@ export const planningBackupTables=profileBackupTables.flatMap(dataset=>[
   {...dataset,fields:[...dataset.fields,...(dataset.key==='categories'?['costClass']:dataset.key==='expenses'?['costClass','summaryId']:dataset.key==='recurringRules'?['costClass','reviewDay','reviewMonthOffset']:dataset.key==='recurringOccurrences'?['snoozedUntil']:[])]},
   ...(dataset.key==='recurringOccurrences'?[{key:'plannedExpenses',table:'planned_expenses',fields:['id','userId','name','date','datePrecision','amount','categoryId','paymentSourceId','memo','reviewAfter','snoozedUntil','state','expenseId','version','createdAt','updatedAt']}]:[]),
 ]);
-export async function captureHouseholdBackup(query,actorId,format=process.env.FAMFI_DB_SCHEMA==='famfi_preview'?'famfi-expenses/v6':'famfi-expenses/v5',schema=process.env.FAMFI_DB_SCHEMA??'famfi'){
+export async function captureHouseholdBackup(query,actorId,format,schema=process.env.FAMFI_DB_SCHEMA??'famfi'){
   if(!['famfi','famfi_preview'].includes(schema))throw new Error('Unsupported backup schema');
+  if(!format)format=(await query('select to_regclass($1) is not null as planning',[`${schema}.expense_summaries`])).rows[0].planning?'famfi-expenses/v6':'famfi-expenses/v5';
   const member=(await query(`select ledger_id,party_id from ${schema}.household_members where user_id=$1`,[actorId])).rows[0];
   if(!member)throw new Error('An active household member is required');
   const household=(await query(`select id,name from ${schema}.households`)).rows[0];

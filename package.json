@@ -11,6 +11,7 @@
     "test:planning-api": "node scripts/test-planning-api.mjs",
     "test:planning-restore": "node --import tsx scripts/test-planning-restore.mjs",
     "test:planning-browser": "node scripts/test-planning-browser.mjs",
+    "test:navigation-browser": "node scripts/test-navigation-browser.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "tsx --test tests/*.test.ts",

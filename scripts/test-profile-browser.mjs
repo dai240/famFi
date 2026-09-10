@@ -1,6 +1,7 @@
 // Only loopback fixtures. Real invitations and production profiles are never changed.
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
+import {openMasters} from './browser-navigation.mjs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/profiles');
@@ -84,7 +85,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
     check((await combo(wifeEditor,'購入・支払いをした人').innerText()).includes('自分（配偶者テスト）'),'Wife sees self, not husband');
     await combo(wifeEditor,'支払元').click();check((await wife.getByRole('listbox').innerText()).includes('変更後のカード'),'Rename reaches spouse sources');await wife.keyboard.press('Escape');
     await wifeEditor.getByRole('button',{name:'キャンセル',exact:true}).click();
-    await page.getByRole('button',{name:'マスタ管理',exact:true}).click();const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});
+    await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});
     await manager.getByRole('tab',{name:'人物・共用資金',exact:true}).click();check(await manager.getByRole('button',{name:'配偶者テストを編集',exact:true}).isDisabled(),'Cannot rename spouse in masters');
     await manager.getByRole('button',{name:'変更後を編集',exact:true}).click();profile=page.getByRole('dialog',{name:'表示名の設定',exact:true});await submitProfile(page,profile,'夫');
     await manager.getByRole('button',{name:'閉じる',exact:true}).click();

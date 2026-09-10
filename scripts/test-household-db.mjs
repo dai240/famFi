@@ -18,7 +18,7 @@ const rejects=async(user,sql,values=[])=>{await assert.rejects(as(user,sql,value
 try {
   await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);revoke all on schema public from public;');
   const dir=path.resolve('../personal-apps-infra/supabase/migrations');
-  const files=(await readdir(dir)).sort().filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(f));
+  const files=(await readdir(dir)).sort().filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!preview|planning).*)\.sql$/.test(f));
   for(const f of files.filter(f=>!/household_workflow|member_profiles/.test(f))) await db.exec(await readFile(path.join(dir,f),'utf8'));
   await db.exec(`insert into auth.users values('${owner}'),('${wife}'),('${other}'),('${outsider}');insert into famfi.memberships(user_id) values('${owner}');insert into famfi.expenses(id,user_id,amount,date,category_id) values('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','${owner}',1234,'2026-09-09','food');`);
   const before=(await db.query('select * from famfi.expenses')).rows[0];

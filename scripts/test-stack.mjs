@@ -8,6 +8,8 @@ import path from 'node:path';
 import { localPostgres } from './local-postgres.mjs';
 
 const realPostgres = Boolean(process.env.FAMFI_TEST_PG_BIN);
+const schema=process.env.FAMFI_TEST_SCHEMA??'famfi_preview';
+if(!['famfi','famfi_preview'].includes(schema))throw new Error('Unsupported fixture schema');
 const db = realPostgres ? await localPostgres(process.env.FAMFI_TEST_PG_BIN,55432) : new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role; create schema auth; create table auth.users(id uuid primary key); revoke all on schema public from public;');
 const migrations = path.resolve(process.env.INFRA_PATH ?? '../personal-apps-infra', 'supabase/migrations');
@@ -57,7 +59,7 @@ const auth = createServer(async (request, response) => {
 await new Promise(resolve => auth.listen(55433, '127.0.0.1', resolve));
 const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '-p', '3101'], {
   stdio: 'inherit', env: { ...process.env, NODE_ENV: 'development',
-    DATABASE_URL: 'postgresql://famfi_preview_app:fixture@127.0.0.1:55432/postgres?schema=famfi_preview',FAMFI_DB_SCHEMA:'famfi_preview',
+    DATABASE_URL: `postgresql://${schema}_app:fixture@127.0.0.1:55432/postgres?schema=${schema}`,FAMFI_DB_SCHEMA:schema,
     NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55433', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'fixture-publishable-key',
     FAMFI_ALLOWED_EMAIL: 'fixture0@example.invalid', APP_ORIGIN: 'http://127.0.0.1:3101' },
 });

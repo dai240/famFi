@@ -1,6 +1,7 @@
 // Full UI workflow against the local fixture stack only.
 import { chromium,webkit } from 'playwright';
 import assert from 'node:assert/strict';
+import {navigate,openMasters} from './browser-navigation.mjs';
 import { mkdir,readFile } from 'node:fs/promises';
 import path from 'node:path';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/expense-management');await mkdir(output,{recursive:true});let checks=0;
@@ -19,7 +20,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const name=`${engineName}-${width}-${height}-${Date.now().toString().slice(-5)}`,parent=`家族の買物 ${name}`,child=`日用品 ${name}`,person=`本人 ${name}`,fund=`共用資金 ${name}`,source=`個人カード ${name}`,description=`生活用品 ${name}`;
       console.log(`Checking ledger ${engineName} ${width}x${height}`);
       const before=await(await page.request.get(base+'/api/expenses?month=2026-09')).json();
-      await page.getByRole('button',{name:'マスタ管理',exact:true}).click();const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});
+      await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});
       await manager.getByRole('button',{name:'追加',exact:true}).click();await manager.getByLabel('名称',{exact:true}).fill(parent);await manager.getByRole('button',{name:'色 #3C75B5',exact:true}).click();await manager.getByRole('button',{name:'保存',exact:true}).click();await manager.getByRole('button',{name:parent+'を編集',exact:true}).waitFor();
       await manager.getByRole('button',{name:'追加',exact:true}).click();await manager.getByLabel('名称',{exact:true}).fill(child);await choose(page,manager,'親カテゴリ',parent);await manager.getByRole('button',{name:'色 #B35F79',exact:true}).click();await manager.getByRole('button',{name:'保存',exact:true}).click();await manager.getByRole('button',{name:child+'を編集',exact:true}).waitFor();
       await fit(page,manager);await page.screenshot({path:path.join(output,name+'-categories.png'),animations:'disabled'});
@@ -38,7 +39,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       discard=false;await editor.getByRole('button',{name:'キャンセル',exact:true}).click();check(await editor.isVisible(),'Declining discard preserves editor');discard=true;
       await editor.getByRole('button',{name:'保存',exact:true}).click();await editor.waitFor({state:'hidden'});await page.reload();
       const records=await(await page.request.get(base+'/api/expenses?month=2026-09')).json();const expense=records.expenses.find(e=>e.description===description);check(!!expense && expense.reimbursementAmount===3000,'Expense persisted with reimbursement fields');check(records.total===before.total+3000,'Purchase counted once');
-      await page.getByRole('tab',{name:'立替・精算',exact:true}).click();await page.getByRole('button',{name:description+'の精算',exact:true}).click();const settlement=page.getByRole('dialog',{name:'精算を記録',exact:true});
+      await navigate(page,'立替・精算');await page.getByRole('button',{name:description+'の精算',exact:true}).click();const settlement=page.getByRole('dialog',{name:'精算を記録',exact:true});
       await settlement.getByLabel('返した金額（円）').fill('1000');await settlement.getByLabel('精算日',{exact:true}).fill('2026-09-12');await settlement.getByLabel('精算メモ',{exact:false}).fill('一部返金');await settlement.getByRole('button',{name:'精算を保存',exact:true}).click();await settlement.getByRole('status').filter({hasText:'精算を記録しました'}).waitFor();check((await settlement.locator('dl').innerText()).includes('2,000'),'Partial settlement leaves remainder');
       await settlement.getByLabel('返した金額（円）').fill('2001');await settlement.getByRole('button',{name:'精算を保存',exact:true}).click();check((await settlement.getByRole('alert').innerText()).includes('未精算額'),'Overpayment rejected in UI');
       await settlement.getByLabel('返した金額（円）').fill('2000');await settlement.getByRole('button',{name:'精算を保存',exact:true}).click();await settlement.getByLabel('返した金額（円）').waitFor({state:'hidden'});check(await settlement.locator('.settlement-history li').count()===2,'Two repayments in history');
@@ -48,7 +49,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const stored=await(await page.request.get(base+`/api/expenses/${expense.id}`)).json();check(stored.settledAmount===3000 && stored.settlements.length===3,'Database retains correct payment and cancellation history');
       await page.getByRole('tab',{name:'精算対象すべて',exact:true}).click();await page.getByRole('button',{name:description+'の精算',exact:true}).waitFor();await fit(page,page.locator('.settlement-workspace'));await page.screenshot({path:path.join(output,name+'-settled-list.png'),fullPage:true,animations:'disabled'});
       const downloadPromise=page.waitForEvent('download');await page.locator('.settlement-workspace').getByRole('button',{name:'CSV',exact:true}).click();const csv=await readFile(await(await downloadPromise).path(),'utf8');check(csv.includes('取消済み')&&csv.includes(expense.id),'Settlement CSV includes cancellation and linkage');
-      await page.getByRole('tab',{name:'支出',exact:true}).click();
+      await navigate(page,'支出');
       const after=await(await page.request.get(base+'/api/expenses?month=2026-09')).json();check(after.total===before.total+3000,'Settlements do not increase expenses');
     }
     check(errors.length===0,'No browser errors: '+errors.join(', '));await context.close();

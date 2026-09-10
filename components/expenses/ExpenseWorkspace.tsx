@@ -16,6 +16,7 @@ import { SummaryWorkspace } from './SummaryWorkspace';
 import { costClassLabels,CostClass } from '@/lib/cost-class';
 import { HistoryView } from './HistoryView';
 import { ProfileDialog } from './ProfileDialog';
+import { BottomNavigation } from './BottomNavigation';
 import { paymentSourceGroups } from '@/lib/household';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Masters, categoryName, settlementLabels, settlementState, treatmentLabels } from '@/lib/ledger';
@@ -129,8 +130,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     <header className="expense-header"><div className="expense-header-inner">
       <Link href="/expenses" className="famfi-brand"><ReceiptText aria-hidden="true" />famFi</Link>
       <button type="button" className="header-section profile-header" title="表示名の設定" aria-label="表示名の設定" disabled={!self} onClick={()=>{toast.dismiss();setProfileOpen(true);}}><span>{data?.householdName ?? '支出管理'}</span>{self&&<strong>{self.name}</strong>}</button>
-      <Button variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
-      <Button variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
+      <Button className="desktop-control" variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
+      <Button className="desktop-control" variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
     <Tabs value={view} onValueChange={value=>{toast.dismiss();setView(value);}} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
     <main className="expense-main" hidden={view !== 'expenses'}>
@@ -190,7 +191,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     {view === 'recurring' && <RecurringWorkspace initialMonth={month} externalRevision={revision} onEdit={openEditor} onChanged={refresh} onMastersChanged={mastersChanged} />}
     {view === 'history' && data && <main className="expense-main"><div className="workspace-heading"><h1>変更履歴</h1><Button variant="ghost" size="icon" title="履歴を更新" aria-label="履歴を更新" onClick={refresh}><RefreshCw /></Button></div><HistoryView masters={data} revision={revision} /></main>}
     {view === 'settlements' && <SettlementWorkspace externalRevision={revision} onEdit={openEditor} onChanged={refresh} />}
-    {view === 'expenses' && <div className="mobile-add"><Button className="primary-action" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>}
+    <BottomNavigation view={view} attention={attention} ready={Boolean(data)} busy={busy} onNavigate={value=>{toast.dismiss();setView(value);}} onAdd={()=>openEditor(null)} onMasters={()=>{toast.dismiss();setManaging(true);}} onProfile={()=>{toast.dismiss();setProfileOpen(true);}} onLogout={logout} />
     {editor && data && <ExpenseEditor key={editor.key} expense={editor.expense} initial={editor.initial} initialMonth={month} masters={data} onMastersChanged={mastersChanged} onClose={() => setEditor(null)} onSaved={row => { setEditor(null); if(!editor.expense || row.date.slice(0,7)!==month) {setPage(1);setMonth(row.date.slice(0,7));} refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} onDuplicate={row=>setEditor({expense:null,initial:row,key:crypto.randomUUID()})} />}
     {managing && data && <MasterManager masters={data} onChange={mastersChanged} onClose={()=>setManaging(false)} />}
     {self&&(firstProfile||profileOpen)&&<ProfileDialog key={self.id} person={self} firstTime={firstProfile} onSaved={masters=>{mastersChanged(masters);setProfileOpen(false);toast.success('表示名を保存しました');}} onClose={()=>setProfileOpen(false)} onLogout={logout} />}

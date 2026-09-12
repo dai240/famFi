@@ -27,7 +27,7 @@ function validateRule(input: RecurringFields, ctx: z.RefinementCtx) {
 }
 export const validatedRecurringFields=recurringFields.superRefine(validateRule);
 export const createRecurringSchema=recurringFields.extend({id:z.string().uuid()}).strict().superRefine(validateRule);
-export const updateRecurringSchema=recurringFields.extend({version:z.number().int().positive()}).strict().superRefine(validateRule);
+export const updateRecurringSchema=recurringFields.extend({version:z.number().int().positive(),confirmProvisional:z.boolean().default(false)}).strict().superRefine(validateRule);
 export type RecurringRule=RecurringFields & {id:string;version:number;createdAt:string;updatedAt:string};
 export type RecurringOccurrence={id:string;ruleId:string;period:string;state:'posted'|'skipped'|'open';expenseId:string|null;version:number;snoozedUntil?:string|null};
 export type RecurringResponse={rules:RecurringRule[];occurrences:RecurringOccurrence[];masters:Masters;previousAmounts:Record<string,number>;attention:AttentionItem[]};
@@ -59,6 +59,18 @@ export type AttentionItem={kind:'recurring'|'plan';id:string;name:string;period:
 export function recurringReviewDate(rule:RecurringFields,period:string,occurrence?:RecurringOccurrence){
   const scheduled=dueDate(shiftMonth(period,rule.reviewMonthOffset??0),rule.reviewDay??1);
   return occurrence?.snoozedUntil && occurrence.snoozedUntil>scheduled?occurrence.snoozedUntil:scheduled;
+}
+export function recurringOverview(rules: RecurringRule[], occurrences: RecurringOccurrence[], month: string, today = todayInJapan()) {
+  const relevant = rules.filter(rule => isDue(rule, month) || occurrences.some(o => o.ruleId === rule.id && o.state === 'posted'));
+  const state = (rule: RecurringRule) => occurrences.find(o => o.ruleId === rule.id);
+  const pending = relevant.filter(rule => !state(rule) || state(rule)?.state === 'open');
+  const rank = (rule: RecurringRule) => state(rule)?.state === 'posted' ? 2 : state(rule)?.state === 'skipped' ? 3 : recurringReviewDate(rule, month, state(rule)) <= today ? 0 : 1;
+  return {
+    rows: [...relevant].sort((a,b) => rank(a)-rank(b) || recurringReviewDate(a,month,state(a)).localeCompare(recurringReviewDate(b,month,state(b))) || a.name.localeCompare(b.name,'ja') || a.id.localeCompare(b.id)),
+    pendingCount: pending.length,
+    baseAmount: pending.filter(r => r.amountMode === 'fixed').reduce((sum,r) => sum + (r.amount ?? 0), 0),
+    amountCheckCount: pending.filter(r => r.amountMode !== 'fixed').length,
+  };
 }
 export function recurringAttention(rules:RecurringRule[],occurrences:RecurringOccurrence[],today=todayInJapan()):AttentionItem[]{
   const byPeriod=new Map(occurrences.map(o=>[o.ruleId+':'+o.period,o]));

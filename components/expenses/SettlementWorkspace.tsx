@@ -7,23 +7,32 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExpenseRecord, PAGE_SIZE, createSettlementSchema, formatExpenseDate, formatYen, todayInJapan } from '@/lib/expenses';
 import { Masters, settlementLabels, settlementState } from '@/lib/ledger';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
+import { isSampleRecord } from '@/lib/sample-data';
+import { MAX_SETTLEMENT_BATCH } from '@/lib/settlement-batch';
+import { BatchSettlementDialog } from './BatchSettlementDialog';
+import { toast } from 'sonner';
 
-type Response = Masters & { expenses: ExpenseRecord[]; count: number; unknownCount: number; groups: { fromPartyId: string; toPartyId: string; amount: number }[] };
+type Response = Masters & { expenses: ExpenseRecord[]; count: number; unknownCount: number; sampleCount?:number;sampleAmount?:number; groups: { fromPartyId: string; toPartyId: string; amount: number }[] };
 export function SettlementWorkspace({ externalRevision, onEdit, onChanged }: { externalRevision: number; onEdit: (expense: ExpenseRecord) => void; onChanged: () => void }) {
   const [view,setView] = useState('open'); const [page,setPage] = useState(1); const [revision,setRevision] = useState(0);
   const [data,setData] = useState<Response|null>(null); const [error,setError] = useState(''); const [loading,setLoading] = useState(true);
   const [selected,setSelected] = useState<ExpenseRecord|null>(null);
+  const [samples,setSamples]=useState(false), [batchOpen,setBatchOpen]=useState(false);
+  const [selection,setSelection]=useState<ExpenseRecord[]>([]);
   const [exporting,setExporting] = useState(false);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError('');
-    requestJson<Response>(`/api/settlements?view=${view}&page=${page}`, { signal: controller.signal }).then(result => {
+    requestJson<Response>(`/api/settlements?view=${view}&page=${page}&samples=${samples?'show':'hide'}`, { signal: controller.signal }).then(result => {
       if (controller.signal.aborted) return;
       if (page > 1 && !result.expenses.length) { setPage(1); return; }
       setData(result);
     }).catch(error => { if (!controller.signal.aborted) { if (error instanceof RequestError && error.status === 401) window.location.replace('/login'); else setError(errorMessage(error)); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [view,page,revision,externalRevision]);
+  }, [view,page,revision,externalRevision,samples]);
   const person = (id: string|null) => data?.parties.find(p => p.id === id)?.name ?? '未設定';
+  const canSelect=(expense:ExpenseRecord)=>!isSampleRecord(expense)&&expense.reimbursementAmount>expense.settledAmount&&(!selection.length||selection[0].reimbursementFromPartyId===expense.reimbursementFromPartyId&&selection[0].reimbursementToPartyId===expense.reimbursementToPartyId);
+  function toggle(expense:ExpenseRecord) {setSelection(old=>old.some(e=>e.id===expense.id)?old.filter(e=>e.id!==expense.id):old.length<MAX_SETTLEMENT_BATCH?[...old,expense]:old);}
+  function reloadBatch(){setBatchOpen(false);setSelection([]);setRevision(n=>n+1);onChanged();}
   async function download() {
     setExporting(true); setError('');
     try {
@@ -39,10 +48,13 @@ export function SettlementWorkspace({ externalRevision, onEdit, onChanged }: { e
       <ul className="balance-list">{data.groups.map(g => <li key={`${g.fromPartyId}:${g.toPartyId}`}><span>{person(g.fromPartyId)} <ArrowRight aria-label="から" /> {person(g.toPartyId)}</span><strong>{formatYen(g.amount)}</strong></li>)}</ul>
       <p className="muted-text">精算要否が未設定の支出: {data.unknownCount}件</p>
     </section>}
-    <Tabs value={view} onValueChange={v=>{setView(v);setPage(1);}}><TabsList className="settlement-tabs"><TabsTrigger value="open">未精算・一部精算</TabsTrigger><TabsTrigger value="all">精算対象すべて</TabsTrigger></TabsList></Tabs>
+    {Boolean(data?.sampleCount)&&<div className="sample-notice"><p>サンプル {data?.sampleCount}件・{formatYen(data?.sampleAmount??0)}は未精算額から除外しています。</p><label className="check-label"><input type="checkbox" checked={samples} onChange={e=>{setSamples(e.target.checked);setPage(1);setSelection([]);}} />サンプルも表示</label></div>}
+    <Tabs value={view} onValueChange={v=>{setView(v);setPage(1);setSelection([]);}}><TabsList className="settlement-tabs"><TabsTrigger value="open">未精算・一部精算</TabsTrigger><TabsTrigger value="all">精算対象すべて</TabsTrigger></TabsList></Tabs>
+    {selection.length>0&&<section className="batch-toolbar" aria-label="選択した精算"><div><strong>{selection.length}件 / {formatYen(selection.reduce((sum,e)=>sum+e.reimbursementAmount-e.settledAmount,0))}</strong><small>{person(selection[0].reimbursementFromPartyId)} → {person(selection[0].reimbursementToPartyId)}</small></div><Button variant="ghost" onClick={()=>setSelection([])}>選択解除</Button><Button className="primary-action" disabled={loading} onClick={()=>setBatchOpen(true)}><Check />まとめて精算</Button></section>}
     {loading ? <div className="workspace-message" role="status"><LoaderCircle className="animate-spin" />読み込み中</div> : data && <>
       <p className="muted-text">{data.count}件</p>
       <ul className="settlement-list">{data.expenses.map(expense => <li key={expense.id}>
+        {!isSampleRecord(expense)&&expense.reimbursementAmount>expense.settledAmount&&<input className="settlement-select" type="checkbox" aria-label={`${expense.description||'支出'}を一括精算に選択`} checked={selection.some(e=>e.id===expense.id)} disabled={loading||!canSelect(expense)||selection.length>=MAX_SETTLEMENT_BATCH&&!selection.some(e=>e.id===expense.id)} onChange={()=>toggle(expense)} />}
         <button className="settlement-entry" onClick={()=>setSelected(expense)} aria-label={`${expense.description || '支出'}の精算`}><div><time>{formatExpenseDate(expense.date)}</time><strong>{expense.description || data.categories.find(c=>c.id===expense.categoryId)?.name}</strong><span>{person(expense.reimbursementFromPartyId)} <ArrowRight /> {person(expense.reimbursementToPartyId)}</span></div><div><span className={`settlement-status ${settlementState(expense)}`}>{settlementLabels[settlementState(expense)]}</span><strong>{formatYen(expense.reimbursementAmount-expense.settledAmount)}</strong></div></button>
         <Button size="icon" variant="ghost" title="支出を編集" aria-label={`${expense.description || '支出'}を編集`} onClick={()=>onEdit(expense)}><Pencil /></Button>
       </li>)}</ul>
@@ -50,6 +62,7 @@ export function SettlementWorkspace({ externalRevision, onEdit, onChanged }: { e
       {data.count>PAGE_SIZE && <nav className="ledger-pagination" aria-label="精算一覧のページ"><Button variant="outline" size="icon" aria-label="精算の前のページ" disabled={page===1} onClick={()=>setPage(page-1)}><ChevronLeft /></Button><span>{page} / {Math.ceil(data.count/PAGE_SIZE)}</span><Button variant="outline" size="icon" aria-label="精算の次のページ" disabled={page*PAGE_SIZE>=data.count} onClick={()=>setPage(page+1)}><ChevronRight /></Button></nav>}
     </>}
     {selected && data && <SettlementEditor key={selected.id} initial={selected} masters={data} onClose={()=>setSelected(null)} onChanged={()=>{setRevision(n=>n+1);onChanged();}} />}
+    {batchOpen&&data&&selection.length>0&&<BatchSettlementDialog expenses={selection} masters={data} onClose={()=>setBatchOpen(false)} onReload={reloadBatch} onSaved={()=>{reloadBatch();toast.success('精算を記録しました');}} />}
   </main>;
 }
 
@@ -88,7 +101,7 @@ function SettlementEditor({ initial, masters, onClose, onChanged }: { initial: E
   return <Dialog open onOpenChange={open=>{if(!open) close();}}><DialogContent className="expense-dialog" onInteractOutside={e=>e.preventDefault()}><DialogHeader><DialogTitle>精算を記録</DialogTitle><DialogDescription>{formatExpenseDate(expense.date)} / {expense.description || masters.categories.find(c=>c.id===expense.categoryId)?.name}</DialogDescription></DialogHeader>
     <div className="field-heading"><span className={`settlement-status ${settlementState(expense)}`}>{settlementLabels[settlementState(expense)]}</span><Button size="icon" variant="ghost" title="精算状況を更新" aria-label="精算状況を更新" disabled={busy} onClick={reload}><RefreshCw className={busy?'animate-spin':''} /></Button></div>
     <div className="settlement-detail"><p>{person(expense.reimbursementFromPartyId)} <ArrowRight /> {person(expense.reimbursementToPartyId)}</p><dl><div><dt>精算対象</dt><dd>{formatYen(expense.reimbursementAmount)}</dd></div><div><dt>精算済み</dt><dd>{formatYen(expense.settledAmount)}</dd></div><div><dt>未精算</dt><dd>{formatYen(remaining)}</dd></div></dl></div>
-    {remaining>0 && <form className="expense-form" onSubmit={submit}><label htmlFor="settlement-amount">返した金額（円）</label><input id="settlement-amount" required inputMode="numeric" pattern="[0-9]+" maxLength={9} value={amount} disabled={busy} onChange={e=>setAmount(e.target.value)} /><label htmlFor="settlement-date">精算日</label><input id="settlement-date" type="date" min="2000-01-01" max="2099-12-31" required value={date} disabled={busy} onChange={e=>setDate(e.target.value)} /><label htmlFor="settlement-memo">精算メモ <span className="muted-text">任意</span></label><input id="settlement-memo" value={memo} maxLength={500} disabled={busy} onChange={e=>setMemo(e.target.value)} /><Button className="primary-action" disabled={busy}>{busy ? <LoaderCircle className="animate-spin" />:<Check />}精算を保存</Button></form>}
+    {isSampleRecord(expense)?<p className="sample-notice">サンプルのため、実際の精算は登録できません。</p>:remaining>0 && <form className="expense-form" onSubmit={submit}><label htmlFor="settlement-amount">返した金額（円）</label><input id="settlement-amount" required inputMode="numeric" pattern="[0-9]+" maxLength={9} value={amount} disabled={busy} onChange={e=>setAmount(e.target.value)} /><label htmlFor="settlement-date">精算日</label><input id="settlement-date" type="date" min="2000-01-01" max="2099-12-31" required value={date} disabled={busy} onChange={e=>setDate(e.target.value)} /><label htmlFor="settlement-memo">精算メモ <span className="muted-text">任意</span></label><input id="settlement-memo" value={memo} maxLength={500} disabled={busy} onChange={e=>setMemo(e.target.value)} /><Button className="primary-action" disabled={busy}>{busy ? <LoaderCircle className="animate-spin" />:<Check />}精算を保存</Button></form>}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="save-notice" role="status">{notice}</p>}
     <section className="settlement-history"><h3>精算履歴</h3>{!expense.settlements.length && <p className="muted-text">記録なし</p>}<ul>{expense.settlements.map(record=><li key={record.id}><div><strong>{formatYen(record.amount)}</strong><span>{formatExpenseDate(record.date)}{record.cancelledAt ? ' / 取消済み':''}</span><span>{person(record.fromPartyId)} → {person(record.toPartyId)}</span>{record.memo && <p>{record.memo}</p>}</div>{!record.cancelledAt && <Button type="button" size="icon" variant="ghost" title="精算を取り消す" aria-label={`${record.amount}円の精算を取り消す`} disabled={busy} onClick={()=>cancel(record.id)}><Undo2 /></Button>}</li>)}</ul></section>
     <Button variant="outline" disabled={busy} onClick={close}>閉じる</Button>

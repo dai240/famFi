@@ -8,7 +8,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExpenseFields, ExpenseRecord, formatYen, shiftMonth, todayInJapan } from '@/lib/expenses';
 import { Masters, categoryName } from '@/lib/ledger';
 import { draftRecord, newExpense } from '@/lib/household';
-import { RecurringFields, RecurringResponse, RecurringRule, isDue, recurringExpense, recurringFields, recurringReviewDate, validatedRecurringFields } from '@/lib/recurring';
+import { RecurringFields, RecurringResponse, RecurringRule, isDue, recurringExpense, recurringFields, recurringReviewDate, recurringOverview, validatedRecurringFields } from '@/lib/recurring';
+import { confirmProvisionalFields, isProvisionalRule } from '@/lib/sample-data';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
 import { CategorySelect } from './CategorySelect';
 import { PaymentFields } from './PaymentFields';
@@ -33,9 +34,8 @@ export function RecurringWorkspace({initialMonth,externalRevision,onEdit,onChang
       else{await requestJson('/api/recurring/'+rule.id+'/occurrences',{method:'POST',body:JSON.stringify({action:mode,period:month,ruleVersion:rule.version,occurrenceVersion:occurrence?.version??0})});refresh();onChanged();}
     }catch(error){setError(errorMessage(error));}finally{lock.current=false;setBusy(false);}
   }
-  const due=data?.rules.filter(rule=>isDue(rule,month)||data.occurrences.some(o=>o.ruleId===rule.id&&o.state==='posted'))??[];
-  const rows=view==='plans'?[]:view==='due'?due:data?.rules??[];
-  const outstanding=due.filter(rule=>!data?.occurrences.some(o=>o.ruleId===rule.id&&o.state!=='open'));
+  const overview=recurringOverview(data?.rules??[],data?.occurrences??[],month);
+  const rows=view==='plans'?[]:view==='due'?overview.rows:data?.rules??[];
   return <main className="expense-main recurring-workspace">
     <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>予定・定期</h1></div>{view!=='plans'&&<Button className="primary-action" disabled={!data||loading||busy} onClick={()=>setEditing({rule:null,key:crypto.randomUUID()})}><Plus />定期支出</Button>}</div>
     <div className="expense-toolbar"><div className="month-selector"><Button variant="ghost" size="icon" aria-label="定期支出の前月" disabled={month==='2000-01'} onClick={()=>changeMonth(shiftMonth(month,-1))}><ChevronLeft /></Button><input aria-label="定期支出の表示月" type="month" min="2000-01" max="2099-12" value={month} onChange={e=>changeMonth(e.target.value)} /><Button variant="ghost" size="icon" aria-label="定期支出の翌月" disabled={month==='2099-12'} onClick={()=>changeMonth(shiftMonth(month,1))}><ChevronRight /></Button></div><Button variant="ghost" size="icon" aria-label="定期支出を更新" title="定期支出を更新" disabled={loading||busy} onClick={refresh}><RefreshCw className={loading?'animate-spin':''} /></Button></div>
@@ -44,11 +44,12 @@ export function RecurringWorkspace({initialMonth,externalRevision,onEdit,onChang
     {view==='due'&&Boolean(data?.attention.filter(a=>a.kind==='recurring'&&a.period!==month).length)&&<div className="attention-list" aria-label="別の月の確認待ち">{data?.attention.filter(a=>a.kind==='recurring'&&a.period!==month).slice(0,10).map(a=><button key={a.id+a.period} type="button" onClick={()=>changeMonth(a.period)}>{a.period} · {a.name}<span>確認待ち</span></button>)}</div>}
     {error&&<p className="form-error" role="alert">{error}</p>}
     {loading?<div className="workspace-message" role="status"><LoaderCircle className="animate-spin" />定期支出を読み込み中</div>:data&&<>
-      {view==='due'&&<section className="recurring-summary" aria-label="定期支出の予定"><span>未登録 <strong>{outstanding.length}件</strong></span><span>定額分 <strong>{formatYen(outstanding.reduce((sum,r)=>sum+(r.amount??0),0))}</strong></span><span>変動額 <strong>{outstanding.filter(r=>r.amountMode==='variable').length}件</strong></span></section>}
+      {view==='due'&&<section className="recurring-summary" aria-label="定期支出の予定"><span>未登録 <strong>{overview.pendingCount}件</strong></span><span>基準額の合計 <strong>{formatYen(overview.baseAmount)}</strong></span><span>金額入力が必要 <strong>{overview.amountCheckCount}件</strong></span></section>}
+      {view!=='plans'&&rows.some(isProvisionalRule)&&<p className="sample-notice" role="status">仮設定あり。金額・支払元・確認日の確認が必要です。サンプルの金額は前回額に使用しません。</p>}
       {view==='plans'?null:!rows.length?<p className="workspace-message">{view==='due'?'この月の定期支出はありません':'定期支出の設定なし'}</p>:<ul className="recurring-list">{rows.map(rule=>{
         const occurrence=data.occurrences.find(o=>o.ruleId===rule.id);const cat=data.masters.categories.find(c=>c.id===rule.categoryId);const state=occurrence?.state??'open';const active=isDue(rule,month);
         return <li key={rule.id}><div className="recurring-item-main"><div><strong>{rule.name}</strong><span>{cat&&<i className="category-dot" style={{backgroundColor:cat.color}} />}{cat?categoryName(cat,data.masters.categories):''}</span><small>{rule.frequency==='monthly'?'毎月':rule.frequency==='bimonthly'?'2か月ごと':'毎年 '+Number(rule.startMonth.slice(5))+'月'} · {rule.dueDay?rule.dueDay+'日（月末上限）':'月のみ'} · {data.masters.paymentSources.find(s=>s.id===rule.paymentSourceId)?.name}</small>{state==='open'&&<small>確認開始 {recurringReviewDate(rule,month,occurrence)}</small>}{data.previousAmounts[rule.id]!==undefined&&<small>前回 {formatYen(data.previousAmounts[rule.id])}</small>}</div><div className="recurring-amount"><strong>{rule.amount===null?(rule.amountMode==='previous'?'前回額':'毎回入力'):formatYen(rule.amount)}</strong><span>{view==='due'?(state==='posted'?'登録済み':state==='skipped'?'スキップ':recurringReviewDate(rule,month,occurrence)<=todayInJapan()?'確認待ち':'確認日前'):rule.archived?'停止中':rule.endMonth?'終了 '+rule.endMonth:'継続中'}</span></div></div>
-          <div className="recurring-actions"><Button variant="ghost" size="icon" aria-label={rule.name+'の設定を編集'} title="設定を編集" disabled={busy} onClick={()=>setEditing({rule,key:rule.id})}><Pencil /></Button>{view==='due'&&(state==='posted'?<Button variant="outline" disabled={busy} onClick={()=>action(rule,'edit')}>登録済みの支出</Button>:state==='skipped'?<Button variant="outline" disabled={busy||!active} onClick={()=>action(rule,'reopen')}><Undo2 />スキップ取消</Button>:<><Button variant="ghost" size="icon" title="確認を後日にする" aria-label={rule.name+'の確認を後日にする'} disabled={busy||!active} onClick={()=>setSnoozing(rule)}><Clock3 /></Button><Button variant="ghost" size="icon" title="この月をスキップ" aria-label={rule.name+'をこの月はスキップ'} disabled={busy||!active} onClick={()=>action(rule,'skip')}><SkipForward /></Button><Button variant="outline" disabled={busy||!active} onClick={()=>setConfirming(rule)}><Plus />この月を登録</Button></>)}</div>
+          <div className="recurring-actions"><Button variant="ghost" size="icon" aria-label={rule.name+'の設定を編集'} title="設定を編集" disabled={busy} onClick={()=>setEditing({rule,key:rule.id})}><Pencil /></Button>{view==='due'&&(state==='posted'?<Button variant="outline" disabled={busy} onClick={()=>action(rule,'edit')}>登録済みの支出</Button>:state==='skipped'?<Button variant="outline" disabled={busy||!active} onClick={()=>action(rule,'reopen')}><Undo2 />スキップ取消</Button>:<><Button variant="ghost" size="icon" title="確認を後日にする" aria-label={rule.name+'の確認を後日にする'} disabled={busy||!active} onClick={()=>setSnoozing(rule)}><Clock3 /></Button><Button variant="ghost" size="icon" title="この月をスキップ" aria-label={rule.name+'をこの月はスキップ'} disabled={busy||!active} onClick={()=>action(rule,'skip')}><SkipForward /></Button>{isProvisionalRule(rule)?<Button variant="outline" disabled={busy||!active} onClick={()=>setEditing({rule,key:rule.id})}><Pencil />仮設定を確認</Button>:<Button variant="outline" disabled={busy||!active} onClick={()=>setConfirming(rule)}><Plus />この月を登録</Button>}</>)}</div>
         </li>;
       })}</ul>}
     </>}
@@ -60,21 +61,24 @@ export function RecurringWorkspace({initialMonth,externalRevision,onEdit,onChang
 
 function RecurringEditor({rule,month,masters,onClose,onSaved}:{rule:RecurringRule|null;month:string;masters:Masters;onClose:()=>void;onSaved:()=>void}){
   const [id]=useState(()=>rule?.id??crypto.randomUUID());
+  const provisional=Boolean(rule&&isProvisionalRule(rule));
+  const [confirmed,setConfirmed]=useState(false);
   const [fields,setFields]=useState<RecurringFields>(()=>{
     if(rule)return recurringFields.strip().parse(rule);const expense=newExpense(masters);
     return {costClass:'unknown',reviewDay:null,reviewMonthOffset:0,name:'',amountMode:'fixed',amount:null,frequency:'monthly',startMonth:month,endMonth:null,dueDay:null,categoryId:expense.categoryId,paymentSourceId:expense.paymentSourceId??'',paymentTreatment:expense.paymentTreatment as RecurringFields['paymentTreatment'],usedByPartyId:expense.usedByPartyId,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',memo:'',archived:false};
   });
-  const [busy,setBusy]=useState(false);const [error,setError]=useState('');const lock=useRef(false);const baseline=useRef(JSON.stringify(fields));const dirty=baseline.current!==JSON.stringify(fields);
+  const [busy,setBusy]=useState(false);const [error,setError]=useState('');const lock=useRef(false);const baseline=useRef(JSON.stringify(fields));const dirty=confirmed||baseline.current!==JSON.stringify(fields);
   const patch=(input:Partial<RecurringFields>)=>setFields(old=>({...old,...input}));
   useEffect(()=>{if(!dirty)return;const unload=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',unload);return()=>window.removeEventListener('beforeunload',unload);},[dirty]);
   function close(){if(!busy&&(!dirty||window.confirm('入力中の変更を破棄しますか？')))onClose();}
-  async function save(event:FormEvent){event.preventDefault();if(lock.current)return;const parsed=validatedRecurringFields.safeParse(fields);if(!parsed.success){setError(parsed.error.issues[0]?.message??'入力内容を確認してください。');return;}lock.current=true;setBusy(true);setError('');
-    try{await requestJson(rule?'/api/recurring/'+id:'/api/recurring',{method:rule?'PUT':'POST',body:JSON.stringify({...parsed.data,...(rule?{version:rule.version}:{id})})});onSaved();}catch(error){setError(errorMessage(error));}finally{lock.current=false;setBusy(false);}
+  async function save(event:FormEvent){event.preventDefault();if(lock.current)return;const parsed=validatedRecurringFields.safeParse(provisional&&confirmed?confirmProvisionalFields(fields):fields);if(!parsed.success){setError(parsed.error.issues[0]?.message??'入力内容を確認してください。');return;}if(confirmed&&isProvisionalRule(parsed.data)){setError('名称・メモに残っている仮設定の目印を確認してください。');return;}lock.current=true;setBusy(true);setError('');
+    try{await requestJson(rule?'/api/recurring/'+id:'/api/recurring',{method:rule?'PUT':'POST',body:JSON.stringify({...parsed.data,...(rule?{version:rule.version,confirmProvisional:confirmed}:{id})})});onSaved();}catch(error){setError(errorMessage(error));}finally{lock.current=false;setBusy(false);}
   }
   const payment=recurringExpense(fields,fields.startMonth||todayInJapan().slice(0,7),masters);
   function paymentChange(input:Partial<ExpenseFields>){const allowed=['paymentSourceId','paymentTreatment','usedByPartyId','usedByText','beneficiaryKind','beneficiaryPartyId','beneficiaryText'] as const;patch(Object.fromEntries(allowed.filter(key=>key in input).map(key=>[key,input[key]])) as Partial<RecurringFields>);}
   return <Dialog open onOpenChange={open=>{if(!open)close();}}><DialogContent className="expense-dialog expense-entry-dialog" onInteractOutside={e=>e.preventDefault()} onOpenAutoFocus={e=>e.preventDefault()}><DialogHeader><DialogTitle>定期支出を{rule?'編集':'追加'}</DialogTitle><DialogDescription className="sr-only">定期支出の予定設定</DialogDescription></DialogHeader>
     <form id={'rule-form-'+id} className="expense-form" onSubmit={save}>
+      {provisional&&<><p className="sample-notice">架空の金額・日程を含む仮設定です。過去のサンプル支出は変更されません。</p><label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e=>setConfirmed(e.target.checked)} />実際の金額・支払元・確認日を確認済み</label></>}
       <label htmlFor="recurring-name">名称</label><input id="recurring-name" required maxLength={120} value={fields.name} disabled={busy} onChange={e=>patch({name:e.target.value})} />
       <label htmlFor="recurring-category">カテゴリ</label><CategorySelect id="recurring-category" label="カテゴリ" value={fields.categoryId} categories={masters.categories} disabled={busy} onChange={categoryId=>patch({categoryId,costClass:masters.categories.find(c=>c.id===categoryId)?.costClass??'unknown'})} />
       <label>金額の初期値</label><ReferenceSelect label="定期支出の金額の種類" value={fields.amountMode} options={[{id:'fixed',name:'基準額'},{id:'previous',name:'前回の確定額'},{id:'variable',name:'毎回入力'}]} disabled={busy} onChange={value=>{if(value)patch({amountMode:value as RecurringFields['amountMode'],amount:null});}} />

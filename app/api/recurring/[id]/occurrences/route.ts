@@ -7,6 +7,7 @@ import { ApiError, apiError, assertSameOrigin, json, readJson } from '@/lib/api'
 import { dateSchema, monthSchema, validatedExpenseFields, serializeExpense, todayInJapan } from '@/lib/expenses';
 import { expenseInclude, insertExpense, sameExpense } from '@/lib/expense-service';
 import { isDue, serializeRule } from '@/lib/recurring';
+import { isProvisionalRule } from '@/lib/sample-data';
 export const dynamic='force-dynamic';
 const common={period:monthSchema,ruleVersion:z.number().int().positive(),occurrenceVersion:z.number().int().min(0)};
 const schema=z.discriminatedUnion('action',[
@@ -35,6 +36,7 @@ export async function POST(request:Request,context:{params:Promise<{id:string}>}
       const snoozedUntil=input.action==='snooze'?new Date(input.until+'T00:00:00Z'):null;
       let result=null;
       if(input.action==='post'){
+        if(isProvisionalRule(rule))throw new ApiError(422,'仮設定の金額・支払元・確認日を確認してから登録してください。');
         if(occurrence?.state==='skipped')throw new ApiError(409,'スキップを取り消してから登録してください。');
         if(await tx.expense.findUnique({where:{id:input.expenseId}}))throw new ApiError(409,'別の支出に使用されているIDです。');
         result=(await insertExpense(tx,scope.ledgerId,input.expenseId,input.expense)).row;

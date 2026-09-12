@@ -18,6 +18,7 @@ import { HistoryView } from './HistoryView';
 import { ProfileDialog } from './ProfileDialog';
 import { BottomNavigation } from './BottomNavigation';
 import { ExpenseCalendar } from './ExpenseCalendar';
+import { MonthComparison } from './MonthComparison';
 import { HouseholdView } from './HouseholdView';
 import { NotesWorkspace, NoteEditor } from './NotesWorkspace';
 import { CalendarEntry } from '@/lib/expense-calendar';
@@ -172,6 +173,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         : <>
           <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>記録数</span><strong>{data.count}<small> 件</small></strong></div></section>
           <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
+          <MonthComparison month={month} revision={revision} />
           <div className="ledger-view-switch" role="group" aria-label="支出の表示方法"><button type="button" aria-pressed={presentation==='list'} onClick={()=>setPresentation('list')}><List aria-hidden="true" />一覧</button><button type="button" aria-pressed={presentation==='calendar'} onClick={()=>setPresentation('calendar')}><CalendarDays aria-hidden="true" />カレンダー</button></div>
           <div hidden={presentation!=='list'}><SummaryWorkspace month={month} masters={data} revision={revision} onChanged={refresh} onEdit={openEditor} onMastersChanged={mastersChanged} openId={summaryId} onOpened={()=>setSummaryId(null)} /></div>
           {presentation==='calendar'&&<ExpenseCalendar month={month} masters={data} revision={revision} onOpen={openCalendarEntry} onAdd={date=>setEditor({expense:null,initial:draftRecord(newExpense(data,date)),key:crypto.randomUUID()})} onNote={date=>setNoteEditor({note:null,date})} />}

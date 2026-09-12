@@ -1,0 +1,85 @@
+// Synthetic data against the disposable loopback stack only.
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+const base='http://127.0.0.1:3101';let checks=0;
+const eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
+function session(){const cookies=new Map();return async(path,method='GET',body,origin=base)=>{const r=await fetch(base+path,{method,headers:{cookie:[...cookies].map(([k,v])=>k+'='+v).join('; '),origin,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});for(const cookie of r.headers.getSetCookie()){const p=cookie.split(';')[0],i=p.indexOf('=');cookies.set(p.slice(0,i),p.slice(i+1));}return r;};}
+const owner=session(),wife=session(),other=session(),anon=session(),uninvited=session();
+async function req(who,path,method='GET',body,status=200){const r=await who(path,method,body);assert.equal(r.status,status,method+' '+path+' '+(r.status===status?'':await r.text()));checks++;return r.headers.get('content-type')?.includes('application/json')?r.json():r.text();}
+for(const [who,token] of [[owner,'111111'],[wife,'777777'],[other,'222222']])await req(who,'/api/auth/verify','POST',{email:'fixture0@example.invalid',token});
+await req(uninvited,'/api/auth/verify','POST',{email:'fixture0@example.invalid',token:'333333'},403);
+await req(anon,'/api/expenses/comparison?month=2038-08','GET',undefined,401);
+await req(anon,'/api/settlements/batch','POST',{},401);
+eq((await owner('/api/settlements/batch','POST',{},'https://evil.example')).status,403);
+await req(owner,'/api/expenses/comparison?month=2038-08&userId='+randomUUID(),'GET',undefined,400);
+await req(owner,'/api/expenses/comparison?month=2038-13','GET',undefined,400);
+eq((await req(owner,'/api/expenses/comparison?month=2000-01')).previous,null);
+const masters=await req(owner,'/api/masters'),shared=masters.parties.find(p=>p.systemKey==='shared'),self=masters.parties.find(p=>p.id===masters.selfPartyId),partner=masters.parties.find(p=>p.systemKey==='partner');
+const source=masters.paymentSources.find(s=>s.fundingPartyId===self.id&&s.method==='card');
+const expense={amount:1000,date:'2038-08-10',categoryId:'food',costClass:'variable',description:'Batch '+randomUUID(),memo:'',paymentSourceId:source.id,paidByPartyId:self.id,usedByPartyId:self.id,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',paymentTreatment:'advance',reimbursementStatus:'required',reimbursementFromPartyId:shared.id,reimbursementToPartyId:self.id,reimbursementAmount:1000};
+const create=(fields={})=>req(owner,'/api/expenses','POST',{...expense,...fields,id:randomUUID()},201);
+const a=await create(),b=await create({description:'Batch B',date:'2038-08'});
+const payload=(rows,fields={})=>({date:'2038-09-01',memo:'Batch receipt',fromPartyId:shared.id,toPartyId:self.id,entries:rows.map(e=>({id:randomUUID(),expenseId:e.id,expenseVersion:e.version,amount:e.reimbursementAmount-e.settledAmount})),...fields});
+let input=payload([a,b]);
+await req(other,'/api/settlements/batch','POST',input,404);
+await req(owner,'/api/settlements/batch','POST',{...input,userId:randomUUID()},400);
+await req(owner,'/api/settlements/batch','POST',{...input,entries:[input.entries[0],input.entries[0]]},400);
+await req(owner,'/api/settlements/batch','POST',{...input,entries:[input.entries[0],{...input.entries[1],expenseVersion:99}]},409);
+eq((await req(owner,'/api/expenses/'+a.id)).settledAmount,0);
+await req(owner,'/api/settlements/batch','POST',{...input,toPartyId:partner.id},409);
+eq((await req(owner,'/api/expenses/'+a.id)).settledAmount,0);
+await req(owner,'/api/settlements/batch','POST',{...input,entries:[{...input.entries[0],amount:1001},input.entries[1]]},409);
+const beforeTotal=(await req(owner,'/api/expenses?month=2038-08')).total;
+await req(wife,'/api/settlements/batch','POST',input,201);
+await req(owner,'/api/settlements/batch','POST',input,200);
+await req(owner,'/api/settlements/batch','POST',{...input,memo:'changed'},409);
+eq((await req(owner,'/api/expenses/'+a.id)).settlements.length,1);
+eq((await req(owner,'/api/expenses/'+b.id)).settledAmount,1000);
+eq((await req(owner,'/api/expenses?month=2038-08')).total,beforeTotal);
+const hist=await req(owner,'/api/history?entityType=settlements&entityId='+input.entries[0].id);eq(hist.events[0].actorPartyId,partner.id);
+const csv=await req(owner,'/api/settlements/export');assert.ok(csv.includes(input.entries[0].id)&&csv.includes(input.entries[1].id));checks++;
+await req(owner,'/api/expenses/'+a.id,'DELETE',{version:2},409);
+await req(owner,'/api/settlements/'+input.entries[0].id,'DELETE',{});
+eq((await req(owner,'/api/expenses/'+a.id)).settledAmount,0);
+await req(owner,'/api/settlements/batch','POST',input,409);
+// Atomic batch against a simultaneous individual repayment.
+const c=await create(),d=await create();input=payload([c,d]);
+const batch=owner('/api/settlements/batch','POST',input);
+const single=wife('/api/settlements','POST',{...input.entries[0],id:randomUUID(),date:input.date,memo:''});
+const batchStatus=(await batch).status,singleStatus=(await single).status;eq([batchStatus,singleStatus].sort(),[201,409]);
+eq((await req(owner,'/api/expenses/'+c.id)).settledAmount,1000);
+eq((await req(owner,'/api/expenses/'+d.id)).settledAmount,batchStatus===201?1000:0);
+const partial=await create();await req(owner,'/api/settlements','POST',{id:randomUUID(),expenseId:partial.id,expenseVersion:partial.version,amount:400,date:'2038-09-01',memo:''},201);
+const latest=await req(owner,'/api/expenses/'+partial.id);eq(latest.settledAmount,400);
+await req(owner,'/api/settlements/batch','POST',payload([latest]),201);eq((await req(owner,'/api/expenses/'+partial.id)).settledAmount,1000);
+const sample=await create({description:'【サンプル】立替',memo:'famfi-sample-summer-2026-v1'});
+await req(owner,'/api/settlements/batch','POST',payload([sample]),422);
+await req(owner,'/api/settlements','POST',{...payload([sample]).entries[0],date:'2038-09-01',memo:''},422);
+let list=await req(owner,'/api/settlements');eq(list.expenses.some(e=>e.id===sample.id),false);eq(list.sampleAmount,1000);
+eq((await req(owner,'/api/settlements?samples=show')).expenses.some(e=>e.id===sample.id),true);
+// Normal and provisional rules, sample previous values never become a real default.
+const rule={name:'【仮】電気代',amountMode:'previous',amount:null,frequency:'monthly',startMonth:'2038-07',endMonth:null,dueDay:20,categoryId:'utilities',paymentSourceId:source.id,paymentTreatment:'advance',usedByPartyId:self.id,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',memo:'famfi-sample-summer-2026-v1: 動作確認用の架空データです。実際の請求・支払・送金ではありません。',archived:false,costClass:'fixed',reviewDay:20,reviewMonthOffset:0};
+const r=await req(owner,'/api/recurring','POST',{...rule,id:randomUUID()},201);
+const confirm={action:'post',period:'2038-07',ruleVersion:r.version,occurrenceVersion:0,expenseId:randomUUID(),expense:{...expense,date:'2038-07-20',description:'【サンプル】電気',memo:'famfi-sample-summer-2026-v1',costClass:'fixed'}};
+await req(owner,'/api/recurring/'+r.id+'/occurrences','POST',confirm,422);
+await req(owner,'/api/recurring/'+r.id,'PUT',{...rule,name:'電気代',memo:'',version:r.version},422);
+const changed=await req(owner,'/api/recurring/'+r.id,'PUT',{...rule,name:'電気代',memo:'',version:r.version,confirmProvisional:true});
+await req(owner,'/api/recurring/'+r.id+'/occurrences','POST',{...confirm,ruleVersion:changed.version});
+eq((await req(owner,'/api/recurring?month=2038-08')).previousAmounts[r.id],undefined);
+await req(owner,'/api/recurring/'+r.id+'/occurrences','POST',{...confirm,period:'2038-08',ruleVersion:changed.version,expenseId:randomUUID(),expense:{...expense,amount:2345,reimbursementAmount:2345,description:'実際の電気代',memo:'',costClass:'fixed'}});
+eq((await req(owner,'/api/recurring?month=2038-09')).previousAmounts[r.id],2345);
+// Comparison includes only unallocated summary balances, not plans or repayments.
+const sharedSource=masters.paymentSources.find(s=>s.isDefault);
+const sum=await req(owner,'/api/summaries','POST',{id:randomUUID(),name:'Comparison summary',month:'2038-08',paymentSourceId:sharedSource.id,amount:8000},201);
+const actual=await create({paymentSourceId:sharedSource.id,paidByPartyId:shared.id,paymentTreatment:'shared',reimbursementStatus:'not_required',reimbursementAmount:0,reimbursementFromPartyId:null,reimbursementToPartyId:null,amount:2000});
+await req(owner,'/api/summaries/'+sum.id,'POST',{action:'link',version:sum.version,expenseId:actual.id,expenseVersion:actual.version});
+await req(owner,'/api/plans','POST',{id:randomUUID(),name:'Not actual',date:'2038-08',amount:900000},201);
+const comp=await req(owner,'/api/expenses/comparison?month=2038-08'),monthly=await req(owner,'/api/expenses?month=2038-08');
+eq(comp.current.total,monthly.total);eq(comp.current.summaryRemainder,6000);eq(comp.current.costs.reduce((s,c)=>s+c.amount,0),monthly.total);eq(comp.current.sampleCount,1);eq(comp.previous.sampleCount,1);
+eq((await req(other,'/api/expenses/comparison?month=2038-08')).current.total,0);
+eq((await owner('/api/expenses/comparison?month=2038-08')).headers.get('cache-control').includes('no-store'),true);
+// One operation can allocate 50 rows, with no ORM metadata grants.
+const many=[];for(let i=0;i<50;i++)many.push(await create({description:'Bulk limit '+i}));
+await req(owner,'/api/settlements/batch','POST',payload(many),201);
+eq((await req(owner,'/api/expenses/'+many[49].id)).settledAmount,1000);
+console.log(`PASS: ${checks} comparison, sample safety, atomic batch, concurrent repayment, retry, history, CSV and household isolation checks`);

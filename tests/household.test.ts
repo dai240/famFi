@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createExpenseSchema, validatedExpenseFields } from '../lib/expenses';
-import { newExpense, paymentSuggestion, beneficiaryLabel } from '../lib/household';
+import { newExpense, paymentSuggestion, beneficiaryLabel, canSummarizePayment } from '../lib/household';
 import { Masters } from '../lib/ledger';
 import { dueDate, isDue, recurringExpense, validatedRecurringFields } from '../lib/recurring';
 const husband='11111111-1111-4111-8111-111111111111',wife='22222222-2222-4222-8222-222222222222',fund='33333333-3333-4333-8333-333333333333',card='44444444-4444-4444-8444-444444444444',personal='55555555-5555-4555-8555-555555555555';
@@ -22,6 +22,26 @@ test('funding owner, buyer, beneficiary and reimbursement remain distinct',()=>{
   assert.equal(beneficiaryLabel({...fields,beneficiaryKind:'party',beneficiaryPartyId:husband},{...masters,selfPartyId:wife}),'夫');
 });
 const base={costClass:'unknown' as const,reviewDay:null,reviewMonthOffset:0,name:'Phone',amountMode:'fixed' as const,amount:3000,frequency:'monthly' as const,startMonth:'2026-01',endMonth:'2026-12',dueDay:31,categoryId:'food',paymentSourceId:personal,paymentTreatment:'advance' as const,usedByPartyId:wife,usedByText:'',beneficiaryKind:'family' as const,beneficiaryPartyId:null,beneficiaryText:'',memo:'',archived:false};
+test('compact payment presentation never fills missing identity or settlement details',()=>{
+  const fields=newExpense(masters,'2026-09');
+  assert.equal(canSummarizePayment(fields,masters),true);
+  const unknown:Partial<typeof fields>[]=[{paymentSourceId:null},{paidByPartyId:null},{usedByPartyId:null},{usedByText:'Guest'},{beneficiaryKind:'unknown'},{beneficiaryKind:'other'},{beneficiaryKind:'party',beneficiaryPartyId:fund},{paymentTreatment:'legacy'},{paymentTreatment:'review'},{paymentTreatment:'custom'},{reimbursementStatus:'unknown'}];
+  for(const patch of unknown)assert.equal(canSummarizePayment({...fields,...patch},masters),false,JSON.stringify(patch));
+  assert.equal(canSummarizePayment(fields,{...masters,paymentSources:masters.paymentSources.map(s=>({...s,archived:true}))}),false);
+  assert.equal(canSummarizePayment(fields,{...masters,parties:masters.parties.map(p=>({...p,archived:true}))}),false);
+  assert.equal(canSummarizePayment({...fields,usedByPartyId:null,usedByText:'Guest',beneficiaryKind:'other',beneficiaryText:'Friend'},masters),true);
+});
+test('compact full advance and direct payment preserve buyer, funding owner and amount',()=>{
+  const fields={...newExpense(masters,'2026-09'),amount:2000,...paymentSuggestion(masters,personal,2000)};
+  const snapshot=JSON.stringify(fields);
+  assert.equal(canSummarizePayment(fields,masters),true);
+  assert.equal(JSON.stringify(fields),snapshot);
+  assert.equal(canSummarizePayment({...fields,reimbursementAmount:1000},masters),false);
+  assert.equal(canSummarizePayment({...fields,reimbursementToPartyId:husband},masters),false);
+  assert.equal(canSummarizePayment({...fields,reimbursementFromPartyId:husband},masters),false);
+  assert.equal(canSummarizePayment({...fields,...paymentSuggestion(masters,personal,2000,'direct')},masters),true);
+  assert.equal(canSummarizePayment({...fields,...paymentSuggestion(masters,personal,2000,'shared')},masters),false);
+});
 test('recurring schedule clamps month ends, supports yearly and month-only, never fabricates a variable amount',()=>{
   assert.ok(validatedRecurringFields.safeParse(base).success);assert.equal(dueDate('2024-02',31),'2024-02-29');assert.equal(dueDate('2026-02',31),'2026-02-28');assert.equal(dueDate('2026-09',null),'2026-09');
   for(const [month,expected] of [['2025-12',false],['2026-01',true],['2026-12',true],['2027-01',false]] as const)assert.equal(isDue(base,month),expected);

@@ -1,12 +1,12 @@
 // Rerunnable against the disposable stack after profile confirmation tests.
 import { chromium,webkit } from 'playwright';
 import assert from 'node:assert/strict';
-import {openMasters} from './browser-navigation.mjs';
+import {openMasters,expandExpenseFields} from './browser-navigation.mjs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/profiles');await mkdir(output,{recursive:true});let checks=0;
 const check=(v,m)=>{assert.ok(v,m);checks++;};
-async function choose(page,scope,label,name){await scope.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
+async function choose(page,scope,label,name){if(label==='支払元')await expandExpenseFields(scope);await scope.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
 for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
   const browser=await engine.launch();const context=await browser.newContext({locale:'ja-JP',timezoneId:'Asia/Tokyo'});const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   page.on('dialog',dialog=>dialog.accept());
@@ -17,7 +17,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       await page.setViewportSize({width,height});await page.screenshot({path:path.join(output,`${engineName}-${width}-header.png`),animations:'disabled'});
       const header=page.locator('.expense-header-inner');check(await header.evaluate(el=>el.scrollWidth<=el.clientWidth),'Long name fits header');
       check(await header.evaluate(el=>{const box=el.getBoundingClientRect();return [...el.querySelectorAll('.profile-header span,.profile-header strong')].every(child=>{const r=child.getBoundingClientRect();return r.top>=box.top&&r.bottom<=box.bottom;});}),'Header text is not clipped vertically');
-      const boxes=await header.locator(':scope > *').evaluateAll(elements=>elements.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,end:r.right};}));
+      const boxes=await header.locator(':scope > *').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return {x:r.x,end:r.right};}));
       for(let i=1;i<boxes.length;i++)check(boxes[i-1].end<=boxes[i].x+1,'Header controls do not overlap');
     }
     await page.setViewportSize({width:390,height:844});await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});await manager.getByRole('tab',{name:'支払元',exact:true}).click();await manager.getByRole('button',{name:'追加',exact:true}).click();

@@ -1,7 +1,7 @@
 // Only loopback fixtures. Real invitations and production profiles are never changed.
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
-import {openMasters} from './browser-navigation.mjs';
+import {openMasters,expandExpenseFields} from './browser-navigation.mjs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/profiles');
@@ -61,6 +61,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       await page.setViewportSize({width,height});await fits(page,page.locator('.expense-header-inner'));
       await page.locator('.desktop-add:visible,.mobile-add button:visible').click();
       const editor=page.getByRole('dialog',{name:'支出を記録',exact:true});await editor.waitFor();
+      await expandExpenseFields(editor);
       check((await combo(editor,'支払元').innerText()).includes('家族カード'),'Shared card remains default');
       check((await combo(editor,'購入・支払いをした人').innerText()).includes('自分（あいうえおかきくけこ）'),'Buyer defaults to linked signed-in person');
       check((await combo(editor,'誰のため').innerText()).includes('家族'),'Family remains beneficiary default');
@@ -82,6 +83,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
     await profile.getByRole('button',{name:'保存',exact:true}).click();await profile.getByRole('alert').waitFor();check(await profile.getByLabel('表示名',{exact:true}).inputValue()==='変更後','Conflict retains input');
     await profile.getByRole('button',{name:'最新の設定を読み込む'}).click();await profile.getByRole('button',{name:'保存',exact:true}).click();await profile.waitFor({state:'hidden'});
     await ready(wife);await wife.locator('.desktop-add:visible,.mobile-add button:visible').click();const wifeEditor=wife.getByRole('dialog',{name:'支出を記録',exact:true});
+    await expandExpenseFields(wifeEditor);
     check((await combo(wifeEditor,'購入・支払いをした人').innerText()).includes('自分（配偶者テスト）'),'Wife sees self, not husband');
     await combo(wifeEditor,'支払元').click();check((await wife.getByRole('listbox').innerText()).includes('変更後のカード'),'Rename reaches spouse sources');await wife.keyboard.press('Escape');
     await wifeEditor.getByRole('button',{name:'キャンセル',exact:true}).click();

@@ -23,6 +23,24 @@ export function paymentSourceGroups(masters: Masters, selected: string | null, i
 export function beneficiaryLabel(expense: Pick<ExpenseFields,'beneficiaryKind'|'beneficiaryPartyId'|'beneficiaryText'>, masters: Masters) {
   return expense.beneficiaryKind === 'family' ? '家族' : expense.beneficiaryKind === 'other' ? expense.beneficiaryText : personLabel(expense.beneficiaryPartyId,masters);
 }
+// Presentation only: incomplete or exceptional payment details stay expanded.
+export function canSummarizePayment(fields: ExpenseFields, masters: Masters) {
+  const person = (id: string | null) => masters.parties.find(p => p.id === id && p.kind === 'person' && !p.archived);
+  const source = masters.paymentSources.find(s => s.id === fields.paymentSourceId && !s.archived);
+  const funder = masters.parties.find(p => p.id === source?.fundingPartyId && !p.archived);
+  const buyer = fields.usedByPartyId ? Boolean(person(fields.usedByPartyId)) && !fields.usedByText : Boolean(fields.usedByText.trim());
+  const beneficiary = fields.beneficiaryKind === 'family' ? !fields.beneficiaryPartyId && !fields.beneficiaryText
+    : fields.beneficiaryKind === 'party' ? Boolean(person(fields.beneficiaryPartyId)) && !fields.beneficiaryText
+    : fields.beneficiaryKind === 'other' && !fields.beneficiaryPartyId && Boolean(fields.beneficiaryText.trim());
+  if (!source || !funder || fields.paidByPartyId !== funder.id || !buyer || !beneficiary) return false;
+  if (fields.paymentTreatment === 'advance') {
+    const from = masters.parties.find(p => p.id === fields.reimbursementFromPartyId && p.systemKey === 'shared' && !p.archived);
+    return funder.kind === 'person' && Boolean(from) && fields.reimbursementToPartyId === funder.id && fields.reimbursementStatus === 'required'
+      && fields.reimbursementAmount === fields.amount;
+  }
+  return (fields.paymentTreatment === 'shared' && funder.kind === 'shared' || fields.paymentTreatment === 'direct' && funder.kind === 'person')
+    && fields.reimbursementStatus === 'not_required' && fields.reimbursementAmount === 0 && !fields.reimbursementFromPartyId && !fields.reimbursementToPartyId;
+}
 export function paymentSuggestion(masters: Masters, sourceId: string | null, amount: number, treatment?: ExpenseFields['paymentTreatment']): Partial<ExpenseFields> {
   const source = masters.paymentSources.find(p => p.id === sourceId);
   const mode = treatment ?? source?.defaultTreatment ?? 'review';

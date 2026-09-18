@@ -11,3 +11,9 @@ export async function openMasters(page){
   if(await nav.isVisible()){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name:'マスタ管理',exact:true}).click();}
   else await page.getByRole('button',{name:'マスタ管理',exact:true}).click();
 }
+export async function expandExpenseFields(dialog) {
+  for(const name of ['支払情報を変更','支出日を変更']){
+    const button=dialog.getByRole('button',{name,exact:true});
+    if(await button.isVisible())await button.click();
+  }
+}

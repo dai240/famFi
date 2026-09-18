@@ -13,10 +13,11 @@ export function MonthComparison({month,revision}:{month:string;revision:number})
   if(error)return <div className="comparison-status" role="status">前月比較：{error}<Button variant="ghost" size="icon" title="前月比較を再読み込み" aria-label="前月比較を再読み込み" onClick={()=>setRetry(n=>n+1)}><RefreshCw /></Button></div>;
   if(!data||data.current.month!==month)return <p className="comparison-status" role="status">前月比較を読み込み中</p>;
   const result=compareMonths(data), sampleCount=data.current.sampleCount+(data.previous?.sampleCount??0);
+  const inProgress=month>=todayInJapan().slice(0,7);
   return <section className="month-comparison" aria-label="前月比較">
     {sampleCount>0&&<p className="sample-notice">{data.current.sampleCount>0?'この月の支出合計・比較には':'前月比較には'}サンプルを含みます。実際の家計への評価ではありません。</p>}
-    <details><summary><span>前月比 {result.available?<strong>{signed(result.delta)}{result.percent!==null&&<small>（{result.percent>0?'+':''}{result.percent.toFixed(1)}%）</small>}</strong>:<span className="muted-text">前月の記録なし</span>}</span><ChevronDown aria-hidden="true" /></summary>
-      {month===todayInJapan().slice(0,7)&&<p className="muted-text">月途中の実績と前月全体の比較</p>}
+    <p className="muted-text comparison-period">{inProgress?(month===todayInJapan().slice(0,7)?'今月ここまでの記録と前月全体の比較':'対象月の登録済み支出と前月全体の比較'):'対象月と前月の月全体を比較'}</p>
+    <details><summary><span>{inProgress?'前月総額との差':'前月比'} {result.available?<strong>{signed(result.delta)}{!inProgress&&result.percent!==null&&<small>（{result.percent>0?'+':''}{result.percent.toFixed(1)}%）</small>}</strong>:<span className="muted-text">前月の記録なし</span>}</span><ChevronDown aria-hidden="true" /></summary>
       {!result.available?<p className="muted-text">未入力の可能性があるため、増減を算出していません。</p>:<>
         <dl className="comparison-costs">{result.costs.map(item=><div key={item.costClass}><dt>{costClassLabels[item.costClass as CostClass]}</dt><dd>{signed(item.delta)}</dd></div>)}</dl>
         <h3>増加したカテゴリ</h3>{result.categories.length?<ul className="comparison-categories">{result.categories.map(c=><li key={c.categoryId}><span><i className="category-dot" style={{backgroundColor:c.color}} />{c.name}</span><strong>{signed(c.delta)}</strong></li>)}</ul>:<p className="muted-text">増加したカテゴリなし</p>}

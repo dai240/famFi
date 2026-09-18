@@ -24,7 +24,7 @@ for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
         await navigate(page,view);await page.locator('.expense-main:visible h1').first().waitFor();
         const heading=await page.locator('.expense-main:visible h1').first().innerText();
         await nav.getByRole('button',{name:'支出を記録',exact:true}).click();const dialog=page.getByRole('dialog',{name:'支出を記録',exact:true});await dialog.waitFor();
-        check((await dialog.getByRole('combobox',{name:'支払元',exact:true}).innerText()).includes('家族カード'),'Family card default from '+key);
+        check((await dialog.locator('.compact-payment-summary').innerText()).includes('家族カード'),'Family card default from '+key);
         const save=await dialog.getByRole('button',{name:'保存',exact:true}).boundingBox();check(save.y>=0&&save.y+save.height<=height,'Save fits '+key);
         await dialog.getByRole('button',{name:'キャンセル',exact:true}).click();await dialog.waitFor({state:'hidden'});
         check(await page.locator('.expense-main:visible h1').first().innerText()===heading,'Cancel returns to '+key);

@@ -1,7 +1,7 @@
 // Uses only the disposable loopback stack; never production accounts or data.
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
-import {navigate} from './browser-navigation.mjs';
+import {navigate,expandExpenseFields} from './browser-navigation.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -44,6 +44,7 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
     page.on('dialog', dialog => dialog.accept());
     await page.goto(base + '/login');
+    await page.waitForLoadState('networkidle');
     await page.getByLabel('メールアドレス').fill('fixture0@example.invalid');
     await page.getByRole('button', { name: '確認コードを送信', exact: true }).click();
     await page.getByLabel('確認コード', { exact: true }).fill('111111');
@@ -100,6 +101,7 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
       await page.screenshot({ path: path.join(output, label + '-selected.png'), animations: 'disabled' });
       await editor.getByLabel('金額（円）').fill('1200');
       await editor.getByLabel('内容', { exact: false }).fill('詳細あり ' + label);
+      await expandExpenseFields(editor);
       await editor.getByRole('radio', { name: '月のみ', exact: true }).check();
       await editor.getByLabel('支出月', { exact: true }).fill(month);
       await save(editor);
@@ -164,6 +166,7 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
       await editRule.getByRole('button', { name: 'キャンセル', exact: true }).click();
       await item.getByRole('button', { name: 'この月を登録', exact: true }).click();
       const confirmation = page.getByRole('dialog', { name: ruleName + 'を登録', exact: true });
+      await confirmation.getByRole('button', { name: '詳細を編集', exact: true }).click();
       check((await combo(confirmation, '詳細カテゴリ').innerText()).includes(child.name), 'Period confirmation preserves category selection');
       await fit(page, confirmation);
       await save(confirmation);

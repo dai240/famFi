@@ -2,7 +2,7 @@ import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { navigate } from './browser-navigation.mjs';
+import { navigate, expandExpenseFields } from './browser-navigation.mjs';
 const base='http://127.0.0.1:3101',output='test-results/notes';await mkdir(output,{recursive:true});let checks=0;
 const check=(v,message)=>{assert.ok(v,message);checks++;};
 for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
@@ -29,9 +29,10 @@ for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
       await page.getByRole('button',{name:/日付未定・月のみ/}).click();await page.locator('.calendar-agenda').getByRole('button',{name:new RegExp(title)}).waitFor();check(true,'Monthly memo appears without invented day');
       check(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth),'No horizontal overflow');
       await page.screenshot({path:`${output}/${name}-${width}-calendar.png`,animations:'disabled'});
-      await page.getByRole('button',{name:'この日に支出を記録',exact:true}).click();dialog=page.getByRole('dialog',{name:'支出を記録',exact:true});await dialog.waitFor();check(await dialog.getByLabel('支出月').inputValue()==='2037-09','New expense keeps selected month precision');
+      await page.getByRole('button',{name:'この日に支出を記録',exact:true}).click();dialog=page.getByRole('dialog',{name:'支出を記録',exact:true});await dialog.waitFor();await expandExpenseFields(dialog);check(await dialog.getByLabel('支出月').inputValue()==='2037-09','New expense keeps selected month precision');
       await dialog.getByLabel('金額（円）').fill('987');await dialog.getByLabel('保存後も続けて登録').check();await dialog.getByRole('button',{name:'保存',exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('#expense-amount')?.value==='');
+      await expandExpenseFields(dialog);
       check(await dialog.getByLabel('保存後も続けて登録').isChecked(),'Continuous entry remains enabled');check((await dialog.getByRole('combobox',{name:'支払元',exact:true}).innerText()).includes('家族カード'),'Continuous entry uses default source');check(await dialog.getByLabel('支出月').inputValue()==='2037-09','Continuous entry keeps date');
       await dialog.getByRole('button',{name:'キャンセル',exact:true}).click();await dialog.waitFor({state:'hidden'});
       await page.getByRole('group',{name:'支出の表示方法'}).getByRole('button',{name:'一覧',exact:true}).click();await page.locator('.expense-body').waitFor({state:'visible'});

@@ -3,6 +3,7 @@ import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import {expandExpenseFields} from './browser-navigation.mjs';
 
 const base = 'http://127.0.0.1:3101';
 const output = path.resolve('test-results/expense-input');
@@ -41,6 +42,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
       await page.locator('.desktop-add:visible, .mobile-add button:visible').click();
       const dialog = page.getByRole('dialog', { name: '支出を記録', exact: true });
       await dialog.waitFor();
+      await expandExpenseFields(dialog);
       await dialog.getByLabel('金額（円）').fill('750');
       await dialog.getByLabel('支出日', { exact: true }).scrollIntoViewIfNeeded();
       const dateBox = await insideViewport(page, dialog.getByLabel('支出日', { exact: true }));

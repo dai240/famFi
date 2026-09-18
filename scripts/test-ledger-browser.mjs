@@ -1,7 +1,7 @@
 // Full UI workflow against the local fixture stack only.
 import { chromium,webkit } from 'playwright';
 import assert from 'node:assert/strict';
-import {navigate,openMasters} from './browser-navigation.mjs';
+import {navigate,openMasters,expandExpenseFields} from './browser-navigation.mjs';
 import { mkdir,readFile } from 'node:fs/promises';
 import path from 'node:path';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/expense-management');await mkdir(output,{recursive:true});let checks=0;
@@ -31,6 +31,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       await manager.getByRole('tab',{name:'支払元',exact:true}).click();await manager.getByRole('button',{name:'追加',exact:true}).click();await choose(page,manager,'資金の持ち主',person);await manager.getByLabel('持ち主の名前を付ける',{exact:true}).uncheck();await manager.getByLabel('名称',{exact:true}).fill(source);await fit(page,manager);await page.screenshot({path:path.join(output,name+'-payment-source.png'),animations:'disabled'});await manager.getByRole('button',{name:'保存',exact:true}).click();await manager.getByRole('button',{name:source+'を編集',exact:true}).waitFor();await manager.getByRole('button',{name:'閉じる',exact:true}).click();await manager.waitFor({state:'hidden'});
       await page.locator('.desktop-add:visible, .mobile-add button:visible').click();const editor=page.getByRole('dialog',{name:'支出を記録',exact:true});
       await editor.getByLabel('金額（円）').fill('3000');await editor.getByLabel('内容',{exact:false}).fill(description);
+      await expandExpenseFields(editor);
       await editor.getByRole('button',{name:'カテゴリを管理',exact:true}).click();await manager.getByRole('button',{name:child+'を編集',exact:true}).click();await manager.getByRole('button',{name:'色 #367D91',exact:true}).click();await manager.getByRole('button',{name:'保存',exact:true}).click();await manager.getByRole('button',{name:child+'を編集',exact:true}).waitFor();await manager.getByRole('button',{name:'閉じる',exact:true}).click();await manager.waitFor({state:'hidden'});check(await editor.getByLabel('金額（円）').inputValue()==='3000','Master management preserves amount draft');check(await editor.getByLabel('内容',{exact:false}).inputValue()===description,'Master management preserves description draft');
       await choose(page,editor,'カテゴリ',parent);await choose(page,editor,'詳細カテゴリ',child);
       check(await editor.getByRole('combobox',{name:'詳細カテゴリ',exact:true}).locator('.category-swatch').evaluate(el=>getComputedStyle(el).backgroundColor)==='rgb(54, 125, 145)','Edited color is reflected');

@@ -3,7 +3,7 @@ import { chromium,webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import {navigate} from './browser-navigation.mjs';
+import {navigate,expandExpenseFields} from './browser-navigation.mjs';
 const base='http://127.0.0.1:3101',output=path.resolve('test-results/household');await mkdir(output,{recursive:true});let checks=0;
 const check=(value,message)=>{assert.ok(value,message);checks++;};
 async function choose(page,scope,label,name){await scope.getByRole('combobox',{name:label,exact:true}).click();await page.getByRole('option',{name,exact:true}).click();}
@@ -22,6 +22,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       console.log('Checking household '+engineName+' '+width+'x'+height);
       await navigate(page,'支出');await page.locator('.desktop-add:visible, .mobile-add button:visible').click();
       let editor=page.getByRole('dialog',{name:'支出を記録',exact:true});await editor.waitFor();
+      await expandExpenseFields(editor);
       check((await editor.getByRole('combobox',{name:'支払元',exact:true}).innerText()).includes('家族カード'),'Default family card');
       check((await editor.getByRole('combobox',{name:'購入・支払いをした人',exact:true}).innerText()).includes('自分（夫）'),'Default authenticated buyer');
       check((await editor.getByRole('combobox',{name:'誰のため',exact:true}).innerText()).includes('家族'),'Default family beneficiary');
@@ -48,7 +49,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const item=workspace.locator('.recurring-list > li').filter({hasText:'電気 '+label});await item.getByRole('button',{name:'この月を登録',exact:true}).waitFor();
       let occurrences=await(await page.request.get(base+'/api/recurring?month=2031-02')).json();const rule=occurrences.rules.find(r=>r.name==='電気 '+label);check(!occurrences.occurrences.some(o=>o.ruleId===rule.id),'Saving a recurring rule does not create an expense');
       await item.getByRole('button',{name:'電気 '+label+'をこの月はスキップ',exact:true}).click();await item.getByRole('button',{name:'スキップ取消',exact:true}).click();await item.getByRole('button',{name:'この月を登録',exact:true}).click();
-      const confirmation=page.getByRole('dialog',{name:'電気 '+label+'を登録',exact:true});check(await confirmation.getByLabel('金額（円）').inputValue()==='','Variable amount starts blank');await confirmation.getByLabel('金額（円）').fill('6800');check(await confirmation.getByLabel('精算対象額（円）').inputValue()==='6800','Variable reimbursement follows entered amount');
+      const confirmation=page.getByRole('dialog',{name:'電気 '+label+'を登録',exact:true});check(await confirmation.getByLabel('金額（円）').inputValue()==='','Variable amount starts blank');await confirmation.getByLabel('金額（円）').fill('6800');await expandExpenseFields(confirmation);check(await confirmation.getByLabel('精算対象額（円）').inputValue()==='6800','Variable reimbursement follows entered amount');
       await fit(page,confirmation);await page.screenshot({path:path.join(output,label+'-recurring.png'),animations:'disabled'});await confirmation.getByRole('button',{name:'保存',exact:true}).click();await confirmation.waitFor({state:'hidden'});await item.getByRole('button',{name:'登録済みの支出',exact:true}).waitFor();
       occurrences=await(await page.request.get(base+'/api/recurring?month=2031-02')).json();const occurrence=occurrences.occurrences.find(o=>o.ruleId===rule.id);const posted=await(await spouse.request.get(base+'/api/expenses/'+occurrence.expenseId)).json();check(posted.amount===6800&&posted.reimbursementToPartyId===wifeMasters.selfPartyId,'Generated expense shared with spouse, advance to funding owner');
       await item.getByRole('button',{name:'登録済みの支出',exact:true}).click();const postedEditor=page.getByRole('dialog',{name:'支出を編集',exact:true});await postedEditor.getByRole('button',{name:'削除',exact:true}).click();const deletion=page.getByRole('dialog',{name:'支出を削除しますか？',exact:true});await deletion.getByRole('button',{name:'削除する',exact:true}).click();await deletion.waitFor({state:'hidden'});await item.getByRole('button',{name:'この月を登録',exact:true}).waitFor();

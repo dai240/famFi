@@ -2,6 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
+.monthly-review { border-bottom: 1px solid #e1e7e4; margin-bottom: 12px; font-size: 14px; }
+.monthly-review summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; list-style: none; }
+.monthly-review summary::-webkit-details-marker { display: none; }
+.monthly-review summary svg, .monthly-review button svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.monthly-review details[open] > summary > svg { transform: rotate(180deg); }
+.monthly-review summary span { min-width: 0; overflow-wrap: anywhere; }
+.monthly-review summary:focus-visible, .monthly-review button:focus-visible { outline: 2px solid #16765e; outline-offset: 2px; }
+.review-title { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; font-weight: 600; padding: 10px 0; }
+.review-title small { flex-basis: 100%; font-weight: 400; color: #62716b; }
+.review-count { padding: 2px 6px; border-radius: 4px; background: #fff1be; color: #70520c; font-size: 12px; }
+.review-clear { font-size: 12px; color: #62716b; font-weight: 400; }
+.review-content { padding-bottom: 12px; }
+.review-period-actions { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(220px,100%),1fr)); gap: 0 24px; }
+.review-period-actions button, .review-records button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; text-align: left; padding: 10px 0; }
+.review-period-actions button span, .review-records button > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.review-period-actions button > strong, .review-records button > strong { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.review-period-actions button:hover, .review-records button:hover { color: #126750; background: #f5f9f7; }
+.review-records button:disabled { opacity: .6; }
+.review-records small { display: block; font-size: 12px; color: #62716b; margin-top: 3px; }
+.review-group { border-top: 1px solid #edf0ee; }
+.review-group summary strong { margin-left: 8px; }
+.review-other-period { margin: 8px 0 12px; }
+.review-other-period h3 { font-size: 12px; color: #62716b; }
+.review-optional summary small { margin-left: 8px; color: #62716b; }
+.review-muted { font-size: 12px; color: #62716b; padding: 8px 0; overflow-wrap: anywhere; }
+.review-muted span { display: inline-block; margin-left: 8px; }
+.review-status { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: 13px; color: #62716b; }
+.review-status p { flex: 1; overflow-wrap: anywhere; }
+
 .sample-notice { margin: 12px 0; padding: 12px 14px; border-left: 3px solid #bc941e; background: #fff9e5; color: #645013; font-size: 13px; overflow-wrap: anywhere; }
 .sample-notice .check-label { margin-top: 10px; }
 .comparison-status { min-height: 44px; padding: 12px 0; font-size: 13px; color: #62716b; }

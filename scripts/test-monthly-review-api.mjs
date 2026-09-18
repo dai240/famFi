@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { seedReview } from './monthly-review-fixture.mjs';
+const base='http://127.0.0.1:3101';let checks=0;
+const eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
+function session(){const cookies=new Map();return async(path,method='GET',body,status=200)=>{
+  const r=await fetch(base+path,{method,headers:{cookie:[...cookies].map(([k,v])=>k+'='+v).join('; '),origin:base,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  for(const cookie of r.headers.getSetCookie()){const p=cookie.split(';')[0],i=p.indexOf('=');cookies.set(p.slice(0,i),p.slice(i+1));}
+  const text=await r.text();eq(r.status,status);assert.match(r.headers.get('cache-control'),/no-store/);checks++;
+  return r.headers.get('content-type')?.includes('application/json')?JSON.parse(text):text;
+};}
+const owner=session(),wife=session(),other=session(),anon=session(),uninvited=session();
+for(const [who,token] of [[owner,'111111'],[wife,'777777'],[other,'222222']])await who('/api/auth/verify','POST',{email:'fixture0@example.invalid',token});
+await uninvited('/api/auth/verify','POST',{email:'fixture0@example.invalid',token:'333333'},403);
+await anon('/api/attention?month=2022-04','GET',undefined,401);
+await uninvited('/api/attention?month=2022-04','GET',undefined,401);
+for(const query of ['month=2022-13','month=2022-04&userId='+randomUUID(),'month=2022-04&ledgerId='+randomUUID(),'month=2022-04&today=2099-12-31'])await owner('/api/attention?'+query,'GET',undefined,400);
+const f=await seedReview(owner,'2022-04');
+const endpoint='/api/attention?month='+f.month;
+const original=(await owner('/api/expenses?month='+f.month)).total;
+let data=await owner(endpoint),review=data.review;
+eq(data.count,4);eq(data.items.length,4);eq(review.month,f.month);
+eq(review.periods,[{month:f.previous,recurring:1,plans:1},{month:f.month,recurring:1,plans:1}]);
+eq(review.waiting,{count:2,nextDate:'2099-12-31'});eq(review.payments,[{id:f.payment.id,name:f.payment.description,date:f.month,amount:2300}]);
+eq(review.samplePaymentCount,1);eq(review.summaries,[{id:f.summary.id,name:f.summary.name,remainder:9000}]);
+eq((await wife(endpoint)).review,review);
+const empty=(await other(endpoint)).review;eq(empty.payments,[]);eq(empty.summaries,[]);eq(empty.periods,[]);eq(empty.samplePaymentCount,0);
+const legacy=await owner('/api/attention');eq(legacy.count,data.count);eq(legacy.items,data.items);eq('review' in legacy,false);
+eq((await owner('/api/expenses?month='+f.month)).total,original);
+eq((await owner('/api/attention?month=2000-01')).review.payments,[]);
+eq((await owner('/api/attention?month=2099-12')).review.summaries,[]);
+await other('/api/expenses/'+f.payment.id,'GET',undefined,404);
+await other('/api/summaries/'+f.summary.id+'?month='+f.month,'GET',undefined,404);
+const {id,version,createdAt,updatedAt,settledAmount,settlements,summaryId,recordedByPartyId,updatedByPartyId,...fields}=f.payment;
+await wife('/api/expenses/'+id,'PUT',{...fields,paymentTreatment:'shared',reimbursementStatus:'not_required',version});
+eq((await owner(endpoint)).review.payments,[]);
+await owner('/api/plans/'+f.plan.id,'POST',{action:'cancel',version:f.plan.version});
+eq((await owner(endpoint)).review.periods.find(p=>p.month===f.month).plans,0);
+const occurrence=(await owner('/api/recurring?month='+f.month)).occurrences.find(o=>o.ruleId===f.posted.id);
+const posted=await owner('/api/expenses/'+occurrence.expenseId);
+await owner('/api/expenses/'+posted.id,'DELETE',{version:posted.version});
+eq((await owner(endpoint)).review.periods.find(p=>p.month===f.month).recurring,2);
+let summary=(await owner('/api/summaries/'+f.summary.id+'?month='+f.month)).summary;
+await owner('/api/summaries/'+summary.id,'PUT',{name:summary.name,month:summary.month,amount:summary.amount,paymentSourceId:summary.paymentSourceId,memo:summary.memo,complete:true,version:summary.version});
+eq((await owner(endpoint)).review.summaries,[]);
+summary=(await owner('/api/summaries/'+f.summary.id+'?month='+f.month)).summary;
+await owner('/api/summaries/'+summary.id,'PUT',{name:summary.name,month:summary.month,amount:summary.detailedAmount,paymentSourceId:summary.paymentSourceId,memo:summary.memo,complete:false,version:summary.version});
+eq((await owner(endpoint)).review.summaries,[]);
+// Pagination in the expense ledger must not truncate payment checks.
+for(let i=0;i<52;i++)await owner('/api/expenses','POST',{...f.expense,date:'2022-05',description:'確認対象 '+i,id:randomUUID()},201);
+eq((await owner('/api/attention?month=2022-05')).review.payments.length,52);
+console.log(`PASS: ${checks} monthly review auth/isolation, dates, sample exclusion, summaries, refresh and pagination checks`);

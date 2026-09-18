@@ -2,21 +2,33 @@ import 'server-only';
 import { Prisma } from '@prisma/client';
 import { ApiError } from './api';
 import { dbSchema } from './database-schema';
-import { ExpenseRecord, querySchema, todayInJapan } from './expenses';
+import { ExpenseRecord, monthRange, querySchema, todayInJapan } from './expenses';
 import { recurringAttention, RecurringOccurrence, serializeRule } from './recurring';
 import { planIsActionable, planReviewDate, serializePlan, serializeSummary } from './planning';
+import { reviewPeriods, waitingReviews, type AttentionResponse } from './monthly-review';
+import { isSampleRecord } from './sample-data';
 
 export async function readRecurringState(tx:Prisma.TransactionClient){
   const rules=(await tx.recurringRule.findMany({orderBy:[{archived:'asc'},{name:'asc'},{id:'asc'}]})).map(serializeRule);
   const occurrences:RecurringOccurrence[]=(await tx.recurringOccurrence.findMany()).map(row=>({id:row.id,ruleId:row.ruleId,period:row.period.toISOString().slice(0,7),state:row.state as RecurringOccurrence['state'],expenseId:row.expenseId,version:row.version,snoozedUntil:row.snoozedUntil?.toISOString().slice(0,10)??null}));
   return {rules,occurrences};
 }
-export async function readAttention(tx:Prisma.TransactionClient){
+export async function readAttention(tx:Prisma.TransactionClient,review?:{month:string;ledgerId:string}):Promise<AttentionResponse>{
   const {rules,occurrences}=await readRecurringState(tx);
   const plans=(await tx.plannedExpense.findMany({where:{state:'open'}})).map(serializePlan);
   const today=todayInJapan();
   const items=[...recurringAttention(rules,occurrences,today),...plans.filter(p=>planIsActionable(p,today)).map(p=>({kind:'plan' as const,id:p.id,name:p.name,period:p.date.slice(0,7),reviewDate:planReviewDate(p)}))].sort((a,b)=>a.reviewDate.localeCompare(b.reviewDate));
-  return {count:items.length,items:items.slice(0,100)};
+  const response:AttentionResponse={count:items.length,items:items.slice(0,100)};
+  if(review){
+    const {month,ledgerId}=review;
+    const rows=await tx.expense.findMany({where:{userId:ledgerId,date:monthRange(month),reimbursementStatus:'unknown'},select:{id:true,date:true,datePrecision:true,description:true,memo:true,amount:true,category:{select:{name:true}}},orderBy:[{date:'asc'},{id:'asc'}]});
+    const summaries=await readSummaries(tx,{userId:ledgerId,month:monthRange(month).gte,complete:false});
+    response.review={month,today,periods:reviewPeriods(items),waiting:waitingReviews(rules,occurrences,plans,month,today),
+      payments:rows.filter(row=>!isSampleRecord(row)).map(row=>({id:row.id,name:row.description||row.category.name,date:row.date.toISOString().slice(0,row.datePrecision==='month'?7:10),amount:row.amount})),
+      samplePaymentCount:rows.filter(isSampleRecord).length,
+      summaries:summaries.filter(row=>row.remainder>0).map(row=>({id:row.id,name:row.name,remainder:row.remainder}))};
+  }
+  return response;
 }
 export async function readSummaries(tx:Prisma.TransactionClient,where:Prisma.ExpenseSummaryWhereInput={}){
   const rows=await tx.expenseSummary.findMany({where,orderBy:[{month:'desc'},{id:'asc'}]});

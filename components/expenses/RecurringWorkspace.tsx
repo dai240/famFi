@@ -19,8 +19,8 @@ import { ReferenceSelect } from './ReferenceSelect';
 import { SnoozeDialog } from './SnoozeDialog';
 import { PlansWorkspace } from './PlansWorkspace';
 
-export function RecurringWorkspace({initialMonth,externalRevision,onEdit,onChanged,onMastersChanged}:{initialMonth:string;externalRevision:number;onEdit:(row:ExpenseRecord)=>void;onChanged:()=>void;onMastersChanged:(masters:Masters)=>void}){
-  const [month,setMonth]=useState(initialMonth);const [view,setView]=useState('due');const [data,setData]=useState<RecurringResponse|null>(null);
+export function RecurringWorkspace({initialMonth,initialView='due',externalRevision,onEdit,onChanged,onMastersChanged}:{initialMonth:string;initialView?:'due'|'plans';externalRevision:number;onEdit:(row:ExpenseRecord)=>void;onChanged:()=>void;onMastersChanged:(masters:Masters)=>void}){
+  const [month,setMonth]=useState(initialMonth);const [view,setView]=useState<string>(initialView);const [data,setData]=useState<RecurringResponse|null>(null);
   const [revision,setRevision]=useState(0);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const lock=useRef(false);
   const [editing,setEditing]=useState<{rule:RecurringRule|null;key:string}|null>(null);const [confirming,setConfirming]=useState<RecurringRule|null>(null);
   const [snoozing,setSnoozing]=useState<RecurringRule|null>(null);
@@ -40,7 +40,7 @@ export function RecurringWorkspace({initialMonth,externalRevision,onEdit,onChang
     <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>予定・定期</h1></div>{view!=='plans'&&<Button className="primary-action" disabled={!data||loading||busy} onClick={()=>setEditing({rule:null,key:crypto.randomUUID()})}><Plus />定期支出</Button>}</div>
     <div className="expense-toolbar"><div className="month-selector"><Button variant="ghost" size="icon" aria-label="定期支出の前月" disabled={month==='2000-01'} onClick={()=>changeMonth(shiftMonth(month,-1))}><ChevronLeft /></Button><input aria-label="定期支出の表示月" type="month" min="2000-01" max="2099-12" value={month} onChange={e=>changeMonth(e.target.value)} /><Button variant="ghost" size="icon" aria-label="定期支出の翌月" disabled={month==='2099-12'} onClick={()=>changeMonth(shiftMonth(month,1))}><ChevronRight /></Button></div><Button variant="ghost" size="icon" aria-label="定期支出を更新" title="定期支出を更新" disabled={loading||busy} onClick={refresh}><RefreshCw className={loading?'animate-spin':''} /></Button></div>
     <Tabs value={view} onValueChange={setView}><TabsList><TabsTrigger value="due">定期・この月</TabsTrigger><TabsTrigger value="all">定期の設定</TabsTrigger><TabsTrigger value="plans">単発の予定</TabsTrigger></TabsList></Tabs>
-    {view==='plans'&&data&&<PlansWorkspace month={month} masters={data.masters} revision={externalRevision} onChanged={onChanged} onEdit={onEdit} onMastersChanged={onMastersChanged} />}
+    {view==='plans'&&data&&<PlansWorkspace month={month} initialMonthOnly={initialView==='plans'} masters={data.masters} revision={externalRevision} onChanged={onChanged} onEdit={onEdit} onMastersChanged={onMastersChanged} />}
     {view==='due'&&Boolean(data?.attention.filter(a=>a.kind==='recurring'&&a.period!==month).length)&&<div className="attention-list" aria-label="別の月の確認待ち">{data?.attention.filter(a=>a.kind==='recurring'&&a.period!==month).slice(0,10).map(a=><button key={a.id+a.period} type="button" onClick={()=>changeMonth(a.period)}>{a.period} · {a.name}<span>確認待ち</span></button>)}</div>}
     {error&&<p className="form-error" role="alert">{error}</p>}
     {loading?<div className="workspace-message" role="status"><LoaderCircle className="animate-spin" />定期支出を読み込み中</div>:data&&<>

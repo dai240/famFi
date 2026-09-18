@@ -19,6 +19,8 @@ import { ProfileDialog } from './ProfileDialog';
 import { BottomNavigation } from './BottomNavigation';
 import { ExpenseCalendar } from './ExpenseCalendar';
 import { MonthComparison } from './MonthComparison';
+import { MonthlyReview } from './MonthlyReview';
+import type { AttentionResponse } from '@/lib/monthly-review';
 import { HouseholdView } from './HouseholdView';
 import { NotesWorkspace, NoteEditor } from './NotesWorkspace';
 import { CalendarEntry } from '@/lib/expense-calendar';
@@ -45,6 +47,9 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const [treatment,setTreatment] = useState('');
   const [costClass,setCostClass]=useState('');
   const [attention,setAttention]=useState<number|null>(null);
+  const [review,setReview]=useState<AttentionResponse['review']>();
+  const [reviewError,setReviewError]=useState('');
+  const [recurringTarget,setRecurringTarget]=useState<{month:string;view:'due'|'plans'}|null>(null);
   const [search,setSearch] = useState(''); const [searchDraft,setSearchDraft] = useState('');
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
@@ -60,7 +65,19 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const mutationLock = useRef(false);
   const refresh = useCallback(() => setRevision(n => n + 1), []);
   const queryKey = JSON.stringify([month,category,person,paymentSource,settlement,treatment,costClass,search,page]);
-  useEffect(()=>{const c=new AbortController();const update=()=>{if(!document.hidden)requestJson<{count:number}>('/api/attention',{signal:c.signal}).then(r=>{if(!c.signal.aborted)setAttention(r.count);}).catch(()=>{if(!c.signal.aborted)setAttention(null);});};update();const timer=setInterval(update,60000);return()=>{c.abort();clearInterval(timer);};},[revision]);
+  useEffect(()=>{
+    const c=new AbortController();let pending=false;
+    setReview(undefined);setReviewError('');
+    const update=async()=>{
+      if(document.hidden||pending)return;
+      pending=true;
+      try{const result=await requestJson<AttentionResponse>('/api/attention?month='+month,{signal:c.signal});if(!c.signal.aborted){setAttention(result.count);setReview(result.review);setReviewError('');}}
+      catch(error){if(!c.signal.aborted){setAttention(null);setReview(undefined);setReviewError(errorMessage(error));}}
+      finally{pending=false;}
+    };
+    void update();const timer=setInterval(update,60000);document.addEventListener('visibilitychange',update);
+    return()=>{c.abort();clearInterval(timer);document.removeEventListener('visibilitychange',update);};
+  },[month,revision]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true); setError('');
@@ -94,6 +111,13 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     setMonth(value); setPage(1);
   }
   function filter(value: string) { setCategory(value); setPage(1); }
+  function navigate(value:string){toast.dismiss();setRecurringTarget(null);setView(value);}
+  function openSchedule(month:string,view:'due'|'plans'){toast.dismiss();setRecurringTarget({month,view});setView('recurring');}
+  async function openReviewExpense(id:string){
+    if(calendarLock.current)return;
+    calendarLock.current=true;
+    try{openEditor(await requestJson<ExpenseRecord>('/api/expenses/'+id));}catch(error){failure(error);}finally{calendarLock.current=false;}
+  }
   function openEditor(expense: ExpenseRecord | null) { toast.dismiss(); setEditor({ expense, key: expense?.id ?? crypto.randomUUID() }); }
   async function openCalendarEntry(entry:CalendarEntry) {
     if(calendarLock.current)return;
@@ -154,7 +178,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
       <Button className="desktop-control" variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
       <Button className="desktop-control" variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
-    <Tabs value={view} onValueChange={value=>{toast.dismiss();setView(value);}} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
+    <Tabs value={view} onValueChange={navigate} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
     <main className={'expense-main'+(presentation==='calendar'?' calendar-mode':'')} hidden={view !== 'expenses'}>
       <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
         <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button>
@@ -173,6 +197,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         : <>
           <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>記録数</span><strong>{data.count}<small> 件</small></strong></div></section>
           <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
+          <MonthlyReview key={month} data={review?.month===month?review:null} error={reviewError} onRetry={refresh} onSchedule={openSchedule} onExpense={openReviewExpense} onSummary={id=>{setPresentation('list');setSummaryId(id);}} />
           <MonthComparison month={month} revision={revision} />
           <div className="ledger-view-switch" role="group" aria-label="支出の表示方法"><button type="button" aria-pressed={presentation==='list'} onClick={()=>setPresentation('list')}><List aria-hidden="true" />一覧</button><button type="button" aria-pressed={presentation==='calendar'} onClick={()=>setPresentation('calendar')}><CalendarDays aria-hidden="true" />カレンダー</button></div>
           <div hidden={presentation!=='list'}><SummaryWorkspace month={month} masters={data} revision={revision} onChanged={refresh} onEdit={openEditor} onMastersChanged={mastersChanged} openId={summaryId} onOpened={()=>setSummaryId(null)} /></div>
@@ -212,12 +237,12 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
           </div>
         </>}
     </main>
-    {view === 'recurring' && <RecurringWorkspace initialMonth={month} externalRevision={revision} onEdit={openEditor} onChanged={refresh} onMastersChanged={mastersChanged} />}
+    {view === 'recurring' && <RecurringWorkspace key={recurringTarget?recurringTarget.month+recurringTarget.view:'regular'} initialMonth={recurringTarget?.month??month} initialView={recurringTarget?.view} externalRevision={revision} onEdit={openEditor} onChanged={refresh} onMastersChanged={mastersChanged} />}
     {view === 'history' && data && <main className="expense-main"><div className="workspace-heading"><h1>変更履歴</h1><Button variant="ghost" size="icon" title="履歴を更新" aria-label="履歴を更新" onClick={refresh}><RefreshCw /></Button></div><HistoryView masters={data} revision={revision} /></main>}
     {view === 'settlements' && <SettlementWorkspace externalRevision={revision} onEdit={openEditor} onChanged={refresh} />}
     {view === 'household' && <HouseholdView />}
     {view === 'notes' && data && <NotesWorkspace masters={data} revision={revision} onChanged={refresh} />}
-    <BottomNavigation view={view} attention={attention} ready={Boolean(data)} busy={busy} onNavigate={value=>{toast.dismiss();setView(value);}} onAdd={()=>openEditor(null)} onMasters={()=>{toast.dismiss();setManaging(true);}} onProfile={()=>{toast.dismiss();setProfileOpen(true);}} onLogout={logout} />
+    <BottomNavigation view={view} attention={attention} ready={Boolean(data)} busy={busy} onNavigate={navigate} onAdd={()=>openEditor(null)} onMasters={()=>{toast.dismiss();setManaging(true);}} onProfile={()=>{toast.dismiss();setProfileOpen(true);}} onLogout={logout} />
     {editor && data && <ExpenseEditor key={editor.key} expense={editor.expense} initial={editor.initial} continueEntry={editor.continueEntry} initialMonth={month} masters={data} onMastersChanged={mastersChanged} onClose={() => setEditor(null)} onSaved={(row,keepOpen) => { setEditor(keepOpen?{expense:null,continueEntry:true,initial:draftRecord({...newExpense(data,row.date),categoryId:row.categoryId,costClass:data.categories.find(c=>c.id===row.categoryId)?.costClass??'unknown'}),key:crypto.randomUUID()}:null); if(!editor.expense || row.date.slice(0,7)!==month) {setPage(1);setMonth(row.date.slice(0,7));} refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} onDuplicate={row=>setEditor({expense:null,initial:row,key:crypto.randomUUID()})} />}
     {noteEditor&&data&&<NoteEditor key={noteEditor.note?.id??'new'} note={noteEditor.note} initialDate={noteEditor.date} masters={data} onClose={()=>setNoteEditor(null)} onSaved={()=>{setNoteEditor(null);refresh();toast.success('共有メモを更新しました');}} />}
     {managing && data && <MasterManager masters={data} onChange={mastersChanged} onClose={()=>setManaging(false)} />}

@@ -1,6 +1,6 @@
 # 月の確認事項
 
-2026-09-18。優先順位と残作業は [次のタスク](next-tasks.md)。公開前の実装・検証記録。公開結果は確認後に追記する。
+2026-09-18。本番公開済み。優先順位と残作業は [次のタスク](next-tasks.md)。
 
 ## 実装
 
@@ -30,4 +30,13 @@
 - 家計DBの旧項目保持/履歴/家計外・他schema隔離63項目成功。ローカルNext/Auth/PostgreSQLを停止し、port3101/55432/55433のlistenerなしを確認。
 - `FAMFI_DB_SCHEMA=famfi npm run build`成功。Next.js 15.5.25。本番用Prisma、45成果物のprivate設定除外、33 APIの公開CA/Prisma compiler同梱、DBなしの隔離成果物初期化を確認。
 
-本番公開は作業中。本番では保存/確定/精算を実行せず、公開HTTPと既存本人セッションの読取確認を行う。
+## 本番公開
+
+- 実装 `11d6004` をmainへpush。Vercel `dpl_AtrNMT6BieGtcjUjqGccpjXn4pwx`、target Production、READY。Next.js 15.5.25、リモートbuild 43秒。
+- 本番用Prisma/Production環境で新規buildし、[専用URL](https://famfi-2w2m9xlf2-day56s-projects.vercel.app)のHTTP39項目成功後にpromote。Previewの成果物は使用していない。
+- 切替前の[本番URL](https://famfi-nu.vercel.app/expenses)は旧 `dpl_EAioAeawv43Y22kbt9Lzc1JdKuSj`、切替後は新deploymentであることをinspectで確認。公開後HTTP39項目も成功。未認証拒否/no-store/不正Origin拒否の確認であり、メール送信や本番書込みはしていない。
+- 本人の既存Chromeセッションで9月3件/661円の保持、新しい確認待ち3件、確認日前・延期中6件、次の確認日9月20日を確認。確認欄から9月の定期一覧へ移動し、仮設定の確認導線も保持。支出画面へ戻し、表示のスクリーンショットも確認した。
+- 公開直後の当該deploymentのerrorログ検索（直近15分）は該当なし。継続監視/通知は新設していない。
+- DB・共有Auth・環境変数・本番データ・他アプリ・Previewは変更なし。本番では支出編集の保存、定期確定、精算を行っていない。
+
+妻の実メール招待/ログイン、実機iPhone/夫婦別端末の確認、バックアップ別保管先/自動実行は引き続き未完了。今回の完了と区別する。

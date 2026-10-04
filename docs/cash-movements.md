@@ -3,6 +3,8 @@
 2026-10-04。本人の承認後に共有Supabase `personal-apps` (`fpptihhtyhehpjvmtuqt`) を再開し、`ACTIVE_HEALTHY` とFree継続を確認した。VercelもHobbyのまま。初期化・作り直し・有料オプション購入はしていない。
 DBのmigration、前後backup/復元、旧データ保持、実runtime隔離を確認済み。実装 `0747240` を本番公開し、依頼CSVの64件を既存の共通資金の「家計口座」へ登録した。
 
+同日の追加依頼で [既存サンプルの整理](sample-data.md) も完了。支出88件を削除、定期設定10件を停止し、CSVの64件・マスタ・変更履歴を保持した。現在の支出は0件、CSVは別台帳の「入出金」で確認する。以下の取込時の旧データ保持は、整理前の工程を示す。
+
 公開先: https://famfi-nu.vercel.app 。Vercel `dpl_GY2ghi7r2uaiBwAUUu216ubfmepT`（Production/READY）。Production環境で再buildし、切替前後のHTTP47項目と既存本人セッションでの実画面を確認した。GitHub自動デプロイ連携は変更していない。
 
 ## 管理するもの
@@ -59,7 +61,7 @@ dry-runの新規/取込済み/削除済み件数と原本SHA-256を確認後、�
 - 正本SQL: 基盤repoの `20261004111716_famfi_cash_movements.sql`。CLIで生成・レビューし、管理APIの適用済みversionにファイル名を合わせた。`famfi` と承認済み `famfi_preview` だけを変更し、共有Auth/他アプリ/publicには触れていない。共有履歴13件を確認済み。
 - 最新backupはcash table検出時にv8。v7の全内容に入出金・取込キー・論理削除を追加。v1-v7の復元検証も維持する。Production/Previewの保存先・鍵・資格情報は混ぜない。
 - `scripts/cash-release-check.mjs before/after` で両環境のv7/v8暗号化backup・独立復元・全旧データ保持・実runtimeの権限/拒否を検証済み。試験書込みとauditは全てROLLBACKし、再照合した。Production用Prismaで再buildし、公開HTTP・本人画面を確認してから公開済みと記録する。
-- 既存データの削除は別作業。サンプル・通常支出・定期設定・履歴・精算のどこまで消すかを確定し、バックアップと参照制約を守る。今回の取込は削除を伴わない。
+- 取込自体は削除を伴わない。後続の明示承認による整理は [サンプル撤去記録](sample-data.md) を参照。CSV64件の全項目が整理前後で一致し、重複防止キーも保持した。
 
 ## ローカル検証
 

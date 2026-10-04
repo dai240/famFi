@@ -263,3 +263,25 @@ model HouseholdNote {
   @@map("household_notes")
   @@schema("famfi")
 }
+
+model CashMovement {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  paymentSourceId String @map("payment_source_id") @db.Uuid
+  date DateTime @db.Date
+  amount Int
+  kind String @default("unknown")
+  description String
+  memo String @default("")
+  partyId String? @map("party_id") @db.Uuid
+  importKey String? @map("import_key")
+  importBatch String? @map("import_batch")
+  voided Boolean @default(false)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@unique([userId,id])
+  @@unique([userId,paymentSourceId,importKey])
+  @@map("cash_movements")
+  @@schema("famfi")
+}

@@ -24,6 +24,8 @@ For long tasks, report approximate progress for the current prompt, completed wo
 
 ## Expense Product Direction
 
+- Read `docs/cash-movements.md` before bank imports or cash-movement changes. Bank inflows/outflows are a separate ledger, never purchases, automatic settlements, or account balances. Keep unknown person/purpose unknown. Imported account/date/amount are immutable; soft-deleted rows retain deduplication keys. Preserve cash rows, tombstones and audit in v8 backups; v1-v7 restore remains supported. Real bank files must never enter Git, logs, fixtures or Preview.
+
 - Read `docs/sample-data.md` before treating July/August 2026 records as real expenses or removing samples. The explicitly requested Production batch `famfi-sample-summer-2026-v1` contains fictional expenses and provisional recurring rules; preserve unrelated records and all settlement/history constraints.
 
 - Read `docs/calendar-and-notes.md` before changing sharing visibility, calendar or notes. Notes are household-shared, never actual expenses. Preserve month/undated precision, completion and history in v7 backups; v1-v6 restore stays supported. `household_roster()` is a deliberately narrow read-only privilege exception, not an invitation or membership-write API.

@@ -29,12 +29,12 @@ async function main(){
         assert.equal(result.costs.reduce((sum,c)=>sum+c.amount,0),result.total);
         console.log(JSON.stringify({month,records:result.count,total:result.total,sampleCount:result.sampleCount}));
       }
-      return captureHouseholdBackup(async(sql,values=[])=>({rows:await tx.$queryRawUnsafe(sql,...values)}),actor,'famfi-expenses/v7','famfi');
+      return captureHouseholdBackup(async(sql,values=[])=>({rows:await tx.$queryRawUnsafe(sql,...values)}),actor,undefined,'famfi');
     });
     const file=await encryptBackup(snapshot);await verifyBackupRestore(await decryptBackup(file));
     await assert.rejects(withUserDb(randomUUID(),async()=>null),e=>e.status===403);
     for(const schema of ['compath','famfi_preview'])await assert.rejects(withUserDb(actor,tx=>tx.$queryRawUnsafe('select * from '+schema+'.memberships')),e=>e.code==='P2010');
-    console.log('PASS: actual runtime comparison, nonmember/cross-schema rejection and v7 encrypted restore; no Production records changed. Backup: '+file);
+    console.log('PASS: actual runtime comparison, nonmember/cross-schema rejection and '+snapshot.format+' encrypted restore; no Production records changed. Backup: '+file);
   }finally{await getPrisma().$disconnect();}
 }
 main().catch(error=>{console.error('Live verification failed; records and credentials suppressed.',{type:error?.name,code:error?.code});process.exitCode=1;});

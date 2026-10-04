@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
-import { ArrowLeftRight, CalendarClock, History, LogOut, Menu, Plus, ReceiptText, Settings2, StickyNote, UsersRound, UserRound } from 'lucide-react';
+import { ArrowLeftRight, CalendarClock, History, Landmark, LogOut, Menu, Plus, ReceiptText, Settings2, StickyNote, UsersRound, UserRound } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 export function BottomNavigation({ view, attention, ready, busy, onNavigate, onAdd, onMasters, onProfile, onLogout }: {
@@ -16,7 +16,7 @@ export function BottomNavigation({ view, attention, ready, busy, onNavigate, onA
     <div className="mobile-add"><button type="button" className="nav-add" aria-label="支出を記録" title="支出を記録" disabled={!ready} onClick={onAdd}><Plus aria-hidden="true" /></button></div>
     <button type="button" aria-current={view === 'recurring' ? 'page' : undefined} onClick={() => onNavigate('recurring')}><span className="nav-icon"><CalendarClock aria-hidden="true" />{Boolean(attention) && <span className="attention-badge" aria-label={`確認待ち${attention}件`}>{attention! > 99 ? '99+' : attention}</span>}</span><span>予定・定期</span></button>
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild><button type="button" aria-current={['history','notes','household'].includes(view) ? 'page' : undefined}><Menu aria-hidden="true" /><span>メニュー</span></button></SheetTrigger>
+      <SheetTrigger asChild><button type="button" aria-current={['history','notes','household','cash'].includes(view) ? 'page' : undefined}><Menu aria-hidden="true" /><span>メニュー</span></button></SheetTrigger>
       <SheetContent side="bottom" className="workspace-menu" aria-describedby={undefined} onCloseAutoFocus={() => {
         // Let the sheet return focus before mounting the next dialog.
         const action = afterClose.current; afterClose.current = null;
@@ -24,6 +24,7 @@ export function BottomNavigation({ view, attention, ready, busy, onNavigate, onA
       }}>
         <SheetHeader><SheetTitle>メニュー</SheetTitle></SheetHeader>
         <div className="workspace-menu-items">
+          <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('cash'))}><Landmark aria-hidden="true" />入出金</button>
           <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('notes'))}><StickyNote aria-hidden="true" />共有メモ</button>
           <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('household'))}><UsersRound aria-hidden="true" />家計の共有</button>
           <button type="button" disabled={!ready} onClick={() => select(onMasters)}><Settings2 aria-hidden="true" />マスタ管理</button>

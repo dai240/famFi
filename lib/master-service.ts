@@ -23,6 +23,9 @@ export async function validateCategory(tx: Prisma.TransactionClient, input: Omit
 export async function validateSource(tx: Prisma.TransactionClient, input: Omit<PaymentSource,'id'|'version'>, id?: string) {
   const parties = (await tx.party.findMany()).map(p => ({ ...p, name: p.nickname ?? p.name }));
   const sources = await tx.paymentSource.findMany();
+  const previousCashSource = id ? sources.find(s => s.id === id) : null;
+  if (previousCashSource && (previousCashSource.fundingPartyId !== input.fundingPartyId || previousCashSource.method !== input.method)
+    && await tx.cashMovement.count({where:{paymentSourceId:id}})) throw new ApiError(409, '入出金のある口座の持ち主・支払方法は変更できません。別の支払元を追加してください。');
   const displayName = sourceDisplayName(input, parties).toLowerCase();
   const existing = sources.find(s => s.id !== id && sourceDisplayName(s, parties).toLowerCase() === displayName);
   if (existing) throw new ApiError(409, '同名の支払元があります。');

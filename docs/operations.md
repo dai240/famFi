@@ -2,6 +2,8 @@
 
 ## 最新の運用
 
+2026-10-04: 本人承認後に共有Supabaseを再開し `ACTIVE_HEALTHY` / Freeを確認。VercelはHobby。[入出金とCSV取込](cash-movements.md) のmigration・両環境のv7/v8 backup/独立復元・旧データ保持・実runtime隔離は確認済み。アプリ公開・実明細取込は最終確認中。
+
 家計共有版の仕様・公開状況は [夫婦の家計・定期支出](household-workflow.md)、妻の参加は [アカウント追加](household-onboarding.md)。以下の初回利用開始手順と2026-09-09の数値は当時の記録であり、繰り返し招待・共有Auth初期化をしない。
 
 ## 本番利用開始の残作業
@@ -31,11 +33,13 @@ Supabase標準SMTPの宛先はOrganizationメンバーに限定される。別�
 - Nextのトレースでもローカルenvと `.private/` を除外する。Prismaの `query_compiler_bg.wasm` は動的に読み込まれるため、CAとともに各APIの `outputFileTracingIncludes` へ明示する。必要ファイルの追記方法は [Next.jsの公式手順](https://nextjs.org/docs/15/app/api-reference/config/next-config-js/output) を参照。
 - `npm run build` の最後に成果物検査を自動実行する。`npm run check:artifact` でも、秘密設定の非同梱、CA・Prismaコンパイラの同梱、トレースされたファイルだけでのPrisma初期化を再確認できる。この検査は実DBや本番資格情報を使わない。Vercelへアップロードするscriptsはこの検査ファイルだけで、資格情報の設定スクリプト等は引き続き除外する。
 - 本番ドメインは `https://famfi-nu.vercel.app`。`APP_ORIGIN` はこのOriginに限定する。Preview URLでの書き込みは許可しない。
-- VercelとGitHubの自動連携は未接続。DB変更を含む場合は、確認・コミット・push後に `npx vercel --prod --skip-domain --yes --scope day56s-projects` でProduction成果物を先に作り、Ready確認→正本migration適用→専用runtime検証→`npx vercel promote <新しいURL> --yes --scope day56s-projects` の順で切り替える。デプロイがReadyになり、APIの未認証拒否も確認する。
+- VercelとGitHubの自動連携は未接続。後方互換のDB追加は、前後backupとレビュー済み正本migration適用→専用runtime検証→Production用Prisma生成・再build→コミット・push→ `npx vercel --prod --skip-domain --yes --scope day56s-projects` →Ready/HTTP確認→ `npx vercel promote <新しいURL> --yes --scope day56s-projects` の順で切り替える。破壊的変更は別途移行計画が必要。Previewでbuildした成果物はProductionへ昇格しない。
 
 資格情報の初回移送には `scripts/provision-transport.mjs` を使用した。DB内で生成したパスワードを公開鍵で暗号化して移送し、ローカルで復号する。鍵と復号結果は `.private/` のみ。`scripts/configure-production.mjs --vercel` はその資格情報をCLIのstdin経由でProductionに登録する。値を引数・出力に含めない。通常運用で再発行しない。
 
 ## バックアップ
+
+2026-10-04: 入出金tableがある環境はv8を自動取得し、v7の共有メモに入出金・取込識別値・削除済み記録を加える。v1-v7復元も維持する。migration前のv7と適用後のv8を本番・Preview別々に暗号化し、独立復元と全旧項目一致を確認済み。通常の運用スクリプトは形式を固定せず機能検出する。以下は各導入時点の記録。
 
 予定・まとめ記録の本番反映後の最新版はv6。v5の表示名・初回確認・支払元識別名に、費用区分、まとめ/明細の紐づけ、単発予定、確認開始日/延期を加える。通常のcaptureは対象スキーマの機能を検出して最新版を取得する。[本番反映の記録](production-planning-release.md) を参照。以下のv4説明は家計共有版の導入記録として維持する。v6では支払元→まとめ記録→支出、定期実績→単発予定の参照順も守る。
 
@@ -75,4 +79,4 @@ npm run backup:restore-check -- <出力された.json.pgpファイル>
 
 ローカル統合テストは実際のNext APIとPrismaを通すが、Authは架空のローカルサーバー。メール配信・実Supabaseセッション・別端末確認は別途必要。実接続の `npm run check:runtime` は非認証コンテキストの非公開性、他スキーマ・DDL・管理ロールへの拒否を確認し、実ユーザーデータを書き込まない。
 
-Next.jsを15.5.25に更新した。`npm audit` にはPrisma CLIの設定マージ依存 `deepmerge-ts` 由来のhighが3ノード残る。同じ1件の再帰入力によるスタック枯渇で、アプリは利用者入力をPrisma設定に渡さない。互換性を壊す強制ダウングレードは行わず、Prismaの互換修正を追跡する。旧レシピ試作画面にはimgのLint警告が残るが、本番ルーティングから除外している。
+Next.jsは15.5.25。2026-10-04の `npm audit` は既存のPrisma CLI設定マージ依存 `deepmerge-ts` と、Lint/Tailwindのglob/brace系依存でhigh 12ノードを報告した。アプリは利用者入力をPrisma設定やビルド時globへ渡さない。互換性を壊す強制ダウングレードやTailwindのmajor更新は今回行わず、互換修正を別途追跡する。今回追加の `csv-parse` は既知問題の修正版7.0.3を使用する。旧レシピ試作画面にはimgのLint警告4件が残るが、本番ルーティングから除外している。

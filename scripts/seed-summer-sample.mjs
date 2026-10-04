@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { adminQuery } from './supabase-admin.mjs';
-import { captureHouseholdBackup, notesBackupTables, normalizeBackupRows } from './backup-model.mjs';
+import { captureHouseholdBackup, notesBackupTables, cashBackupTables, normalizeBackupRows } from './backup-model.mjs';
 import { encryptBackup, decryptBackup } from './backup.mjs';
 import { verifyBackupRestore } from './verify-backup-restore.mjs';
 import { sampleBatch, sampleMemo, sampleRules, sampleExpenses } from './sample-summer-data.mjs';
@@ -29,7 +29,7 @@ export function sampleId(ledgerId, key) {
 function exactlyOne(rows, message) { assert.equal(rows.length,1,message); return rows[0]; }
 
 export async function captureSampleHousehold(actor) {
-  return withLedgerDb(actor, tx => captureHouseholdBackup(async(sql,values=[])=>({rows:await tx.$queryRawUnsafe(sql,...values)}),actor,'famfi-expenses/v7','famfi'));
+  return withLedgerDb(actor, tx => captureHouseholdBackup(async(sql,values=[])=>({rows:await tx.$queryRawUnsafe(sql,...values)}),actor,undefined,'famfi'));
 }
 
 export async function prepareSample(actor) {
@@ -109,7 +109,8 @@ export async function applySample(actor,plan) {
 export function verifyPreservation(before,after) {
   assert.equal(after.ownerId,before.ownerId);
   assert.deepEqual(after.household,before.household);
-  for(const table of notesBackupTables){
+  assert.equal(after.format,before.format);
+  for(const table of before.format==='famfi-expenses/v8'?cashBackupTables:notesBackupTables){
     const ids=new Set(before[table.key].map(row=>row.id));
     assert.deepEqual(normalizeBackupRows(after[table.key].filter(row=>ids.has(row.id)),table.fields),normalizeBackupRows(before[table.key],table.fields),table.key+' original records changed');
   }

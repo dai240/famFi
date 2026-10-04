@@ -108,6 +108,42 @@
 .calendar-entry .note,.calendar-entry .task { color: #3c75b5; }
 .calendar-entry .summary { color: #76716a; }
 .notes-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.cash-all { margin: 16px 0; }
+.cash-filter-panel { margin: 12px 0; }
+.cash-filter-panel summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 0; min-height: 44px; width: fit-content; font-size: 14px; }
+.cash-filter-panel summary svg { width: 18px; height: 18px; }
+.cash-filter-panel summary span { font-size: 12px; color: #52625b; }
+.cash-filter-panel[open] { padding-bottom: 8px; }
+.cash-filters { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px; margin: 16px 0; }
+.cash-filters label { min-width: 0; font-size: 13px; color: #52625b; }
+.cash-filters select, .cash-form select { display: block; width: 100%; min-width: 0; max-width: 100%; height: 44px; min-height: 44px; margin-top: 6px; padding: 8px; border: 1px solid #d7e0da; border-radius: 6px; background: #fff; color: #263c32; font-size: 16px; }
+.cash-form > * { flex-shrink: 0; }
+.cash-totals { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; padding: 24px 0; border-block: 1px solid #e5e9e7; }
+.cash-totals h2 { font-size: 13px; color: #64736a; margin-bottom: 8px; }
+.cash-totals strong { display: block; font-size: 24px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.cash-list-heading { display: flex; gap: 12px; align-items: center; padding: 24px 0 12px; }
+.cash-list-heading h2 { font-size: 16px; font-weight: 650; }
+.cash-list-heading span { font-size: 13px; color: #64736a; }
+.cash-list > li { border-bottom: 1px solid #e5e9e7; }
+.cash-list > li > button { display: grid; grid-template-columns: 20px minmax(0,1fr) auto; width: 100%; gap: 12px; padding: 18px 0; align-items: center; text-align: left; }
+.cash-list > li > button:hover { background: #f4f7f5; }
+.cash-list svg { width: 20px; height: 20px; }
+.cash-row-text { min-width: 0; overflow-wrap: anywhere; }
+.cash-row-text > strong { display: block; font-size: 15px; }
+.cash-row-text > span, .cash-row-text > small { display: block; font-size: 12px; color: #64736a; margin-top: 4px; }
+.cash-amount { text-align: right; font-variant-numeric: tabular-nums; }
+.cash-amount > small { display: block; font-size: 11px; margin-bottom: 4px; }
+.cash-amount > strong { font-size: 16px; white-space: nowrap; }
+.cash-in { color: #256c9b; }
+.cash-form input, .cash-form select { min-width: 0; max-width: 100%; }
+.cash-form :disabled { color: #58675e; opacity: 1; background-color: #f1f4f2; }
+@media (max-width: 480px) {
+  .cash-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .cash-filters label:last-child { grid-column: 1 / -1; }
+  .cash-list > li > button { gap: 8px; }
+  .cash-amount > strong { font-size: 14px; }
+  .cash-totals strong { font-size: 20px; }
+}
 .notes-toolbar .date-mode button { min-height: 44px; padding: 8px 14px; font-size: 13px; }
 .notes-toolbar .date-mode button[aria-pressed=true] { background: #e9f4ee; color: #155d4b; font-weight: 600; }
 .notes-search { margin-bottom: 18px; }

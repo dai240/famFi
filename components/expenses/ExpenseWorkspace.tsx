@@ -23,6 +23,7 @@ import { MonthlyReview } from './MonthlyReview';
 import type { AttentionResponse } from '@/lib/monthly-review';
 import { HouseholdView } from './HouseholdView';
 import { NotesWorkspace, NoteEditor } from './NotesWorkspace';
+import { CashWorkspace } from './CashWorkspace';
 import { CalendarEntry } from '@/lib/expense-calendar';
 import { NoteRecord } from '@/lib/notes';
 import { draftRecord, newExpense } from '@/lib/household';
@@ -178,7 +179,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
       <Button className="desktop-control" variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
       <Button className="desktop-control" variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
-    <Tabs value={view} onValueChange={navigate} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
+    <Tabs value={view} onValueChange={navigate} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="cash">入出金</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
     <main className={'expense-main'+(presentation==='calendar'?' calendar-mode':'')} hidden={view !== 'expenses'}>
       <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
         <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button>
@@ -242,6 +243,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     {view === 'settlements' && <SettlementWorkspace externalRevision={revision} onEdit={openEditor} onChanged={refresh} />}
     {view === 'household' && <HouseholdView />}
     {view === 'notes' && data && <NotesWorkspace masters={data} revision={revision} onChanged={refresh} />}
+    {view === 'cash' && data && <CashWorkspace initialMonth={month} masters={data} revision={revision} onChanged={refresh} />}
     <BottomNavigation view={view} attention={attention} ready={Boolean(data)} busy={busy} onNavigate={navigate} onAdd={()=>openEditor(null)} onMasters={()=>{toast.dismiss();setManaging(true);}} onProfile={()=>{toast.dismiss();setProfileOpen(true);}} onLogout={logout} />
     {editor && data && <ExpenseEditor key={editor.key} expense={editor.expense} initial={editor.initial} continueEntry={editor.continueEntry} initialMonth={month} masters={data} onMastersChanged={mastersChanged} onClose={() => setEditor(null)} onSaved={(row,keepOpen) => { setEditor(keepOpen?{expense:null,continueEntry:true,initial:draftRecord({...newExpense(data,row.date),categoryId:row.categoryId,costClass:data.categories.find(c=>c.id===row.categoryId)?.costClass??'unknown'}),key:crypto.randomUUID()}:null); if(!editor.expense || row.date.slice(0,7)!==month) {setPage(1);setMonth(row.date.slice(0,7));} refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} onDuplicate={row=>setEditor({expense:null,initial:row,key:crypto.randomUUID()})} />}
     {noteEditor&&data&&<NoteEditor key={noteEditor.note?.id??'new'} note={noteEditor.note} initialDate={noteEditor.date} masters={data} onClose={()=>setNoteEditor(null)} onSaved={()=>{setNoteEditor(null);refresh();toast.success('共有メモを更新しました');}} />}

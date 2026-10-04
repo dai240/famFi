@@ -19,6 +19,8 @@
     "test:stack": "node scripts/test-stack.mjs",
     "test:api": "node scripts/test-api.mjs",
     "test:ledger-api": "node scripts/test-ledger-api.mjs",
+    "test:cash-api": "node --import tsx scripts/test-cash-api.mjs",
+    "test:cash-browser": "node scripts/test-cash-browser.mjs",
     "test:browser": "node scripts/test-browser.mjs",
     "test:category-browser": "node scripts/test-category-browser.mjs",
     "test:ledger-browser": "node scripts/test-ledger-browser.mjs",
@@ -104,6 +106,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "@electric-sql/pglite-socket": "0.2.11",
+    "csv-parse": "7.0.3",
     "openpgp": "6.3.1",
     "playwright": "1.62.1",
     "prisma": "6.19.3",

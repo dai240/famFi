@@ -2,6 +2,8 @@
 
 ## 最新の運用
 
+2026-10-04の後続公開: 入出金への直接切替と全期間の初期表示を `483b48b` / Vercel `dpl_3cajS8776xKfmT5wkgh74VovBThL`（Production/READY）で公開。前後HTTP47項目と本人のスマホ幅画面で64件の即表示を確認。DB・Auth・環境変数・実データは変更していない。[検証・公開記録](cash-movements.md) を参照。
+
 2026-10-04: 本人承認後に共有Supabaseを再開し `ACTIVE_HEALTHY` / Freeを確認。VercelはHobby。[入出金とCSV取込](cash-movements.md) のmigration・両環境のv7/v8 backup/独立復元・旧データ保持・実runtime隔離は確認済み。実装 `0747240` / Vercel `dpl_GY2ghi7r2uaiBwAUUu216ubfmepT` を本番公開し64件を登録。切替前後HTTP47項目・本人画面・再取込時の新規0件を確認済み。有料プラン変更はしていない。
 
 同日の明示承認後に [サンプル整理](sample-data.md) を実施。支出88件を削除、定期設定10件を停止し、CSV64件と全マスタ・変更履歴を保持。削除前後のv8暗号化backup/独立復元と本番再取得を検証済み。履歴・停止設定は残しているため、DB全体がCSV64行だけになったわけではない。DB構造・権限・共有Auth・他アプリ・Preview・公開コードは変更せず、アプリの再デプロイは不要。

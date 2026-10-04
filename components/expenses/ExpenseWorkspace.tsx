@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, List, ChevronLeft, ChevronRight, Download, LoaderCircle, LogOut, Pencil, Plus, ReceiptText, RefreshCw, Search, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { CalendarDays, List, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, LogOut, Pencil, Plus, ReceiptText, RefreshCw, Search, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -112,7 +112,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     setMonth(value); setPage(1);
   }
   function filter(value: string) { setCategory(value); setPage(1); }
-  function navigate(value:string){toast.dismiss();setRecurringTarget(null);setView(value);}
+  function navigate(value:string){toast.dismiss();setRecurringTarget(null);setView(value);window.scrollTo(0,0);}
   function openSchedule(month:string,view:'due'|'plans'){toast.dismiss();setRecurringTarget({month,view});setView('recurring');}
   async function openReviewExpense(id:string){
     if(calendarLock.current)return;
@@ -179,7 +179,15 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
       <Button className="desktop-control" variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
       <Button className="desktop-control" variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
-    <Tabs value={view} onValueChange={navigate} className="workspace-tabs"><TabsList><TabsTrigger value="expenses">支出</TabsTrigger><TabsTrigger value="cash">入出金</TabsTrigger><TabsTrigger value="settlements">立替・精算</TabsTrigger><TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger><TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger></TabsList></Tabs>
+    <Tabs value={view} onValueChange={navigate} className={'workspace-tabs'+(['expenses','cash'].includes(view)?' workspace-ledger-tabs':'')}>
+      <TabsList aria-label="家計の表示">
+        <TabsTrigger value="expenses" className="ledger-tab"><ReceiptText aria-hidden="true" />支出</TabsTrigger>
+        <TabsTrigger value="cash" className="ledger-tab" disabled={!data}><Landmark aria-hidden="true" />入出金</TabsTrigger>
+        <TabsTrigger value="settlements">立替・精算</TabsTrigger>
+        <TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger>
+        <TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger>
+      </TabsList>
+    </Tabs>
     <main className={'expense-main'+(presentation==='calendar'?' calendar-mode':'')} hidden={view !== 'expenses'}>
       <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
         <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button>

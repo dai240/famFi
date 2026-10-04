@@ -108,7 +108,10 @@
 .calendar-entry .note,.calendar-entry .task { color: #3c75b5; }
 .calendar-entry .summary { color: #76716a; }
 .notes-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.cash-all { margin: 16px 0; }
+.cash-toolbar { flex-wrap: wrap; }
+.cash-period [role=tablist] { height: 44px; }
+.cash-period [role=tab] { min-width: 68px; min-height: 40px; font-size: 14px; }
+.cash-toolbar .toolbar-actions { margin-left: auto; }
 .cash-filter-panel { margin: 12px 0; }
 .cash-filter-panel summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px 0; min-height: 44px; width: fit-content; font-size: 14px; }
 .cash-filter-panel summary svg { width: 18px; height: 18px; }
@@ -402,6 +405,7 @@
 .history-view del { color: #826363; }
 .workspace-tabs [role=tablist] { max-width: 100%; height: auto; display: flex; gap: 0; }
 .workspace-tabs [role=tab] { min-width: 0; white-space: nowrap; min-height: 40px; font-size: 13px; padding: 8px 20px; }
+.workspace-tabs .ledger-tab svg { width: 16px; height: 16px; margin-right: 6px; }
 [data-sonner-toaster], [data-sonner-toast]:not(:has(button)) { pointer-events: none !important; }
 [data-sonner-toast] button { pointer-events: auto; }
 .editor-tools { display: flex; align-items: center; }
@@ -513,6 +517,10 @@
   .expense-breakdown ul { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 24px; }
   .expense-breakdown li { margin-bottom: 12px; }
   .workspace-tabs, .desktop-control { display: none; }
+  .workspace-tabs.workspace-ledger-tabs { display: block; }
+  .workspace-ledger-tabs [role=tab]:not(.ledger-tab) { display: none; }
+  .workspace-ledger-tabs .ledger-tab { min-height: 44px; font-size: 14px; }
+  .cash-toolbar .month-selector { order: 3; flex-basis: 100%; justify-content: center; margin-top: 8px; }
   .bottom-navigation { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; position: fixed; bottom: 0; left: 0; right: 0; padding: 8px max(4px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)); background: #fff; border-top: 1px solid #e5e9e7; z-index: 20; }
   .bottom-navigation > button { min-width: 0; min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: #64746c; font-size: 10px; line-height: 1.4; }
   .bottom-navigation > button[aria-current=page] { color: #126e58; font-weight: 700; }

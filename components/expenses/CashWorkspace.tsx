@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, Plus, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CashKind, CashRecord, CashResponse, cashKinds } from '@/lib/cash-movements';
 import { formatExpenseDate, formatYen, shiftMonth } from '@/lib/expenses';
 import { Masters } from '@/lib/ledger';
@@ -9,7 +10,7 @@ import { errorMessage, requestJson } from '@/lib/client-api';
 import { CashEditor } from './CashEditor';
 
 export function CashWorkspace({ initialMonth, masters, revision, onChanged }: { initialMonth:string; masters:Masters; revision:number; onChanged:()=>void }) {
-  const [month,setMonth]=useState(initialMonth), [all,setAll]=useState(false), [direction,setDirection]=useState('all');
+  const [month,setMonth]=useState(initialMonth), [all,setAll]=useState(true), [direction,setDirection]=useState('all');
   const [kind,setKind]=useState(''), [source,setSource]=useState(''), [search,setSearch]=useState(''), [draft,setDraft]=useState('');
   const [page,setPage]=useState(1), [data,setData]=useState<CashResponse|null>(null), [error,setError]=useState('');
   const [editing,setEditing]=useState<{row:CashRecord|null}|null>(null), [exporting,setExporting]=useState(false);
@@ -40,16 +41,16 @@ export function CashWorkspace({ initialMonth, masters, revision, onChanged }: { 
   }
   const bankSources=masters.paymentSources.filter(s=>s.method==='bank');
   return <main className="expense-main cash-workspace">
-    <div className="workspace-heading"><div><p className="section-eyebrow">共通資金・個人資金</p><h1>入出金</h1></div><Button className="primary-action" onClick={()=>setEditing({row:null})}><Plus />記録</Button></div>
-    <div className="expense-toolbar">
-      <div className="month-selector"><Button variant="ghost" size="icon" title="前の月" aria-label="入出金の前の月" disabled={all||month==='2000-01'} onClick={()=>changeMonth(shiftMonth(month,-1))}><ChevronLeft /></Button>
-        <input type="month" aria-label="入出金の表示月" min="2000-01" max="2099-12" disabled={all} value={month} onChange={e=>changeMonth(e.target.value)} />
-        <Button variant="ghost" size="icon" title="次の月" aria-label="入出金の次の月" disabled={all||month==='2099-12'} onClick={()=>changeMonth(shiftMonth(month,1))}><ChevronRight /></Button>
-      </div>
+    <div className="workspace-heading"><div><p className="section-eyebrow">銀行明細・手入力</p><h1>入出金</h1></div><Button className="primary-action" onClick={()=>setEditing({row:null})}><Plus />記録</Button></div>
+    <div className="expense-toolbar cash-toolbar">
+      <Tabs className="cash-period" value={all?'all':'month'} onValueChange={value=>{setAll(value==='all');setPage(1);}}><TabsList aria-label="入出金の期間"><TabsTrigger value="all">全期間</TabsTrigger><TabsTrigger value="month">月別</TabsTrigger></TabsList></Tabs>
+      {!all&&<div className="month-selector"><Button variant="ghost" size="icon" title="前の月" aria-label="入出金の前の月" disabled={month==='2000-01'} onClick={()=>changeMonth(shiftMonth(month,-1))}><ChevronLeft /></Button>
+        <input type="month" aria-label="入出金の表示月" min="2000-01" max="2099-12" value={month} onChange={e=>changeMonth(e.target.value)} />
+        <Button variant="ghost" size="icon" title="次の月" aria-label="入出金の次の月" disabled={month==='2099-12'} onClick={()=>changeMonth(shiftMonth(month,1))}><ChevronRight /></Button>
+      </div>}
       <div className="toolbar-actions"><Button size="icon" variant="ghost" title="入出金を更新" aria-label="入出金を更新" onClick={onChanged}><RefreshCw /></Button><Button size="icon" variant="outline" title="表示中の入出金をCSV出力" aria-label="表示中の入出金をCSV出力" disabled={!data||exporting} onClick={download}>{exporting?<LoaderCircle className="animate-spin" />:<Download />}</Button></div>
     </div>
-    <details className="cash-filter-panel"><summary><SlidersHorizontal aria-hidden="true" />絞り込み{(all||direction!=='all'||kind||source||search)&&<span>適用中</span>}</summary>
-    <label className="check-label cash-all"><input type="checkbox" checked={all} onChange={e=>{setAll(e.target.checked);setPage(1);}} />全期間</label>
+    <details className="cash-filter-panel"><summary><SlidersHorizontal aria-hidden="true" />絞り込み{(direction!=='all'||kind||source||search)&&<span>適用中</span>}</summary>
     <div className="cash-filters">
       <label>入出金<select aria-label="入出金の方向" value={direction} onChange={e=>{setDirection(e.target.value);setPage(1);}}><option value="all">すべて</option><option value="in">入金</option><option value="out">出金</option></select></label>
       <label>種類<select aria-label="入出金の種類" value={kind} onChange={e=>{setKind(e.target.value);setPage(1);}}><option value="">すべて</option>{Object.entries(cashKinds).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>

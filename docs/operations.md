@@ -2,7 +2,7 @@
 
 ## 最新の運用
 
-2026-10-04: 本人承認後に共有Supabaseを再開し `ACTIVE_HEALTHY` / Freeを確認。VercelはHobby。[入出金とCSV取込](cash-movements.md) のmigration・両環境のv7/v8 backup/独立復元・旧データ保持・実runtime隔離は確認済み。アプリ公開・実明細取込は最終確認中。
+2026-10-04: 本人承認後に共有Supabaseを再開し `ACTIVE_HEALTHY` / Freeを確認。VercelはHobby。[入出金とCSV取込](cash-movements.md) のmigration・両環境のv7/v8 backup/独立復元・旧データ保持・実runtime隔離は確認済み。実装 `0747240` / Vercel `dpl_GY2ghi7r2uaiBwAUUu216ubfmepT` を本番公開し64件を登録。切替前後HTTP47項目・本人画面・再取込時の新規0件を確認済み。既存データの削除や有料プラン変更はしていない。
 
 家計共有版の仕様・公開状況は [夫婦の家計・定期支出](household-workflow.md)、妻の参加は [アカウント追加](household-onboarding.md)。以下の初回利用開始手順と2026-09-09の数値は当時の記録であり、繰り返し招待・共有Auth初期化をしない。
 

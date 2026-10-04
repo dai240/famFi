@@ -1,7 +1,9 @@
 # 入出金と楽天銀行CSV
 
 2026-10-04。本人の承認後に共有Supabase `personal-apps` (`fpptihhtyhehpjvmtuqt`) を再開し、`ACTIVE_HEALTHY` とFree継続を確認した。VercelもHobbyのまま。初期化・作り直し・有料オプション購入はしていない。
-DBのmigration、前後backup/復元、旧データ保持、実runtime隔離を確認済み。アプリ公開と実明細の登録は最終確認中。
+DBのmigration、前後backup/復元、旧データ保持、実runtime隔離を確認済み。実装 `0747240` を本番公開し、依頼CSVの64件を既存の共通資金の「家計口座」へ登録した。
+
+公開先: https://famfi-nu.vercel.app 。Vercel `dpl_GY2ghi7r2uaiBwAUUu216ubfmepT`（Production/READY）。Production環境で再buildし、切替前後のHTTP47項目と既存本人セッションでの実画面を確認した。GitHub自動デプロイ連携は変更していない。
 
 ## 管理するもの
 
@@ -15,6 +17,8 @@ DBのmigration、前後backup/復元、旧データ保持、実runtime隔離を�
 ## 画面と保存
 
 スマホはメニューの「入出金」、PCは同名タブ。月/全期間・方向・種類・口座・内容/メモの検索と、その条件に一致する合計・CSVに対応する。初期表示は合計と履歴を優先し、条件指定は折りたたむ。中央の+は従来どおり支出登録。
+
+今回の過去明細は「絞り込み」内の「全期間」でまとめて確認できる。初期の当月表示に過去の明細が含まれないことは、未登録を意味しない。
 
 手入力は全業務項目を訂正できる。取込明細の口座・日付・金額は原本の事実なので変更不可とし、内容・種類・関係者・メモは後で補足できる。同時更新はversion競合で拒否し、入力を保ったまま最新を読み直せる。
 
@@ -68,7 +72,18 @@ dry-runの新規/取込済み/削除済み件数と原本SHA-256を確認後、�
 - Chromium/WebKit、幅320/390/844/1280の入出金画面118項目、既存ナビ168項目。Safari相当での選択欄の縮小を修正し、40px以上のタップ領域を確認。
 - Preview隔離21項目、型検査、Lint（既存img警告4件のみ）、Production用build成功。
 - 成果物48件の秘密設定除外、API36件の公開CA・Prisma compiler同梱、独立成果物初期化を確認。
-- 依頼CSVの読み取り検査は成功。原本の実データはDBやテストfixtureへ未登録。既存の本番記録は削除していない。
+- 依頼CSVを64件登録し、取込前後のv8暗号化backupと独立復元、既存全項目の保持、原本の日付/金額との一致を確認。再dry-runは新規0・取込済み64・削除済み0。人物は全件不明のまま。
+- 本番本人画面で入出金合計・全64件・50件/14件のページ分割、取込表示、口座/日付/金額の編集不可と関係者不明を確認。画面の保存・削除は行わず閉じた。実明細をPreviewやfixtureへコピーしていない。
+- 共有Auth、参加設定、台帳、runtime role/schema ACL、Compath状態/権限を含む13項目のbaselineは移行後・取込後とも一致。既存の支出・マスタ・定期設定・精算は変更も削除もしていない。
+
+本番backup（いずれもGit外 `~/.local/share/famfi-backups/`）:
+
+- migration前v7: `famfi-2026-10-04T11-15-47-288Z.json.pgp`
+- migration後v8: `famfi-2026-10-04T11-17-28-627Z.json.pgp`
+- 取込前v8: `famfi-2026-10-04T11-25-12-846Z.json.pgp`
+- 取込後v8: `famfi-2026-10-04T11-25-45-210Z.json.pgp`
+
+Previewの前後backupは独立した `~/.local/share/famfi-preview-backups/` に保存し、独立した鍵で復元確認済み。鍵とデータの別保管・定期実行は未設定。Freeプランでは低利用時に再停止する場合があり、自動再開/監視は追加していない。
 
 ```sh
 FAMFI_TEST_SCHEMA=famfi FAMFI_TEST_PG_BIN=<ローカルPostgreSQLのbin> npm run test:stack

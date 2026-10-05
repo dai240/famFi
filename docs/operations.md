@@ -4,6 +4,8 @@
 
 2026-10-05の仕様・検証・公開記録は [月次の家計管理](household-finance.md)。最新backupはv9、v1-v8復元を維持。月次のCSVは画面から確認付きで取込可能。カードの支出計上と個人の貸し借りは同文書の手順に従う。
 
+同日の本番反映は `0e01f7e` / Vercel `dpl_FjcbaSViJ4MQPuJLyPS4YXgtCYcn`（Production/READY）。正本履歴14件、銀行原本64件を保持し、カード出金23件を前月のまとめ支出へ計上済み。前後v9 backup/独立復元、公開HTTP65項目、本人の既存画面を確認。2枚分の月次確認・実際の定期設定・妻の招待は本人確認を残す。有料プラン・共有Auth・環境変数・他アプリは変更していない。
+
 2026-10-04の後続公開: 入出金への直接切替と全期間の初期表示を `483b48b` / Vercel `dpl_3cajS8776xKfmT5wkgh74VovBThL`（Production/READY）で公開。前後HTTP47項目と本人のスマホ幅画面で64件の即表示を確認。DB・Auth・環境変数・実データは変更していない。[検証・公開記録](cash-movements.md) を参照。
 
 2026-10-04: 本人承認後に共有Supabaseを再開し `ACTIVE_HEALTHY` / Freeを確認。VercelはHobby。[入出金とCSV取込](cash-movements.md) のmigration・両環境のv7/v8 backup/独立復元・旧データ保持・実runtime隔離は確認済み。実装 `0747240` / Vercel `dpl_GY2ghi7r2uaiBwAUUu216ubfmepT` を本番公開し64件を登録。切替前後HTTP47項目・本人画面・再取込時の新規0件を確認済み。有料プラン変更はしていない。
@@ -37,13 +39,15 @@ Supabase標準SMTPの宛先はOrganizationメンバーに限定される。別�
 - プールのホストは `aws-1-ap-southeast-1.pooler.supabase.com:6543`、ユーザー名は `famfi_app.fpptihhtyhehpjvmtuqt`。管理者の接続情報で代用しない。
 - `.private/`、すべてのローカルenv、秘密鍵はGitとVercelアップロードの両方から除外する。
 - Nextのトレースでもローカルenvと `.private/` を除外する。Prismaの `query_compiler_bg.wasm` は動的に読み込まれるため、CAとともに各APIの `outputFileTracingIncludes` へ明示する。必要ファイルの追記方法は [Next.jsの公式手順](https://nextjs.org/docs/15/app/api-reference/config/next-config-js/output) を参照。
-- `npm run build` の最後に成果物検査を自動実行する。`npm run check:artifact` でも、秘密設定の非同梱、CA・Prismaコンパイラの同梱、トレースされたファイルだけでのPrisma初期化を再確認できる。この検査は実DBや本番資格情報を使わない。Vercelへアップロードするscriptsはこの検査ファイルだけで、資格情報の設定スクリプト等は引き続き除外する。
+- `npm run build` の最後に成果物検査を自動実行する。`npm run check:artifact` でも、秘密設定の非同梱、CA・Prismaコンパイラの同梱、トレースされたファイルだけでのPrisma初期化を再確認できる。この検査は実DBや本番資格情報を使わない。Vercelへアップロードするscriptsはこの検査ファイルとAPIが利用する楽天銀行CSVパーサーだけで、資格情報の設定・管理者向け取込スクリプト等は引き続き除外する。
 - 本番ドメインは `https://famfi-nu.vercel.app`。`APP_ORIGIN` はこのOriginに限定する。Preview URLでの書き込みは許可しない。
 - VercelとGitHubの自動連携は未接続。後方互換のDB追加は、前後backupとレビュー済み正本migration適用→専用runtime検証→Production用Prisma生成・再build→コミット・push→ `npx vercel --prod --skip-domain --yes --scope day56s-projects` →Ready/HTTP確認→ `npx vercel promote <新しいURL> --yes --scope day56s-projects` の順で切り替える。破壊的変更は別途移行計画が必要。Previewでbuildした成果物はProductionへ昇格しない。
 
 資格情報の初回移送には `scripts/provision-transport.mjs` を使用した。DB内で生成したパスワードを公開鍵で暗号化して移送し、ローカルで復号する。鍵と復号結果は `.private/` のみ。`scripts/configure-production.mjs --vercel` はその資格情報をCLIのstdin経由でProductionに登録する。値を引数・出力に含めない。通常運用で再発行しない。
 
 ## バックアップ
+
+2026-10-05: 最新はv9。銀行由来まとめ・内訳の計上月・手入力照合・精算元・月次確認・個人債務/返済を追加し、v1-v8復元互換を維持する。DDL前後と既存明細の計上前後に暗号化取得・独立復元済み。通常captureは機能検出で最新版を取得する。今回のデータがある本番を対応前のアプリへ戻さない。
 
 2026-10-04: 入出金tableがある環境はv8を自動取得し、v7の共有メモに入出金・取込識別値・削除済み記録を加える。v1-v7復元も維持する。migration前のv7と適用後のv8を本番・Preview別々に暗号化し、独立復元と全旧項目一致を確認済み。通常の運用スクリプトは形式を固定せず機能検出する。以下は各導入時点の記録。
 

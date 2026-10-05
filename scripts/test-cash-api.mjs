@@ -57,7 +57,7 @@ const plan=await planCashImport(actor,source.id,parsed);eq(plan.create,2);
 eq(await applyCashImport(actor,plan,parsed),{created:2,skipped:0,voided:0});
 eq(await applyCashImport(actor,plan,parsed),{created:0,skipped:2,voided:0});
 const imported=(await req(owner,'/api/cash-movements?month='+month+'&kind=card_payment')).rows.find(r=>r.imported);
-const {imported:_imported,createdAt:_created,updatedAt:_updated,id:_id,...edit}=imported;
+const {imported:_imported,createdAt:_created,updatedAt:_updated,id:_id,summaryId:_summary,matchedImportId:_matched,...edit}=imported;
 for(const changes of [{amount:-2},{date:'2031-05-28'},{paymentSourceId:masters.paymentSources.find(s=>s.method==='bank'&&s.id!==source.id).id}])await req(owner,'/api/cash-movements/'+imported.id,'PUT',{...edit,...changes},400);
 const updated=await req(wife,'/api/cash-movements/'+imported.id,'PUT',{...edit,memo:'Later clarification'});
 eq(await applyCashImport(actor,plan,parsed),{created:0,skipped:2,voided:0});

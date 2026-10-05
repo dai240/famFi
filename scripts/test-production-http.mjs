@@ -18,6 +18,8 @@ async function request(path,status,method='GET',origin){
 const login=await request('/login',200);assert.ok(!login.includes('検証用の家計簿'));checks++;
 assert.ok(login.includes('確認コードを送信')&&!login.includes('disabled=""'));checks++;
 await request('/api/attention?month=2026-09',401);
+for(const path of ['/api/finance/bank?month=2026-09','/api/finance/contributions','/api/finance/debts'])await request(path,401);
+for(const path of ['/api/finance/bank','/api/finance/debts','/api/cash-movements/import']){await request(path,403,'POST','https://invalid.example');await request(path,401,'POST','https://famfi-nu.vercel.app');}
 for(const path of ['/api/expenses?month=2026-09','/api/masters','/api/attention','/api/plans','/api/summaries?month=2026-09','/api/recurring?month=2026-09','/api/expenses/export?month=2026-09','/api/calendar?month=2026-09','/api/notes','/api/notes/export','/api/household','/api/cash-movements','/api/cash-movements/export','/api/cash-movements/11111111-1111-4111-8111-111111111111'])await request(path,401);
 for(const path of ['/api/plans','/api/summaries','/api/auth/request','/api/notes','/api/categories/default-costs','/api/cash-movements'])await request(path,403,'POST','https://invalid.example');
 await request('/api/plans/11111111-1111-4111-8111-111111111111',401,'POST','https://famfi-nu.vercel.app');

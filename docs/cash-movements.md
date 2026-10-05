@@ -1,5 +1,7 @@
 # 入出金と楽天銀行CSV
 
+2026-10-05の拡張は [月次の家計管理](household-finance.md)。確認付き画面取込、カード引落の前月まとめ計上、手入力との照合、v9backupを追加。銀行原本を支出へ変換せず、明示リンクしたまとめ記録の未配分額だけを支出合計へ加える。
+
 2026-10-04。本人の承認後に共有Supabase `personal-apps` (`fpptihhtyhehpjvmtuqt`) を再開し、`ACTIVE_HEALTHY` とFree継続を確認した。VercelもHobbyのまま。初期化・作り直し・有料オプション購入はしていない。
 DBのmigration、前後backup/復元、旧データ保持、実runtime隔離を確認済み。実装 `0747240` を本番公開し、依頼CSVの64件を既存の共通資金の「家計口座」へ登録した。
 

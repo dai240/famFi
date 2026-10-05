@@ -7,7 +7,7 @@ export const backupTables = [
   { key: 'settlements', table: 'settlements', fields: ['id','userId','expenseId','amount','date','fromPartyId','toPartyId','memo','createdAt','cancelledAt'] },
 ];
 export const sqlColumn = key => key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-const calendarDates = new Set(['date','startMonth','endMonth','period','month','reviewAfter','snoozedUntil']);
+const calendarDates = new Set(['date','startMonth','endMonth','period','month','reviewAfter','snoozedUntil','accountingMonth']);
 // PostgreSQL DATE is not an instant. pg's local-midnight Date parsing loses a day in JST.
 export const backupSelectColumns = fields => fields.map(key => `${sqlColumn(key)}${calendarDates.has(key)?'::text':''} as "${key}"`).join(',');
 export const householdBackupTables = [
@@ -25,14 +25,20 @@ export const planningBackupTables=profileBackupTables.flatMap(dataset=>[
 ]);
 export const notesBackupTables=[...planningBackupTables,{key:'householdNotes',table:'household_notes',fields:['id','userId','name','memo','kind','date','datePrecision','completed','version','createdAt','updatedAt']}];
 export const cashBackupTables=[...notesBackupTables,{key:'cashMovements',table:'cash_movements',fields:['id','userId','paymentSourceId','date','amount','kind','description','memo','partyId','importKey','importBatch','voided','version','createdAt','updatedAt']}];
+export const financeBackupTables=[
+  ...cashBackupTables.map(dataset=>({...dataset,fields:[...dataset.fields,...(dataset.key==='expenses'?['accountingMonth']:dataset.key==='expenseSummaries'?['basis']:dataset.key==='settlements'?['kind','paymentSourceId']:dataset.key==='cashMovements'?['summaryId','matchedImportId']:[])]})),
+  {key:'cardMonthReviews',table:'card_month_reviews',fields:['id','userId','month','complete','version','createdAt','updatedAt']},
+  {key:'personalDebts',table:'personal_debts',fields:['id','userId','date','name','amount','debtorPartyId','creditorPartyId','memo','voided','version','createdAt','updatedAt']},
+  {key:'personalRepayments',table:'personal_repayments',fields:['id','userId','debtId','amount','date','paymentSourceId','memo','createdAt','cancelledAt']},
+];
 export async function captureHouseholdBackup(query,actorId,format,schema=process.env.FAMFI_DB_SCHEMA??'famfi'){
   if(!['famfi','famfi_preview'].includes(schema))throw new Error('Unsupported backup schema');
-  if(!format){const features=(await query('select to_regclass($1) is not null as planning,to_regclass($2) is not null as notes,to_regclass($3) is not null as cash',[`${schema}.expense_summaries`,`${schema}.household_notes`,`${schema}.cash_movements`])).rows[0];format=features.cash?'famfi-expenses/v8':features.notes?'famfi-expenses/v7':features.planning?'famfi-expenses/v6':'famfi-expenses/v5';}
+  if(!format){const features=(await query('select to_regclass($1) is not null as planning,to_regclass($2) is not null as notes,to_regclass($3) is not null as cash,to_regclass($4) is not null as finance',[`${schema}.expense_summaries`,`${schema}.household_notes`,`${schema}.cash_movements`,`${schema}.personal_debts`])).rows[0];format=features.finance?'famfi-expenses/v9':features.cash?'famfi-expenses/v8':features.notes?'famfi-expenses/v7':features.planning?'famfi-expenses/v6':'famfi-expenses/v5';}
   const member=(await query(`select ledger_id,party_id from ${schema}.household_members where user_id=$1`,[actorId])).rows[0];
   if(!member)throw new Error('An active household member is required');
   const household=(await query(`select id,name from ${schema}.households`)).rows[0];
-  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household,...(['famfi-expenses/v6','famfi-expenses/v7','famfi-expenses/v8'].includes(format)?{environment:schema}: {})};
-  for(const dataset of format==='famfi-expenses/v8'?cashBackupTables:format==='famfi-expenses/v7'?notesBackupTables:format==='famfi-expenses/v6'?planningBackupTables:format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from ${schema}.${dataset.table} order by id`)).rows;
+  const payload={format,exportedAt:new Date().toISOString(),ownerId:member.ledger_id,exportedByPartyId:member.party_id,household,...(['famfi-expenses/v6','famfi-expenses/v7','famfi-expenses/v8','famfi-expenses/v9'].includes(format)?{environment:schema}: {})};
+  for(const dataset of format==='famfi-expenses/v9'?financeBackupTables:format==='famfi-expenses/v8'?cashBackupTables:format==='famfi-expenses/v7'?notesBackupTables:format==='famfi-expenses/v6'?planningBackupTables:format==='famfi-expenses/v5'?profileBackupTables:householdBackupTables)payload[dataset.key]=(await query(`select ${backupSelectColumns(dataset.fields)} from ${schema}.${dataset.table} order by id`)).rows;
   return payload;
 }
 export function normalizeBackupRows(rows, fields) {

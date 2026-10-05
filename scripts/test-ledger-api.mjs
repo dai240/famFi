@@ -62,7 +62,7 @@ await result(owner,'/api/expenses','POST',{...expense,id:randomUUID()},400);
 await result(owner,`/api/expenses/${expense.id}`,'PUT',{...withoutId(expense),memo:'find ledger memo edited',version:1});
 await result(owner,`/api/masters/payment-sources/${source.id}`,'PUT',{...withoutId(source),archived:true,version:1});
 await result(owner,'/api/expenses','POST',{...expense,id:randomUUID(),categoryId:'food'},400);
-const pay={id:randomUUID(),expenseId:expense.id,expenseVersion:2,amount:1000,date:'2026-09-09',memo:'=repayment'};
+const pay={id:randomUUID(),expenseId:expense.id,expenseVersion:2,amount:1000,date:'2026-09-09',memo:'=repayment',kind:'refund',paymentSourceId:updatedMaster.paymentSources.find(s=>s.method==='bank'&&updatedMaster.parties.some(p=>p.id===s.fundingPartyId&&p.systemKey==='shared')).id};
 await result(other,'/api/settlements','POST',pay,404);
 await result(owner,'/api/settlements','POST',{...pay,expenseVersion:1},409);
 await result(owner,'/api/settlements','POST',{...pay,amount:2501},409);
@@ -94,4 +94,4 @@ await result(owner,`/api/expenses/${expense.id}`,'PUT',{...expenseFields(saved),
 const forbidden=await owner('/api/settlements','POST',pay,'https://evil.example');assert.equal(forbidden.status,403);checks++;
 console.log(`PASS: ${checks} ledger HTTP master/ownership/filter/CSV/settlement/conflict/cancellation checks`);
 function withoutId(row){const {id,...rest}=row;return rest;}
-function expenseFields(row){const {id,version,createdAt,updatedAt,settlements,settledAmount,recordedByPartyId,updatedByPartyId,summaryId,...rest}=row;return rest;}
+function expenseFields(row){const {id,version,createdAt,updatedAt,settlements,settledAmount,recordedByPartyId,updatedByPartyId,summaryId,accountingMonth,...rest}=row;return rest;}

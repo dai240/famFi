@@ -30,7 +30,7 @@ test('sample and provisional markers remain distinct from access rules',()=>{
   const confirmed=confirmProvisionalFields({name:'【仮】電気',memo});assert.deepEqual(confirmed,{name:'電気',memo:''});assert.equal(isProvisionalRule(confirmed),false);
 });
 test('batch rejects duplicate allocations, extra identity, oversize and bad date',()=>{
-  const input={date:'2026-09-12',memo:'',fromPartyId:randomUUID(),toPartyId:randomUUID(),entries:[{id:randomUUID(),expenseId:randomUUID(),expenseVersion:1,amount:10}]};
+  const input={date:'2026-09-12',memo:'',kind:'refund',paymentSourceId:randomUUID(),fromPartyId:randomUUID(),toPartyId:randomUUID(),entries:[{id:randomUUID(),expenseId:randomUUID(),expenseVersion:1,amount:10}]};
   assert.equal(settlementBatchSchema.safeParse(input).success,true);
   for(const invalid of [{...input,userId:randomUUID()},{...input,entries:[...input.entries,...input.entries]},{...input,entries:[]},{...input,date:'2026-02-30'},{...input,toPartyId:input.fromPartyId},{...input,entries:Array.from({length:51},()=>({...input.entries[0],id:randomUUID(),expenseId:randomUUID()}))}])assert.equal(settlementBatchSchema.safeParse(invalid).success,false);
 });

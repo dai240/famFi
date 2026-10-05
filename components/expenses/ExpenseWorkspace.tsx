@@ -24,6 +24,8 @@ import type { AttentionResponse } from '@/lib/monthly-review';
 import { HouseholdView } from './HouseholdView';
 import { NotesWorkspace, NoteEditor } from './NotesWorkspace';
 import { CashWorkspace } from './CashWorkspace';
+import { BankMonthStatus } from './BankPosting';
+import { FinanceWorkspace } from './FinanceWorkspace';
 import { CalendarEntry } from '@/lib/expense-calendar';
 import { NoteRecord } from '@/lib/notes';
 import { draftRecord, newExpense } from '@/lib/household';
@@ -184,6 +186,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         <TabsTrigger value="expenses" className="ledger-tab"><ReceiptText aria-hidden="true" />支出</TabsTrigger>
         <TabsTrigger value="cash" className="ledger-tab" disabled={!data}><Landmark aria-hidden="true" />入出金</TabsTrigger>
         <TabsTrigger value="settlements">立替・精算</TabsTrigger>
+        <TabsTrigger value="finance">負担・貸し借り</TabsTrigger>
         <TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger>
         <TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger>
       </TabsList>
@@ -206,6 +209,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         : <>
           <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>記録数</span><strong>{data.count}<small> 件</small></strong></div></section>
           <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
+          <BankMonthStatus month={month} revision={revision} onChanged={refresh} onCash={()=>navigate('cash')} />
           <MonthlyReview key={month} data={review?.month===month?review:null} error={reviewError} onRetry={refresh} onSchedule={openSchedule} onExpense={openReviewExpense} onSummary={id=>{setPresentation('list');setSummaryId(id);}} />
           <MonthComparison month={month} revision={revision} />
           <div className="ledger-view-switch" role="group" aria-label="支出の表示方法"><button type="button" aria-pressed={presentation==='list'} onClick={()=>setPresentation('list')}><List aria-hidden="true" />一覧</button><button type="button" aria-pressed={presentation==='calendar'} onClick={()=>setPresentation('calendar')}><CalendarDays aria-hidden="true" />カレンダー</button></div>
@@ -249,11 +253,12 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     {view === 'recurring' && <RecurringWorkspace key={recurringTarget?recurringTarget.month+recurringTarget.view:'regular'} initialMonth={recurringTarget?.month??month} initialView={recurringTarget?.view} externalRevision={revision} onEdit={openEditor} onChanged={refresh} onMastersChanged={mastersChanged} />}
     {view === 'history' && data && <main className="expense-main"><div className="workspace-heading"><h1>変更履歴</h1><Button variant="ghost" size="icon" title="履歴を更新" aria-label="履歴を更新" onClick={refresh}><RefreshCw /></Button></div><HistoryView masters={data} revision={revision} /></main>}
     {view === 'settlements' && <SettlementWorkspace externalRevision={revision} onEdit={openEditor} onChanged={refresh} />}
+    {view === 'finance' && data && <FinanceWorkspace masters={data} revision={revision} onChanged={refresh} initialMonth={month} />}
     {view === 'household' && <HouseholdView />}
     {view === 'notes' && data && <NotesWorkspace masters={data} revision={revision} onChanged={refresh} />}
     {view === 'cash' && data && <CashWorkspace initialMonth={month} masters={data} revision={revision} onChanged={refresh} />}
     <BottomNavigation view={view} attention={attention} ready={Boolean(data)} busy={busy} onNavigate={navigate} onAdd={()=>openEditor(null)} onMasters={()=>{toast.dismiss();setManaging(true);}} onProfile={()=>{toast.dismiss();setProfileOpen(true);}} onLogout={logout} />
-    {editor && data && <ExpenseEditor key={editor.key} expense={editor.expense} initial={editor.initial} continueEntry={editor.continueEntry} initialMonth={month} masters={data} onMastersChanged={mastersChanged} onClose={() => setEditor(null)} onSaved={(row,keepOpen) => { setEditor(keepOpen?{expense:null,continueEntry:true,initial:draftRecord({...newExpense(data,row.date),categoryId:row.categoryId,costClass:data.categories.find(c=>c.id===row.categoryId)?.costClass??'unknown'}),key:crypto.randomUUID()}:null); if(!editor.expense || row.date.slice(0,7)!==month) {setPage(1);setMonth(row.date.slice(0,7));} refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} onDuplicate={row=>setEditor({expense:null,initial:row,key:crypto.randomUUID()})} />}
+    {editor && data && <ExpenseEditor key={editor.key} expense={editor.expense} initial={editor.initial} continueEntry={editor.continueEntry} initialMonth={month} masters={data} onMastersChanged={mastersChanged} onClose={() => setEditor(null)} onSaved={(row,keepOpen) => { setEditor(keepOpen?{expense:null,continueEntry:true,initial:draftRecord({...newExpense(data,row.date),categoryId:row.categoryId,costClass:data.categories.find(c=>c.id===row.categoryId)?.costClass??'unknown'}),key:crypto.randomUUID()}:null); if(!editor.expense || (row.accountingMonth??row.date.slice(0,7))!==month) {setPage(1);setMonth(row.accountingMonth??row.date.slice(0,7));} refresh(); toast.success('支出を保存しました'); }} onDelete={row => { setEditor(null); setDeleting(row); setDeleteError(''); }} onDuplicate={row=>setEditor({expense:null,initial:row,key:crypto.randomUUID()})} />}
     {noteEditor&&data&&<NoteEditor key={noteEditor.note?.id??'new'} note={noteEditor.note} initialDate={noteEditor.date} masters={data} onClose={()=>setNoteEditor(null)} onSaved={()=>{setNoteEditor(null);refresh();toast.success('共有メモを更新しました');}} />}
     {managing && data && <MasterManager masters={data} onChange={mastersChanged} onClose={()=>setManaging(false)} />}
     {self&&(firstProfile||profileOpen)&&<ProfileDialog key={self.id} person={self} firstTime={firstProfile} onSaved={masters=>{mastersChanged(masters);setProfileOpen(false);toast.success('表示名を保存しました');}} onClose={()=>setProfileOpen(false)} onLogout={logout} />}

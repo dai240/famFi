@@ -6,7 +6,7 @@ import { dbSchema } from './database-schema';
 import { shiftMonth } from './expenses';
 
 export function cashWhere(ledgerId: string, query: CashQuery): Prisma.CashMovementWhereInput {
-  return { userId: ledgerId, voided: false,
+  return { userId: ledgerId, voided: false, matchedImportId: null,
     ...(query.month ? { date: { gte: new Date(query.month+'-01T00:00:00Z'), lt: new Date(shiftMonth(query.month,1)+'-01T00:00:00Z') } } : {}),
     ...(query.direction==='in' ? { amount: { gt: 0 } } : query.direction==='out' ? { amount: { lt: 0 } } : {}),
     ...(query.kind ? { kind: query.kind } : {}), ...(query.source ? { paymentSourceId: query.source } : {}),

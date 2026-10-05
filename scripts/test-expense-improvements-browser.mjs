@@ -23,7 +23,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       await navigate(page,'立替・精算');await page.getByRole('checkbox',{name:prefix+'を一括精算に選択',exact:true}).check();await page.getByRole('checkbox',{name:prefix+' 2を一括精算に選択',exact:true}).check();
       await page.getByRole('button',{name:'まとめて精算',exact:true}).click();let dialog=page.getByRole('dialog',{name:'まとめて精算を記録',exact:true});await dialog.waitFor();
       check((await dialog.locator('.batch-total strong').innerText()).replace(/[^0-9]/g,'')==='2468','Combined remaining total');check(await dialog.getByRole('button',{name:'精算を保存',exact:true}).isDisabled(),'Requires repayment acknowledgement');
-      await dialog.getByLabel('精算日',{exact:true}).fill('2039-08-31');await dialog.getByLabel('対象と金額を確認し、返金済みです').check();
+      await dialog.getByLabel('精算日',{exact:true}).fill('2039-08-31');await dialog.getByLabel('実際の返金元',{exact:true}).selectOption(masters.paymentSources.find(s=>s.method==='bank'&&s.fundingPartyId===shared.id).id);await dialog.getByLabel('対象・金額・今回の扱いを確認しました').check();
       const box=await dialog.getByRole('button',{name:'精算を保存',exact:true}).boundingBox();check(box.y>=0&&box.y+box.height<=height,'Batch save stays visible');check(await dialog.evaluate(e=>e.scrollWidth<=e.clientWidth),'Batch dialog has no horizontal overflow');
       await page.screenshot({path:`${output}/${engineName}-${width}-batch.png`,animations:'disabled'});
       await dialog.getByRole('button',{name:'精算を保存',exact:true}).click();await dialog.waitFor({state:'hidden'});

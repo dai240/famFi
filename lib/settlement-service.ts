@@ -17,7 +17,7 @@ export async function settleBatch(tx: Prisma.TransactionClient, ledgerId: string
   if (old.length) {
     if (old.length !== input.entries.length || input.entries.some(entry => {
       const row = old.find(s => s.id === entry.id);
-      return !row || row.cancelledAt || row.expenseId !== entry.expenseId || row.amount !== entry.amount || row.date.toISOString().slice(0,10) !== input.date || row.memo !== input.memo || row.fromPartyId !== input.fromPartyId || row.toPartyId !== input.toPartyId;
+      return !row || row.cancelledAt || row.expenseId !== entry.expenseId || row.amount !== entry.amount || row.date.toISOString().slice(0,10) !== input.date || row.memo !== input.memo || row.fromPartyId !== input.fromPartyId || row.toPartyId !== input.toPartyId || row.kind!==input.kind || row.paymentSourceId!==input.paymentSourceId;
     })) throw new ApiError(409, '保存済みの精算と内容が異なります。精算状況を更新してください。');
     return { created: false, count: old.length };
   }
@@ -28,8 +28,8 @@ export async function settleBatch(tx: Prisma.TransactionClient, ledgerId: string
       throw new ApiError(409, '支出・相手・未精算額が変更されています。一覧を更新して選び直してください。');
     }
   }
-  const values = input.entries.map(e => Prisma.sql`(${e.id}::uuid,${ledgerId}::uuid,${e.expenseId}::uuid,${e.amount},${new Date(input.date+'T00:00:00Z')}::date,${input.fromPartyId}::uuid,${input.toPartyId}::uuid,${input.memo})`);
-  await tx.$executeRaw(Prisma.sql`insert into ${dbSchema}.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id,memo) values ${Prisma.join(values)}`);
+  const values = input.entries.map(e => Prisma.sql`(${e.id}::uuid,${ledgerId}::uuid,${e.expenseId}::uuid,${e.amount},${new Date(input.date+'T00:00:00Z')}::date,${input.fromPartyId}::uuid,${input.toPartyId}::uuid,${input.memo},${input.kind},${input.paymentSourceId}::uuid)`);
+  await tx.$executeRaw(Prisma.sql`insert into ${dbSchema}.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id,memo,kind,payment_source_id) values ${Prisma.join(values)}`);
   await tx.expense.updateMany({ where: { userId: ledgerId, id: { in: ids } }, data: { version: { increment: 1 }, updatedAt: new Date() } });
   return { created: true, count: input.entries.length };
 }

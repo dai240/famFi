@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+const base='http://127.0.0.1:3101',month='2035-05';let checks=0;
+function session(){const cookies=new Map();return async(path,body)=>{const raw=Buffer.isBuffer(body),r=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{origin:base,cookie:[...cookies].map(([k,v])=>k+'='+v).join('; '),'Content-Type':raw?'application/octet-stream':'application/json'},body:body===undefined?undefined:raw?body:JSON.stringify(body)});for(const c of r.headers.getSetCookie()){const p=c.split(';')[0],i=p.indexOf('=');cookies.set(p.slice(0,i),p.slice(i+1));}return r;};}
+const owner=session(),wife=session();
+async function req(who,path,body,status=200){const r=await who(path,body);assert.equal(r.status,status,path+' '+(r.status===status?'':await r.text()));checks++;return r.json();}
+await req(owner,'/api/auth/verify',{email:'fixture0@example.invalid',token:'111111'});await req(wife,'/api/auth/verify',{email:'fixture0@example.invalid',token:'777777'});
+const m=await req(owner,'/api/masters'),self=m.selfPartyId,partner=m.parties.find(p=>p.systemKey==='partner').id,shared=m.parties.find(p=>p.systemKey==='shared').id;
+const card=m.paymentSources.find(s=>s.isDefault),bank=m.paymentSources.find(s=>s.method==='bank'&&s.fundingPartyId===shared),cash=m.paymentSources.find(s=>s.method==='cash'&&s.fundingPartyId===self);
+const e=await req(owner,'/api/expenses',{id:randomUUID(),amount:1000,date:month+'-02',categoryId:'food',costClass:'variable',description:'Synthetic previously entered detail',memo:'',paymentSourceId:card.id,paidByPartyId:shared,usedByPartyId:self,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',paymentTreatment:'shared',reimbursementStatus:'not_required',reimbursementFromPartyId:null,reimbursementToPartyId:null,reimbursementAmount:0},201);
+const csv=Buffer.from('取引日,入出金(円),取引後残高(円),入出金内容\n20350627,-5000,15000,ラクテンカ－ト゛サ－ヒ゛ス');
+const prefix='/api/cash-movements/import?source='+bank.id,preview=await req(owner,prefix+'&phase=preview',csv);
+await req(owner,prefix+'&phase=apply&hash='+preview.hash,csv);
+const state=()=>req(owner,'/api/finance/bank?month='+month),total=async()=>(await req(owner,'/api/expenses?month='+month)).total;
+const row=(await state()).rows.find(r=>r.date==='2035-06-27');
+const post={action:'post',month,paymentSourceId:card.id,entries:[{id:row.id,version:row.version}]};
+await req(owner,'/api/finance/bank',post,409);
+const linked={...post,details:[{id:e.id,version:e.version}]};
+const results=await Promise.all([owner('/api/finance/bank',linked),wife('/api/finance/bank',linked)]);
+assert.deepEqual(results.map(r=>r.status),[200,200]);checks++;
+assert.equal(await total(),5000);checks++;
+await req(owner,'/api/finance/bank',{action:'review',month,version:0,complete:true});
+let c=await req(owner,'/api/cash-movements/'+row.id);
+await req(owner,'/api/finance/bank',{action:'unlink',id:c.id,version:c.version},409);
+const summary=(await req(owner,'/api/summaries?month='+month))[0];
+await req(owner,'/api/summaries/'+summary.id,{action:'unlink',version:summary.version,expenseId:e.id,expenseVersion:(await req(owner,'/api/expenses/'+e.id)).version});
+c=await req(owner,'/api/cash-movements/'+row.id);
+await req(owner,'/api/finance/bank',{action:'unlink',id:c.id,version:c.version});
+assert.equal((await state()).review.complete,false);checks++;
+assert.equal(await total(),1000);checks++;
+assert.equal((await req(owner,'/api/cash-movements/'+row.id)).amount,-5000);checks++;
+const debtId=randomUUID();await req(owner,'/api/finance/debts',{action:'save',id:debtId,version:0,name:'Synthetic concurrent repayment',amount:5000,date:month+'-03',debtorPartyId:self,creditorPartyId:partner});
+const debt=(await req(owner,'/api/finance/debts')).rows.find(r=>r.id===debtId),repay={action:'repay',debtId,version:debt.version,amount:4000,date:month+'-04',paymentSourceId:cash.id};
+const paid=await Promise.all([owner('/api/finance/debts',{...repay,id:randomUUID()}),wife('/api/finance/debts',{...repay,id:randomUUID()})]);
+assert.deepEqual(paid.map(r=>r.status).sort(),[200,409]);checks++;
+assert.equal((await req(owner,'/api/finance/debts')).rows.find(r=>r.id===debtId).paid,4000);checks++;
+console.log(`PASS: ${checks} existing-detail, duplicate/concurrent posting, unlink/review invalidation and concurrent private repayment checks`);

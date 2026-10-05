@@ -41,7 +41,7 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
   async function save(event:FormEvent){
     event.preventDefault();if(lock.current)return;setError('');const parsed=validatedExpenseFields.safeParse(fields);
     if(!parsed.success){setDetailsOpen(true);setError(parsed.error.issues[0]?.message??'入力内容を確認してください。');return;}
-    const monthChanged=Boolean(expense?.summaryId&&expense.date.slice(0,7)!==parsed.data.date.slice(0,7));
+    const monthChanged=Boolean(expense?.summaryId&&!expense.accountingMonth&&expense.date.slice(0,7)!==parsed.data.date.slice(0,7));
     if(monthChanged&&!window.confirm('まとめ記録に含まれる明細の月が変わるため、月別の支出合計が変わります。保存しますか？'))return;
     lock.current=true;setBusy(true);
     try{const row=saveOverride?await saveOverride(id,parsed.data):await requestJson<ExpenseRecord>(expense?'/api/expenses/'+id:'/api/expenses',{method:expense?'PUT':'POST',body:JSON.stringify({...parsed.data,...(expense?{version:expense.version,allowMonthChange:monthChanged}:{id})})});onSaved(row,keepOpen&&!expense&&!saveOverride);}
@@ -63,7 +63,7 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
         <label htmlFor="expense-description">内容 <span className="muted-text">任意</span></label><input id="expense-description" maxLength={120} value={fields.description} disabled={busy} onChange={e=>patch({description:e.target.value})} />
         <label>費用の区分</label><CostClassSelect value={fields.costClass} onChange={costClass=>patch({costClass})} disabled={busy} />
         </>}
-        {expense?.summaryId&&<p className="muted-text">まとめ記録の明細</p>}
+        {expense?.summaryId&&<p className="muted-text">まとめ記録の明細{expense.accountingMonth?' / 計上月 '+expense.accountingMonth:''}</p>}
         <PaymentFields compact={!expense} fields={fields} masters={masters} onChange={patch} disabled={busy} financialLocked={financialLocked} onManage={setManaging} />
         <ExpenseDateField compact={!expense&&!recurringConfirmation} date={fields.date} onChange={date=>patch({date})} disabled={busy} />
         {recurringConfirmation&&<Button type="button" variant="ghost" className="details-toggle" aria-expanded={showDetails} disabled={busy||!category||category.archived} onClick={()=>setDetailsOpen(!showDetails)}>{showDetails?<ChevronUp />:<ChevronDown />}{showDetails?'詳細を閉じる':'詳細を編集'}</Button>}

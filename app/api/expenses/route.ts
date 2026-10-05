@@ -13,14 +13,14 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
     return json(await withUserDb(user.id, async (tx, scope) => {
-      const where = { userId: scope.ledgerId, date: monthRange(query.month) };
+      const where = { userId: scope.ledgerId, ledgerDate: monthRange(query.month) };
       const filtered = await expenseWhere(tx, scope.ledgerId, query);
       const expenses = await tx.expense.findMany({ where: filtered, include: expenseInclude, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }], take: PAGE_SIZE, skip: (query.page - 1) * PAGE_SIZE });
       const masters = await readMasters(tx);
       const totals = await tx.expense.aggregate({ where, _sum: { amount: true }, _count: true });
       const groups = await tx.expense.groupBy({ by: ['categoryId'], where, _sum: { amount: true }, _count: true });
       const filteredTotals = await tx.expense.aggregate({ where: filtered, _sum: { amount: true }, _count: true });
-      const summaries=await readSummaries(tx,{month:where.date.gte});
+      const summaries=await readSummaries(tx,{month:where.ledgerDate.gte});
       const summaryRemainder=summaries.reduce((sum,s)=>sum+s.remainder,0);
       const filteredRemainder=summariesMatchFilters(query)?summaries.filter(s=>(!query.paymentSource||s.paymentSourceId===query.paymentSource)&&(!query.search||s.name.includes(query.search)||s.memo.includes(query.search))).reduce((sum,s)=>sum+s.remainder,0):0;
       const costs=await tx.expense.groupBy({by:['costClass'],where,_sum:{amount:true}});

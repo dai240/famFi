@@ -88,6 +88,8 @@ model PaymentSource {
 }
 
 model Expense {
+  accountingMonth DateTime? @map("accounting_month") @db.Date
+  ledgerDate DateTime @default(dbgenerated()) @map("ledger_date") @db.Date
   costClass String @default("unknown") @map("cost_class")
   summaryId String? @map("summary_id") @db.Uuid
   id                       String       @id @db.Uuid
@@ -189,6 +191,8 @@ model AuditEvent {
 }
 
 model Settlement {
+  kind String @default("refund")
+  paymentSourceId String? @map("payment_source_id") @db.Uuid
   id          String    @id @db.Uuid
   userId      String    @map("user_id") @db.Uuid
   expenseId   String    @map("expense_id") @db.Uuid
@@ -207,6 +211,7 @@ model Settlement {
 }
 
 model ExpenseSummary {
+  basis String @default("purchase")
   id String @id @db.Uuid
   userId String @map("user_id") @db.Uuid
   paymentSourceId String @map("payment_source_id") @db.Uuid
@@ -265,6 +270,8 @@ model HouseholdNote {
 }
 
 model CashMovement {
+  summaryId String? @map("summary_id") @db.Uuid
+  matchedImportId String? @map("matched_import_id") @db.Uuid
   id String @id @db.Uuid
   userId String @map("user_id") @db.Uuid
   paymentSourceId String @map("payment_source_id") @db.Uuid
@@ -283,5 +290,50 @@ model CashMovement {
   @@unique([userId,id])
   @@unique([userId,paymentSourceId,importKey])
   @@map("cash_movements")
+  @@schema("famfi")
+}
+
+model CardMonthReview {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  month DateTime @db.Date
+  complete Boolean @default(false)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@unique([userId,month])
+  @@map("card_month_reviews")
+  @@schema("famfi")
+}
+
+model PersonalDebt {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  date DateTime @db.Date
+  name String
+  amount Int
+  debtorPartyId String @map("debtor_party_id") @db.Uuid
+  creditorPartyId String @map("creditor_party_id") @db.Uuid
+  memo String @default("")
+  voided Boolean @default(false)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  @@unique([userId,id])
+  @@map("personal_debts")
+  @@schema("famfi")
+}
+
+model PersonalRepayment {
+  id String @id @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  debtId String @map("debt_id") @db.Uuid
+  amount Int
+  date DateTime @db.Date
+  paymentSourceId String @map("payment_source_id") @db.Uuid
+  memo String @default("")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  @@map("personal_repayments")
   @@schema("famfi")
 }

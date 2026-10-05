@@ -27,6 +27,8 @@ export async function PUT(request: Request, context: Context) {
       const old=await tx.cashMovement.findFirst({where:{id,userId:scope.ledgerId,voided:false}});
       if(!old)throw new ApiError(404,'入出金が見つかりません。');
       if(old.version!==version)throw new ApiError(409,'別の画面で変更されています。最新の入出金を確認してください。');
+      if(old.matchedImportId)throw new ApiError(409,'照合済みの手入力です。先に照合を解除してください。');
+      if(old.summaryId&&input.kind!=='card_payment')throw new ApiError(409,'先に支出との紐づけを解除してください。');
       if(old.importKey&&(old.paymentSourceId!==input.paymentSourceId||old.amount!==input.amount||old.date.toISOString().slice(0,10)!==input.date)) throw new ApiError(400,'取込済み明細の口座・日付・金額は変更できません。');
       await checkCashReferences(tx,scope.ledgerId,input,old);
       return serializeCash(await tx.cashMovement.update({where:{id},data:{...input,date:new Date(input.date+'T00:00:00Z'),version:{increment:1},updatedAt:new Date()}}));
@@ -43,6 +45,7 @@ export async function DELETE(request: Request, context: Context) {
       if(!old)throw new ApiError(404,'入出金が見つかりません。');
       if(old.voided&&old.version===version+1)return;
       if(old.voided||old.version!==version)throw new ApiError(409,'別の画面で変更されています。最新の入出金を確認してください。');
+      if(old.summaryId||old.matchedImportId||await tx.cashMovement.count({where:{matchedImportId:id}}))throw new ApiError(409,'先に支出との紐づけ・手入力との照合を解除してください。');
       await tx.cashMovement.update({where:{id},data:{voided:true,version:{increment:1},updatedAt:new Date()}});
     });
     return json({deleted:true});

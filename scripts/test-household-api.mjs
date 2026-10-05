@@ -20,7 +20,7 @@ const id=randomUUID();let saved=await(await result(wife,'/api/expenses','POST',{
 equal((await(await result(owner,'/api/expenses/'+id)).json()).id,id);await result(other,'/api/expenses/'+id,'GET',undefined,404);
 saved=await(await result(owner,'/api/expenses/'+id,'PUT',{...advance,description:'Corrected by husband',version:1})).json();equal(saved.updatedByPartyId,husband);equal(saved.recordedByPartyId,partner);
 await result(wife,'/api/expenses/'+id,'PUT',{...advance,version:1},409);
-const payments=await Promise.all([owner,wife].map(request=>request('/api/settlements','POST',{id:randomUUID(),expenseId:id,expenseVersion:saved.version,amount:3000,date:'2026-07-15',memo:'household test'})));
+const payments=await Promise.all([owner,wife].map(request=>request('/api/settlements','POST',{id:randomUUID(),expenseId:id,expenseVersion:saved.version,amount:3000,date:'2026-07-15',memo:'household test',kind:'refund',paymentSourceId:masters.paymentSources.find(s=>s.method==='bank'&&s.fundingPartyId===fund).id})));
 equal(payments.map(r=>r.status).sort(),[201,409]);saved=await(await result(owner,'/api/expenses/'+id)).json();equal(saved.settledAmount,3000);
 await result(owner,'/api/expenses/'+id,'PUT',{...advance,paymentTreatment:'custom',version:saved.version},409);
 const history=await(await result(wife,'/api/history?entityType=expenses&entityId='+id)).json();assert.ok(history.events.some(e=>e.action==='INSERT'&&e.actorPartyId===partner));assert.ok(history.events.some(e=>e.action==='UPDATE'&&e.actorPartyId===husband));assert.ok(history.events.every(e=>!('userId' in e)&&!('user_id' in (e.afterData??{}))));checks+=3;

@@ -8,7 +8,7 @@ test('notes migration preserves v6, guards shared history, and restores all v7 n
   const db=new PGlite(),dir='../personal-apps-infra/supabase/migrations',owner='11111111-1111-4111-8111-111111111111';
   try{
     await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);');
-    const files=(await readdir(dir)).sort().filter(f=>!/_famfi_cash_movements\.sql$/.test(f));
+    const files=(await readdir(dir)).sort().filter(f=>f<'20260910052849');
     for(const file of files.filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!notes).*)\.sql$/.test(f)))await db.exec(await readFile(dir+'/'+file,'utf8'));
     await db.query('insert into auth.users values($1)',[owner]);await db.query('insert into famfi.memberships(user_id) values($1)',[owner]);await db.query('select famfi.provision_household($1)',[owner]);
     const capture=async()=>{await db.exec('begin;set local role famfi_app');try{await db.query("select set_config('app.user_id',$1,true)",[owner]);return await captureHouseholdBackup((sql:string,values:unknown[])=>db.query(sql,values),owner,undefined,'famfi');}finally{await db.exec('rollback');}};

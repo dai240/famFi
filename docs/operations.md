@@ -2,6 +2,8 @@
 
 ## 最新の運用
 
+2026-10-05の仕様・検証・公開記録は [月次の家計管理](household-finance.md)。最新backupはv9、v1-v8復元を維持。月次のCSVは画面から確認付きで取込可能。カードの支出計上と個人の貸し借りは同文書の手順に従う。
+
 2026-10-04の後続公開: 入出金への直接切替と全期間の初期表示を `483b48b` / Vercel `dpl_3cajS8776xKfmT5wkgh74VovBThL`（Production/READY）で公開。前後HTTP47項目と本人のスマホ幅画面で64件の即表示を確認。DB・Auth・環境変数・実データは変更していない。[検証・公開記録](cash-movements.md) を参照。
 
 2026-10-04: 本人承認後に共有Supabaseを再開し `ACTIVE_HEALTHY` / Freeを確認。VercelはHobby。[入出金とCSV取込](cash-movements.md) のmigration・両環境のv7/v8 backup/独立復元・旧データ保持・実runtime隔離は確認済み。実装 `0747240` / Vercel `dpl_GY2ghi7r2uaiBwAUUu216ubfmepT` を本番公開し64件を登録。切替前後HTTP47項目・本人画面・再取込時の新規0件を確認済み。有料プラン変更はしていない。

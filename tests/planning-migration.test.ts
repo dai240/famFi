@@ -10,7 +10,7 @@ test('production planning preserves v5 fields, validates shared history and rest
   try{
     await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);');
     const files=(await readdir(dir)).filter(file=>file<'20260910042034').sort();
-    for(const file of files.filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!planning).*)\.sql$/.test(f)))await db.exec(await readFile(dir+'/'+file,'utf8'));
+    for(const file of files.filter(f=>f<'20260910042033'&&/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(f)))await db.exec(await readFile(dir+'/'+file,'utf8'));
     await db.query('insert into auth.users values($1)',[owner]);await db.query('insert into famfi.memberships(user_id) values($1)',[owner]);await db.query('select famfi.provision_household($1)',[owner]);
     await db.query("insert into famfi.expenses(id,user_id,amount,date,category_id,description) values($1,$1,4321,'2026-09-01','food','Preservation fixture')",[owner]);
     await db.query("insert into famfi.recurring_rules(id,user_id,name,amount_mode,amount,frequency,start_month,category_id,payment_source_id,payment_treatment,used_by_party_id,beneficiary_kind) select $1,$1,'Existing fixed rule','fixed',1234,'monthly','2026-09-01','food',s.id,'shared',p.id,'family' from famfi.payment_sources s cross join famfi.parties p where s.user_id=$1 and s.is_default and p.user_id=$1 and p.system_key='owner'",[owner]);

@@ -21,7 +21,7 @@ export async function readAttention(tx:Prisma.TransactionClient,review?:{month:s
   const response:AttentionResponse={count:items.length,items:items.slice(0,100)};
   if(review){
     const {month,ledgerId}=review;
-    const rows=await tx.expense.findMany({where:{userId:ledgerId,date:monthRange(month),reimbursementStatus:'unknown'},select:{id:true,date:true,datePrecision:true,description:true,memo:true,amount:true,category:{select:{name:true}}},orderBy:[{date:'asc'},{id:'asc'}]});
+    const rows=await tx.expense.findMany({where:{userId:ledgerId,ledgerDate:monthRange(month),reimbursementStatus:'unknown'},select:{id:true,date:true,datePrecision:true,description:true,memo:true,amount:true,category:{select:{name:true}}},orderBy:[{date:'asc'},{id:'asc'}]});
     const summaries=await readSummaries(tx,{userId:ledgerId,month:monthRange(month).gte,complete:false});
     response.review={month,today,periods:reviewPeriods(items),waiting:waitingReviews(rules,occurrences,plans,month,today),
       payments:rows.filter(row=>!isSampleRecord(row)).map(row=>({id:row.id,name:row.description||row.category.name,date:row.date.toISOString().slice(0,row.datePrecision==='month'?7:10),amount:row.amount})),
@@ -46,7 +46,7 @@ export async function linkSummary(tx:Prisma.TransactionClient,ledgerId:string,su
   if(summary.version!==version)throw new ApiError(409,'まとめ記録が更新されています。開き直してください。');
   if(expense.summaryId)throw new ApiError(409,'この支出はすでにまとめ記録に紐づいています。');
   if(summary.paymentSourceId!==expense.paymentSourceId)throw new ApiError(400,'支払元が異なります。');
-  if(summary.month.toISOString().slice(0,7)!==expense.date.slice(0,7)&&!allowMonthChange)throw new ApiError(409,'計上月が異なるため月別の支出合計が変わります。確認してから紐づけてください。');
+  if(summary.basis!=='bank'&&summary.month.toISOString().slice(0,7)!==expense.date.slice(0,7)&&!allowMonthChange)throw new ApiError(409,'計上月が異なるため月別の支出合計が変わります。確認してから紐づけてください。');
   const current=await tx.expense.aggregate({where:{summaryId},_sum:{amount:true}});
   if((current._sum.amount??0)+expense.amount>summary.amount)throw new ApiError(400,'明細の合計がまとめ記録の金額を超えます。');
   await tx.$executeRaw`update ${dbSchema}.expenses set summary_id=${summaryId}::uuid,version=version+1,updated_at=now() where user_id=${ledgerId}::uuid and id=${expense.id}::uuid`;

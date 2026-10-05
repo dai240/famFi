@@ -19,7 +19,7 @@ const source=masters.paymentSources.find(s=>s.fundingPartyId===self.id&&s.method
 const expense={amount:1000,date:'2038-08-10',categoryId:'food',costClass:'variable',description:'Batch '+randomUUID(),memo:'',paymentSourceId:source.id,paidByPartyId:self.id,usedByPartyId:self.id,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',paymentTreatment:'advance',reimbursementStatus:'required',reimbursementFromPartyId:shared.id,reimbursementToPartyId:self.id,reimbursementAmount:1000};
 const create=(fields={})=>req(owner,'/api/expenses','POST',{...expense,...fields,id:randomUUID()},201);
 const a=await create(),b=await create({description:'Batch B',date:'2038-08'});
-const payload=(rows,fields={})=>({date:'2038-09-01',memo:'Batch receipt',fromPartyId:shared.id,toPartyId:self.id,entries:rows.map(e=>({id:randomUUID(),expenseId:e.id,expenseVersion:e.version,amount:e.reimbursementAmount-e.settledAmount})),...fields});
+const payload=(rows,fields={})=>({date:'2038-09-01',memo:'Batch receipt',kind:'refund',paymentSourceId:masters.paymentSources.find(s=>s.method==='bank'&&s.fundingPartyId===shared.id).id,fromPartyId:shared.id,toPartyId:self.id,entries:rows.map(e=>({id:randomUUID(),expenseId:e.id,expenseVersion:e.version,amount:e.reimbursementAmount-e.settledAmount})),...fields});
 let input=payload([a,b]);
 await req(other,'/api/settlements/batch','POST',input,404);
 await req(owner,'/api/settlements/batch','POST',{...input,userId:randomUUID()},400);
@@ -45,16 +45,16 @@ await req(owner,'/api/settlements/batch','POST',input,409);
 // Atomic batch against a simultaneous individual repayment.
 const c=await create(),d=await create();input=payload([c,d]);
 const batch=owner('/api/settlements/batch','POST',input);
-const single=wife('/api/settlements','POST',{...input.entries[0],id:randomUUID(),date:input.date,memo:''});
+const single=wife('/api/settlements','POST',{...input.entries[0],id:randomUUID(),date:input.date,memo:'',kind:input.kind,paymentSourceId:input.paymentSourceId});
 const batchStatus=(await batch).status,singleStatus=(await single).status;eq([batchStatus,singleStatus].sort(),[201,409]);
 eq((await req(owner,'/api/expenses/'+c.id)).settledAmount,1000);
 eq((await req(owner,'/api/expenses/'+d.id)).settledAmount,batchStatus===201?1000:0);
-const partial=await create();await req(owner,'/api/settlements','POST',{id:randomUUID(),expenseId:partial.id,expenseVersion:partial.version,amount:400,date:'2038-09-01',memo:''},201);
+const partial=await create();await req(owner,'/api/settlements','POST',{id:randomUUID(),expenseId:partial.id,expenseVersion:partial.version,amount:400,date:'2038-09-01',memo:'',kind:'refund',paymentSourceId:masters.paymentSources.find(s=>s.method==='bank'&&s.fundingPartyId===shared.id).id},201);
 const latest=await req(owner,'/api/expenses/'+partial.id);eq(latest.settledAmount,400);
 await req(owner,'/api/settlements/batch','POST',payload([latest]),201);eq((await req(owner,'/api/expenses/'+partial.id)).settledAmount,1000);
 const sample=await create({description:'【サンプル】立替',memo:'famfi-sample-summer-2026-v1'});
 await req(owner,'/api/settlements/batch','POST',payload([sample]),422);
-await req(owner,'/api/settlements','POST',{...payload([sample]).entries[0],date:'2038-09-01',memo:''},422);
+await req(owner,'/api/settlements','POST',{...payload([sample]).entries[0],date:'2038-09-01',memo:'',kind:'refund',paymentSourceId:masters.paymentSources.find(s=>s.method==='bank'&&s.fundingPartyId===shared.id).id},422);
 let list=await req(owner,'/api/settlements');eq(list.expenses.some(e=>e.id===sample.id),false);eq(list.sampleAmount,1000);
 eq((await req(owner,'/api/settlements?samples=show')).expenses.some(e=>e.id===sample.id),true);
 // Normal and provisional rules, sample previous values never become a real default.

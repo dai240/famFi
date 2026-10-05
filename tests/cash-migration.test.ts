@@ -15,7 +15,7 @@ test('cash migration isolates households and preserves import facts, tombstones,
   try {
     await db.exec('create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);');
     const files=(await readdir(dir)).sort();
-    for(const file of files.filter(f=>/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_(?!cash_movements).*)\.sql$/.test(f)))await db.exec(await readFile(dir+'/'+file,'utf8'));
+    for(const file of files.filter(f=>f<'20261004111716'&&/^\d+_(shared_foundation|shared_runtime_admin_membership|famfi_.*)\.sql$/.test(f)))await db.exec(await readFile(dir+'/'+file,'utf8'));
     for(const actor of [owner,other]){await db.query('insert into auth.users values($1)',[actor]);await db.query('insert into famfi.memberships(user_id) values($1)',[actor]);await db.query('select famfi.provision_household($1)',[actor]);}
     const capture=async()=>{await db.exec('begin;set local role famfi_app');try{await db.query("select set_config('app.user_id',$1,true)",[owner]);return await captureHouseholdBackup((sql:string,values:unknown[])=>db.query(sql,values),owner,undefined,'famfi');}finally{await db.exec('rollback');}};
     const before=await capture();assert.equal(before.format,'famfi-expenses/v7');await verifyBackupRestore(before);

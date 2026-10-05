@@ -12,7 +12,7 @@ export async function GET() {
       const rows=await tx.settlement.findMany({orderBy:[{date:'asc'},{id:'asc'}],take:100001});
       if(rows.length>100000) throw new ApiError(422,'出力上限を超えています。');
       const masters=await readMasters(tx); const name=(id:string)=>masters.parties.find(p=>p.id===id)?.name ?? id;
-      const lines=[['精算日','金額（円）','返す側','受け取る側','メモ','状態','精算ID','支出ID','記録日時','取消日時'],...rows.map(s=>[s.date.toISOString().slice(0,10),s.amount,name(s.fromPartyId),name(s.toPartyId),s.memo,s.cancelledAt?'取消済み':'有効',s.id,s.expenseId,s.createdAt.toISOString(),s.cancelledAt?.toISOString()??''])];
+      const lines=[['精算日','金額（円）','返す側','受け取る側','メモ','状態','精算ID','支出ID','記録日時','取消日時','扱い','実際の返金元'],...rows.map(s=>[s.date.toISOString().slice(0,10),s.amount,name(s.fromPartyId),name(s.toPartyId),s.memo,s.cancelledAt?'取消済み':'有効',s.id,s.expenseId,s.createdAt.toISOString(),s.cancelledAt?.toISOString()??'',s.kind==='contribution'?'家計への負担（返金なし）':'返金',masters.paymentSources.find(p=>p.id===s.paymentSourceId)?.name??'未設定'])];
       return '\uFEFF'+lines.map(line=>line.map(csvCell).join(',')).join('\r\n')+'\r\n';
     });
     return new NextResponse(csv,{headers:{...privateHeaders,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="famfi-settlements.csv"'}});

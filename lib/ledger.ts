@@ -35,7 +35,7 @@ export function sourceDisplayName(source: Pick<PaymentSource,'name'|'ownerLabel'
 }
 export type Category = Omit<z.infer<typeof categoryFields>,'costClass'> & { costClass?: z.infer<typeof costClassSchema>; id: string; version: number };
 export type Masters = { categories: Category[]; parties: Party[]; paymentSources: PaymentSource[]; selfPartyId?: string; householdName?: string };
-export type SettlementRecord = { id: string; expenseId: string; amount: number; date: string; fromPartyId: string; toPartyId: string; memo: string; createdAt: string; cancelledAt: string | null };
+export type SettlementRecord = { id: string; expenseId: string; amount: number; date: string; fromPartyId: string; toPartyId: string; memo: string; createdAt: string; cancelledAt: string | null; kind?:string;paymentSourceId?:string|null };
 export const settlementLabels = { unknown: '要確認', not_required: '精算不要', unsettled: '未精算', partial: '一部精算', settled: '精算済み' } as const;
 export type SettlementState = keyof typeof settlementLabels;
 export function settlementState(expense: { reimbursementStatus: string; reimbursementAmount: number; settledAmount: number }): SettlementState {

@@ -1,6 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, Plus, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, Plus, RefreshCw, Search, SlidersHorizontal, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CashKind, CashRecord, CashResponse, cashKinds } from '@/lib/cash-movements';
@@ -8,8 +8,11 @@ import { formatExpenseDate, formatYen, shiftMonth } from '@/lib/expenses';
 import { Masters } from '@/lib/ledger';
 import { errorMessage, requestJson } from '@/lib/client-api';
 import { CashEditor } from './CashEditor';
+import { BankImportDialog } from './BankImportDialog';
+import { BankPosting } from './BankPosting';
 
 export function CashWorkspace({ initialMonth, masters, revision, onChanged }: { initialMonth:string; masters:Masters; revision:number; onChanged:()=>void }) {
+  const [importing,setImporting]=useState(false);
   const [month,setMonth]=useState(initialMonth), [all,setAll]=useState(true), [direction,setDirection]=useState('all');
   const [kind,setKind]=useState(''), [source,setSource]=useState(''), [search,setSearch]=useState(''), [draft,setDraft]=useState('');
   const [page,setPage]=useState(1), [data,setData]=useState<CashResponse|null>(null), [error,setError]=useState('');
@@ -42,6 +45,8 @@ export function CashWorkspace({ initialMonth, masters, revision, onChanged }: { 
   const bankSources=masters.paymentSources.filter(s=>s.method==='bank');
   return <main className="expense-main cash-workspace">
     <div className="workspace-heading"><div><p className="section-eyebrow">銀行明細・手入力</p><h1>入出金</h1></div><Button className="primary-action" onClick={()=>setEditing({row:null})}><Plus />記録</Button></div>
+    <div className="finance-command"><Button variant="outline" onClick={()=>setImporting(true)}><Upload />楽天銀行CSV取込</Button></div>
+    <BankPosting masters={masters} revision={revision} onChanged={onChanged} />
     <div className="expense-toolbar cash-toolbar">
       <Tabs className="cash-period" value={all?'all':'month'} onValueChange={value=>{setAll(value==='all');setPage(1);}}><TabsList aria-label="入出金の期間"><TabsTrigger value="all">全期間</TabsTrigger><TabsTrigger value="month">月別</TabsTrigger></TabsList></Tabs>
       {!all&&<div className="month-selector"><Button variant="ghost" size="icon" title="前の月" aria-label="入出金の前の月" disabled={month==='2000-01'} onClick={()=>changeMonth(shiftMonth(month,-1))}><ChevronLeft /></Button>
@@ -65,11 +70,12 @@ export function CashWorkspace({ initialMonth, masters, revision, onChanged }: { 
       <div className="cash-list-heading"><h2>入出金履歴</h2><span>{data.count}件</span></div>
       {!data.rows.length?<div className="empty-ledger"><Landmark aria-hidden="true" /><p>該当する入出金はありません</p><Button variant="outline" onClick={()=>setEditing({row:null})}><Plus />入出金を記録</Button></div>:<ul className="cash-list">{data.rows.map(row=><li key={row.id}><button type="button" onClick={()=>setEditing({row})}>
         {row.amount>0?<ArrowDownLeft className="cash-in" aria-hidden="true" />:<ArrowUpRight aria-hidden="true" />}
-        <span className="cash-row-text"><strong>{row.description}</strong><span>{formatExpenseDate(row.date)} · {masters.paymentSources.find(s=>s.id===row.paymentSourceId)?.name??'口座不明'}</span><small>{cashKinds[row.kind as CashKind]} · {masters.parties.find(p=>p.id===row.partyId)?.name??'関係者不明'}{row.imported?' · 明細取込':''}</small></span>
+        <span className="cash-row-text"><strong>{row.description}</strong><span>{formatExpenseDate(row.date)} · {masters.paymentSources.find(s=>s.id===row.paymentSourceId)?.name??'口座不明'}</span><small>{cashKinds[row.kind as CashKind]} · {masters.parties.find(p=>p.id===row.partyId)?.name??'関係者不明'}{row.imported?' · 明細取込':''}{row.summaryId?' · 支出に計上済み':''}</small></span>
         <span className={'cash-amount'+(row.amount>0?' cash-in':'')}><small>{row.amount>0?'入金':'出金'}</small><strong>{formatYen(Math.abs(row.amount))}</strong></span>
       </button></li>)}</ul>}
       {data.count>50&&<nav className="ledger-pagination" aria-label="入出金のページ"><Button size="icon" variant="outline" title="前のページ" aria-label="入出金の前のページ" disabled={page===1} onClick={()=>setPage(n=>n-1)}><ChevronLeft /></Button><span>{page} / {Math.ceil(data.count/50)}</span><Button size="icon" variant="outline" title="次のページ" aria-label="入出金の次のページ" disabled={page*50>=data.count} onClick={()=>setPage(n=>n+1)}><ChevronRight /></Button></nav>}
     </>}
     {editing&&<CashEditor key={editing.row?.id??'new'} row={editing.row} masters={masters} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);onChanged();}} />}
+    {importing&&<BankImportDialog masters={masters} onClose={()=>setImporting(false)} onSaved={()=>{setImporting(false);onChanged();}} />}
   </main>;
 }

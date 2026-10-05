@@ -24,7 +24,7 @@ For long tasks, report approximate progress for the current prompt, completed wo
 
 ## Expense Product Direction
 
-- Read `docs/cash-movements.md` before bank imports or cash-movement changes. Bank inflows/outflows are a separate ledger, never purchases, automatic settlements, or account balances. Keep unknown person/purpose unknown. Imported account/date/amount are immutable; soft-deleted rows retain deduplication keys. Preserve cash rows, tombstones and audit in v8 backups; v1-v7 restore remains supported. Real bank files must never enter Git, logs, fixtures or Preview.
+- Read `docs/cash-movements.md` and `docs/household-finance.md` before bank imports, funding, repayment or cash-movement changes. Bank originals are a separate ledger, never automatic purchases, settlements, or balances. The explicitly confirmed card-debit bridge creates a previous-month bank-backed summary, preserving original dates and unknown people. Linked details use the summary accounting month and reduce its remainder. Personal household purchases default to direct contribution; private debts never enter household totals. Preserve links, reviews, actual refund sources and private repayments in v9 backups; v1-v8 restore stays supported. Imported account/date/amount are immutable; tombstones retain deduplication keys. Real bank files must never enter Git, logs, fixtures or Preview.
 
 - Read `docs/sample-data.md` before treating July/August 2026 records as real expenses or removing samples. The explicitly requested Production batch `famfi-sample-summer-2026-v1` contains fictional expenses and provisional recurring rules; preserve unrelated records and all settlement/history constraints.
 

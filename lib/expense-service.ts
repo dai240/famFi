@@ -49,7 +49,7 @@ export async function expenseWhere(tx: Prisma.TransactionClient, userId: string,
   if (query.costClass) where.costClass=query.costClass;
   if (query.month) {
     const start = new Date(`${query.month}-01T00:00:00Z`); const end = new Date(start); end.setUTCMonth(end.getUTCMonth()+1);
-    where.date = { gte: start, lt: end };
+    where.ledgerDate = { gte: start, lt: end };
   }
   if (query.category) {
     const children = await tx.category.findMany({ where: { parentId: query.category }, select: { id: true } });

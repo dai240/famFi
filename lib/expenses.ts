@@ -51,6 +51,7 @@ export const querySchema = z.object({
 
 export type ExpenseFields = z.infer<typeof expenseFields>;
 export type ExpenseRecord = ExpenseFields & {
+  accountingMonth?:string|null;
   summaryId?: string|null;
   id: string; version: number; createdAt: string; updatedAt: string;
   settledAmount: number; settlements: SettlementRecord[];
@@ -100,16 +101,16 @@ export function formatExpenseDate(value: string, compact = false) {
   return compact ? `${month}/${day}` : `${value.slice(0, 4)}年${month}月${day}日`;
 }
 export function serializeExpense(row: {
-  costClass?: string; summaryId?: string|null;
+  costClass?: string; summaryId?: string|null; accountingMonth?:Date|null;
   id: string; amount: number; date: Date; datePrecision: string; categoryId: string; description: string;
   memo: string; version: number; createdAt: Date; updatedAt: Date;
 } & Partial<Omit<Pick<ExpenseFields, keyof typeof expenseDetails>, 'reimbursementStatus'|'paymentTreatment'|'beneficiaryKind'>> & {
   reimbursementStatus?: string; paymentTreatment?: string; beneficiaryKind?: string;
   recordedByPartyId?: string | null; updatedByPartyId?: string | null;
-  settlements?: { id: string; expenseId: string; amount: number; date: Date; fromPartyId: string; toPartyId: string; memo: string; createdAt: Date; cancelledAt: Date | null }[];
+  settlements?: { id: string; expenseId: string; amount: number; date: Date; fromPartyId: string; toPartyId: string; memo: string; createdAt: Date; cancelledAt: Date | null;kind?:string;paymentSourceId?:string|null }[];
 }): ExpenseRecord {
-  const settlements = (row.settlements ?? []).map(s => ({ id: s.id, expenseId: s.expenseId, amount: s.amount, date: s.date.toISOString().slice(0,10), fromPartyId: s.fromPartyId, toPartyId: s.toPartyId, memo: s.memo, createdAt: s.createdAt.toISOString(), cancelledAt: s.cancelledAt?.toISOString() ?? null }));
-  return { costClass:(row.costClass??'unknown') as ExpenseFields['costClass'], summaryId:row.summaryId??null, id: row.id, amount: row.amount, date: row.date.toISOString().slice(0, row.datePrecision === 'month' ? 7 : 10),
+  const settlements = (row.settlements ?? []).map(s => ({ id: s.id, expenseId: s.expenseId, amount: s.amount, date: s.date.toISOString().slice(0,10), fromPartyId: s.fromPartyId, toPartyId: s.toPartyId, memo: s.memo, createdAt: s.createdAt.toISOString(), cancelledAt: s.cancelledAt?.toISOString() ?? null,kind:s.kind??'refund',paymentSourceId:s.paymentSourceId??null }));
+  return { accountingMonth:row.accountingMonth?.toISOString().slice(0,7)??null,costClass:(row.costClass??'unknown') as ExpenseFields['costClass'], summaryId:row.summaryId??null, id: row.id, amount: row.amount, date: row.date.toISOString().slice(0, row.datePrecision === 'month' ? 7 : 10),
     categoryId: row.categoryId as ExpenseFields['categoryId'], description: row.description,
     memo: row.memo, version: row.version, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
     usedByPartyId: row.usedByPartyId ?? null, beneficiaryPartyId: row.beneficiaryPartyId ?? null, paidByPartyId: row.paidByPartyId ?? null, paymentSourceId: row.paymentSourceId ?? null,
@@ -127,11 +128,12 @@ export function csvCell(value: string | number) {
 export function expenseCsv(rows: ExpenseRecord[], categories: ExpenseCategory[], masters?: Pick<Masters, 'parties' | 'paymentSources'>, summaries:import('./planning').SummaryRecord[]=[]) {
   const names = new Map(categories.map(c => [c.id, categoryName(c, categories)]));
   const person = (id: string | null) => masters?.parties.find(p => p.id === id)?.name ?? (id ?? '');
-  const lines = [['日付', '金額（円）', 'カテゴリ', '内容', 'メモ', 'ID', '日付の精度', '購入・支払いをした人', '誰のため', '支払者・資金', '支払元', '精算状態', '返す側', '受け取る側', '立替対象額', '精算済額', '未精算額', '支払いの扱い', '記録者', '最終変更者','費用の区分','記録種別','まとめ記録ID'],
+  const lines = [['日付', '金額（円）', 'カテゴリ', '内容', 'メモ', 'ID', '日付の精度', '購入・支払いをした人', '誰のため', '支払者・資金', '支払元', '精算状態', '返す側', '受け取る側', '立替対象額', '精算済額', '未精算額', '支払いの扱い', '記録者', '最終変更者','費用の区分','記録種別','まとめ記録ID','支出の計上月'],
     ...rows.map(row => [row.date, row.amount, names.get(row.categoryId) ?? row.categoryId, row.description, row.memo, row.id, row.date.length === 7 ? '月のみ' : '日付指定',
-      row.usedByText || person(row.usedByPartyId), row.beneficiaryKind === 'family' ? '家族' : row.beneficiaryText || person(row.beneficiaryPartyId), person(row.paidByPartyId), masters?.paymentSources.find(p => p.id === row.paymentSourceId)?.name ?? (row.paymentSourceId ?? ''), settlementLabels[settlementState(row)], person(row.reimbursementFromPartyId), person(row.reimbursementToPartyId), row.reimbursementAmount, row.settledAmount, row.reimbursementAmount - row.settledAmount, treatmentLabels[row.paymentTreatment], person(row.recordedByPartyId ?? null), person(row.updatedByPartyId ?? null),costClassLabels[row.costClass??'unknown'],'支出明細',row.summaryId??'']),
-    ...summaries.filter(s=>s.remainder>0).map(s=>[s.month,s.remainder,'未整理',s.name,s.memo,s.id,'月のみ','','','',masters?.paymentSources.find(p=>p.id===s.paymentSourceId)?.name??s.paymentSourceId,'未確定','','','','','','','','','未分類','まとめ記録の未整理額',s.id])];
+      row.usedByText || person(row.usedByPartyId), row.beneficiaryKind === 'family' ? '家族' : row.beneficiaryText || person(row.beneficiaryPartyId), person(row.paidByPartyId), masters?.paymentSources.find(p => p.id === row.paymentSourceId)?.name ?? (row.paymentSourceId ?? ''), settlementLabels[settlementState(row)], person(row.reimbursementFromPartyId), person(row.reimbursementToPartyId), row.reimbursementAmount, row.settledAmount, row.reimbursementAmount - row.settledAmount, treatmentLabels[row.paymentTreatment], person(row.recordedByPartyId ?? null), person(row.updatedByPartyId ?? null),costClassLabels[row.costClass??'unknown'],'支出明細',row.summaryId??'',row.accountingMonth??row.date.slice(0,7)]),
+    ...summaries.filter(s=>s.remainder>0).map(s=>[s.month,s.remainder,'未整理',s.name,s.memo,s.id,'月のみ','','','',masters?.paymentSources.find(p=>p.id===s.paymentSourceId)?.name??s.paymentSourceId,'未確定','','','','','','','','','未分類','まとめ記録の未整理額',s.id,s.month])];
   return '\uFEFF' + lines.map(line => line.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
 
-export const createSettlementSchema = z.object({ id: z.string().uuid(), expenseId: z.string().uuid(), expenseVersion: z.number().int().positive(), amount: z.number().int().min(1).max(999999999), date: dateSchema, memo: z.string().trim().max(500).default('') }).strict();
+export const settlementFundingFields={kind:z.enum(['refund','contribution']).default('refund'),paymentSourceId:z.string().uuid().nullable()};
+export const createSettlementSchema = z.object({ id: z.string().uuid(), expenseId: z.string().uuid(), expenseVersion: z.number().int().positive(), amount: z.number().int().min(1).max(999999999), date: dateSchema, memo: z.string().trim().max(500).default(''),...settlementFundingFields }).strict().refine(s=>s.kind==='contribution'?s.paymentSourceId===null:Boolean(s.paymentSourceId),'返金元を選んでください。');

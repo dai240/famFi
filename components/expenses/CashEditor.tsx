@@ -1,6 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { History, LoaderCircle, RefreshCw, Save, Trash2 } from 'lucide-react';
+import { History, LoaderCircle, RefreshCw, Save, Trash2, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CashFields, CashKind, CashRecord, cashFields, cashKinds, cashKindMatchesAmount, validCashFields } from '@/lib/cash-movements';
@@ -39,6 +39,7 @@ export function CashEditor({row,masters,onClose,onSaved}:{row:CashRecord|null;ma
   }
   return <Dialog open onOpenChange={open=>{if(!open)close();}}><DialogContent className="expense-dialog expense-entry-dialog" onInteractOutside={e=>e.preventDefault()}>
     <DialogHeader><DialogTitle>{row?'入出金を編集':'入出金を記録'}</DialogTitle><DialogDescription>{row?.imported?'銀行明細からの記録':'手入力'}</DialogDescription></DialogHeader>
+    {row?.summaryId&&<Button variant="outline" disabled={busy} onClick={()=>{if(window.confirm('この銀行明細の支出計上を取り消しますか？ 銀行の原本は残ります。'))void mutate(()=>requestJson('/api/finance/bank',{method:'POST',body:JSON.stringify({action:'unlink',id,version})}));}}><Unlink />支出計上を解除</Button>}
     <form id={'cash-'+id} className="expense-form cash-form" onSubmit={save}>
       <fieldset disabled={busy||row?.imported}><legend>入出金</legend><div className="date-mode" role="radiogroup" aria-label="記録する入出金">{[['out','出金'],['in','入金']].map(([value,label])=><label key={value}><input type="radio" name="cash-direction" checked={direction===value} onChange={()=>{setDirection(value);const amount=Math.abs(fields.amount)*(value==='in'?1:-1);patch({amount,kind:cashKindMatchesAmount(fields.kind,value==='in'?1:-1)?fields.kind:'unknown'});}} /><span>{label}</span></label>)}</div></fieldset>
       <label htmlFor="cash-source">口座</label><select id="cash-source" required value={fields.paymentSourceId} disabled={busy||row?.imported} onChange={e=>patch({paymentSourceId:e.target.value})}><option value="" disabled>口座を選択</option>{sources.map(s=><option key={s.id} value={s.id}>{s.name}{s.archived?'（使用停止）':''}</option>)}</select>

@@ -20,7 +20,7 @@ let detail=await req(owner,'/api/summaries/'+summary.id,'POST',{action:'create-d
 let read=await req(owner,'/api/summaries/'+summary.id+'?month=2032-09');eq(read.summary.remainder,70000);eq(await total('2032-09'),before+100000);eq(detail.summaryId,summary.id);
 await req(owner,'/api/summaries/'+summary.id,'POST',{action:'create-detail',version:read.summary.version,expenseId:randomUUID(),expense:{...expense,amount:80000,paymentSourceId:source2.id}},400);
 eq((await req(owner,'/api/summaries/'+summary.id+'?month=2032-09')).summary.remainder,70000);
-const noMeta=({id,version,createdAt,updatedAt,recordedByPartyId,updatedByPartyId,settlements,settledAmount,summaryId,...fields})=>fields;
+const noMeta=({id,version,createdAt,updatedAt,recordedByPartyId,updatedByPartyId,settlements,settledAmount,summaryId,accountingMonth,...fields})=>fields;
 detail=await req(wife,'/api/expenses/'+detail.id,'PUT',{...noMeta(detail),amount:40000,version:detail.version});eq((await req(owner,'/api/summaries/'+summary.id+'?month=2032-09')).summary.remainder,60000);eq(await total('2032-09'),before+100000);
 await req(owner,'/api/expenses/'+detail.id,'PUT',{...noMeta(detail),amount:110000,version:detail.version},400);
 const extra=await req(owner,'/api/expenses','POST',{...expense,id:randomUUID(),amount:10000,paymentSourceId:source2.id},201);

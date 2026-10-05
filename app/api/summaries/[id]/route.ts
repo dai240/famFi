@@ -22,6 +22,7 @@ export async function PUT(request:Request,context:Context){try{
   assertSameOrigin(request);const user=await requireUser();const id=z.string().uuid().parse((await context.params).id);const {version:expected,...input}=summaryFields.extend({version}).strict().parse(await readJson(request));
   return json(await withLedgerDb(user.id,async tx=>{
     const old=await tx.expenseSummary.findUnique({where:{id}});if(!old)throw new ApiError(404,'まとめ記録が見つかりません。');if(old.version!==expected)throw new ApiError(409,'まとめ記録が更新されています。');
+    if(old.basis==='bank'&&(old.amount!==input.amount||old.month.toISOString().slice(0,7)!==input.month||old.paymentSourceId!==input.paymentSourceId))throw new ApiError(400,'銀行明細から計上した金額・月・支払元は入出金の紐づけから変更してください。');
     if(old.paymentSourceId!==input.paymentSourceId&&!await tx.paymentSource.findFirst({where:{id:input.paymentSourceId,archived:false}}))throw new ApiError(400,'使用中の支払元を選んでください。');
     await tx.expenseSummary.update({where:{id},data:{...input,month:new Date(input.month+'-01T00:00:00Z'),version:{increment:1},updatedAt:new Date()}});
     return (await readSummaries(tx,{id}))[0];
@@ -61,6 +62,7 @@ export async function DELETE(request:Request,context:Context){try{
   await withLedgerDb(user.id,async tx=>{
     const row=await tx.expenseSummary.findUnique({where:{id}});if(!row)throw new ApiError(404,'まとめ記録が見つかりません。');if(row.version!==input.version)throw new ApiError(409,'まとめ記録が更新されています。');
     if(await tx.expense.count({where:{summaryId:id}}))throw new ApiError(409,'明細のあるまとめ記録は削除できません。');
+    if(row.basis==='bank')throw new ApiError(409,'先に入出金から銀行明細との紐づけを解除してください。');
     await tx.expenseSummary.delete({where:{id}});
   });return json({deleted:true});
 }catch(e){return apiError(e);}}

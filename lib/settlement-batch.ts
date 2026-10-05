@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { dateSchema } from './expenses';
+import { dateSchema, settlementFundingFields } from './expenses';
 
 export const MAX_SETTLEMENT_BATCH = 50;
 export const settlementBatchSchema = z.object({
+  ...settlementFundingFields,
   date: dateSchema,
   memo: z.string().trim().max(500).default(''),
   fromPartyId: z.string().uuid(),
@@ -12,6 +13,7 @@ export const settlementBatchSchema = z.object({
     expenseVersion: z.number().int().positive(), amount: z.number().int().min(1).max(999999999),
   }).strict()).min(1).max(MAX_SETTLEMENT_BATCH),
 }).strict().superRefine((input, ctx) => {
+  if(input.kind==='contribution'?input.paymentSourceId!==null:!input.paymentSourceId)ctx.addIssue({code:'custom',message:'返金元を選んでください。'});
   if (input.fromPartyId === input.toPartyId || new Set(input.entries.map(e => e.id)).size !== input.entries.length || new Set(input.entries.map(e => e.expenseId)).size !== input.entries.length) {
     ctx.addIssue({ code: 'custom', message: '精算相手と重複のない支出を選んでください。' });
   }

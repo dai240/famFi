@@ -6,12 +6,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ExpenseRecord, formatExpenseDate, formatYen, todayInJapan } from '@/lib/expenses';
 import { Masters } from '@/lib/ledger';
 import { settlementBatchSchema } from '@/lib/settlement-batch';
+import { SettlementFunding } from './SettlementFunding';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
 
 export function BatchSettlementDialog({ expenses, masters, onClose, onSaved, onReload }: {
   expenses: ExpenseRecord[]; masters: Masters; onClose: () => void; onSaved: () => void; onReload: () => void;
 }) {
   const [entries] = useState(() => expenses.map(e => ({ id: crypto.randomUUID(), expenseId: e.id, expenseVersion: e.version, amount: e.reimbursementAmount-e.settledAmount })));
+  const [kind,setKind]=useState<'refund'|'contribution'>('refund'),[source,setSource]=useState('');
   const [date,setDate] = useState(todayInJapan()), [memo,setMemo] = useState('');
   const initialDate=useRef(date);
   const [confirmed,setConfirmed] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(''), [conflict,setConflict] = useState(false);
@@ -22,7 +24,7 @@ export function BatchSettlementDialog({ expenses, masters, onClose, onSaved, onR
   useEffect(() => { const handler=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';}; window.addEventListener('beforeunload',handler); return()=>window.removeEventListener('beforeunload',handler); },[]);
   async function save(event:FormEvent) {
     event.preventDefault(); if(lock.current||!confirmed||conflict)return;
-    const parsed=settlementBatchSchema.safeParse({date,memo,entries,fromPartyId:first.reimbursementFromPartyId,toPartyId:first.reimbursementToPartyId});
+    const parsed=settlementBatchSchema.safeParse({date,memo,entries,kind,paymentSourceId:kind==='contribution'?null:source,fromPartyId:first.reimbursementFromPartyId,toPartyId:first.reimbursementToPartyId});
     if(!parsed.success){setError('精算日と対象を確認してください。');return;}
     lock.current=true;setBusy(true);setError('');
     try { await requestJson('/api/settlements/batch',{method:'POST',body:JSON.stringify(parsed.data)});onSaved(); }
@@ -34,9 +36,10 @@ export function BatchSettlementDialog({ expenses, masters, onClose, onSaved, onR
       <p className="batch-parties">{person(first.reimbursementFromPartyId)} <ArrowRight aria-label="から" /> {person(first.reimbursementToPartyId)}</p>
       <div className="batch-total"><span>{entries.length}件の未精算額</span><strong>{formatYen(total)}</strong></div>
       <ul className="batch-items">{expenses.map(e=><li key={e.id}><span><small>{formatExpenseDate(e.date)}</small>{e.description||masters.categories.find(c=>c.id===e.categoryId)?.name}</span><strong>{formatYen(e.reimbursementAmount-e.settledAmount)}</strong></li>)}</ul>
+      <SettlementFunding masters={masters} from={first.reimbursementFromPartyId} to={first.reimbursementToPartyId} kind={kind} source={source} onKind={k=>{setKind(k);setConfirmed(false);}} onSource={id=>{setSource(id);setConfirmed(false);}} disabled={busy||conflict} />
       <label htmlFor="batch-date">精算日</label><input id="batch-date" type="date" required min="2000-01-01" max="2099-12-31" value={date} disabled={busy||conflict} onChange={e=>{setDate(e.target.value);setConfirmed(false);}} />
       <label htmlFor="batch-memo">精算メモ <span className="muted-text">任意</span></label><input id="batch-memo" maxLength={500} value={memo} disabled={busy||conflict} onChange={e=>setMemo(e.target.value)} />
-      <label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy||conflict} onChange={e=>setConfirmed(e.target.checked)} />対象と金額を確認し、返金済みです</label>
+      <label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy||conflict} onChange={e=>setConfirmed(e.target.checked)} />対象・金額・今回の扱いを確認しました</label>
       {error&&<p className="form-error" role="alert">{error}</p>}
       {conflict&&<Button type="button" variant="outline" onClick={onReload}><RefreshCw />一覧を更新して選び直す</Button>}
     </form><div className="editor-save batch-save"><span>{entries.length}件 <strong>{formatYen(total)}</strong></span><Button variant="outline" disabled={busy} onClick={close}>キャンセル</Button><Button type="submit" form="batch-settlement" className="primary-action" disabled={busy||!confirmed||conflict}>{busy?<LoaderCircle className="animate-spin" />:<Check />}精算を保存</Button></div>

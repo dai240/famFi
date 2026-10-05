@@ -7,9 +7,9 @@ import { sampleBatch } from './sample-data';
 import { MonthSnapshot } from './expense-comparison';
 
 export async function monthSnapshot(tx:Prisma.TransactionClient, ledgerId:string, month:string, categories:Pick<Category,'id'|'name'|'color'|'parentId'>[]):Promise<MonthSnapshot> {
-  const where={userId:ledgerId,date:monthRange(month)};
+  const where={userId:ledgerId,ledgerDate:monthRange(month)};
   const groups=await tx.expense.groupBy({by:['categoryId','costClass'],where,_sum:{amount:true},_count:true});
-  const summaries=await readSummaries(tx,{userId:ledgerId,month:where.date.gte});
+  const summaries=await readSummaries(tx,{userId:ledgerId,month:where.ledgerDate.gte});
   const summaryRemainder=summaries.reduce((sum,s)=>sum+s.remainder,0);
   const sampleCount=await tx.expense.count({where:{...where,OR:[{memo:{contains:sampleBatch}},{description:{startsWith:'【サンプル】'}}]}});
   const byCategory=new Map<string,{categoryId:string;name:string;color:string;amount:number}>();

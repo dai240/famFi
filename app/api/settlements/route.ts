@@ -35,13 +35,13 @@ export async function POST(request: Request) {
       const expense = await lockedExpense(tx, scope.ledgerId, input.expenseId);
       const old = await tx.settlement.findUnique({ where: { id: input.id } });
       if (old) {
-        if (old.expenseId !== input.expenseId || old.amount !== input.amount || old.date.toISOString().slice(0,10) !== input.date || old.memo !== input.memo || old.cancelledAt) throw new ApiError(409, 'この精算記録はすでに保存または取消されています。');
+        if (old.expenseId !== input.expenseId || old.amount !== input.amount || old.date.toISOString().slice(0,10) !== input.date || old.memo !== input.memo || old.cancelledAt || old.kind!==input.kind || old.paymentSourceId!==input.paymentSourceId) throw new ApiError(409, 'この精算記録はすでに保存または取消されています。');
         return expense;
       }
       if(isSampleRecord(expense))throw new ApiError(422,'サンプルの支出は実際の精算に含められません。');
       if (expense.version !== input.expenseVersion) throw new ApiError(409, '支出が変更されています。開き直してください。');
       if (expense.reimbursementStatus !== 'required' || input.amount > expense.reimbursementAmount-expense.settledAmount) throw new ApiError(409, '未精算額を超えています。精算状況を更新してください。');
-      await tx.$executeRaw`insert into ${dbSchema}.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id,memo) values (${input.id}::uuid,${scope.ledgerId}::uuid,${input.expenseId}::uuid,${input.amount},${new Date(input.date+'T00:00:00Z')}::date,${expense.reimbursementFromPartyId}::uuid,${expense.reimbursementToPartyId}::uuid,${input.memo})`;
+      await tx.$executeRaw`insert into ${dbSchema}.settlements(id,user_id,expense_id,amount,date,from_party_id,to_party_id,memo,kind,payment_source_id) values (${input.id}::uuid,${scope.ledgerId}::uuid,${input.expenseId}::uuid,${input.amount},${new Date(input.date+'T00:00:00Z')}::date,${expense.reimbursementFromPartyId}::uuid,${expense.reimbursementToPartyId}::uuid,${input.memo},${input.kind},${input.paymentSourceId}::uuid)`;
       await tx.expense.update({ where: { id: input.expenseId }, data: { version: { increment: 1 }, updatedAt: new Date() } });
       return serializeExpense(await tx.expense.findUniqueOrThrow({ where: { id: input.expenseId }, include: expenseInclude }));
     });

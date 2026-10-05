@@ -22,7 +22,7 @@ export const cashFields = z.object({
 }).strict();
 export const validCashFields = cashFields.refine(row => cashKindMatchesAmount(row.kind, row.amount), '入出金の方向と種類が一致しません。');
 export type CashFields = z.infer<typeof cashFields>;
-export type CashRecord = CashFields & { id: string; imported: boolean; version: number; createdAt: string; updatedAt: string };
+export type CashRecord = CashFields & { id: string; imported: boolean; version: number; createdAt: string; updatedAt: string; summaryId?:string|null; matchedImportId?:string|null };
 export const cashQuery = z.object({
   month: monthSchema.optional(), direction: z.enum(['all','in','out']).default('all'),
   kind: cashKindSchema.optional(), source: z.string().uuid().optional(), search: z.string().trim().max(120).default(''),
@@ -33,5 +33,5 @@ export type CashResponse = { rows: CashRecord[]; count: number; incoming: number
 export function serializeCash(row: CashMovement): CashRecord {
   return { id: row.id, paymentSourceId: row.paymentSourceId, date: row.date.toISOString().slice(0,10), amount: row.amount,
     kind: row.kind as CashKind, description: row.description, memo: row.memo, partyId: row.partyId,
-    imported: row.importKey !== null, version: row.version, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
+    imported: row.importKey !== null, summaryId:row.summaryId,matchedImportId:row.matchedImportId,version: row.version, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }

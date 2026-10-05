@@ -11,6 +11,7 @@ import { isSampleRecord } from '@/lib/sample-data';
 import { MAX_SETTLEMENT_BATCH } from '@/lib/settlement-batch';
 import { BatchSettlementDialog } from './BatchSettlementDialog';
 import { toast } from 'sonner';
+import { SettlementFunding } from './SettlementFunding';
 
 type Response = Masters & { expenses: ExpenseRecord[]; count: number; unknownCount: number; sampleCount?:number;sampleAmount?:number; groups: { fromPartyId: string; toPartyId: string; amount: number }[] };
 export function SettlementWorkspace({ externalRevision, onEdit, onChanged }: { externalRevision: number; onEdit: (expense: ExpenseRecord) => void; onChanged: () => void }) {
@@ -67,13 +68,14 @@ export function SettlementWorkspace({ externalRevision, onEdit, onChanged }: { e
 }
 
 function SettlementEditor({ initial, masters, onClose, onChanged }: { initial: ExpenseRecord; masters: Masters; onClose: () => void; onChanged: () => void }) {
+  const [kind,setKind]=useState<'refund'|'contribution'>('refund'),[source,setSource]=useState('');
   const [expense,setExpense] = useState(initial); const [id,setId] = useState(()=>crypto.randomUUID());
   const [amount,setAmount] = useState(String(initial.reimbursementAmount-initial.settledAmount)); const [date,setDate] = useState(todayInJapan()); const [memo,setMemo] = useState('');
   const [busy,setBusy] = useState(false); const [error,setError] = useState(''); const [notice,setNotice] = useState(''); const lock=useRef(false);
   const person=(id:string|null)=>masters.parties.find(p=>p.id===id)?.name ?? '未設定';
   const remaining=expense.reimbursementAmount-expense.settledAmount;
-  const cleanFields = useRef(JSON.stringify({amount,date,memo}));
-  const dirty = JSON.stringify({amount,date,memo}) !== cleanFields.current;
+  const cleanFields = useRef(JSON.stringify({amount,date,memo,kind,source}));
+  const dirty = JSON.stringify({amount,date,memo,kind,source}) !== cleanFields.current;
   function close() { if(!busy && (!dirty || window.confirm('入力中の精算を破棄しますか？'))) onClose(); }
   useEffect(()=>{ if(!dirty) return; const handler=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue='';}; window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler);},[dirty]);
   async function reload() {
@@ -82,12 +84,12 @@ function SettlementEditor({ initial, masters, onClose, onChanged }: { initial: E
   }
   async function submit(event:FormEvent) {
     event.preventDefault(); if(lock.current) return;
-    const parsed=createSettlementSchema.safeParse({id,expenseId:expense.id,expenseVersion:expense.version,amount:Number(amount),date,memo});
+    const parsed=createSettlementSchema.safeParse({id,expenseId:expense.id,expenseVersion:expense.version,amount:Number(amount),date,memo,kind,paymentSourceId:kind==='contribution'?null:source});
     if(!/^\d+$/.test(amount) || !parsed.success || Number(amount)>remaining) { setError('精算日・未精算額の範囲内の金額を確認してください。'); return; }
     lock.current=true;setBusy(true);setError('');setNotice('');
     try {
       const row=await requestJson<ExpenseRecord>('/api/settlements',{method:'POST',body:JSON.stringify(parsed.data)});
-      setExpense(row);setId(crypto.randomUUID());setAmount(String(row.reimbursementAmount-row.settledAmount));setMemo('');cleanFields.current=JSON.stringify({amount:String(row.reimbursementAmount-row.settledAmount),date,memo:''});setNotice('精算を記録しました');onChanged();
+      setExpense(row);setId(crypto.randomUUID());setAmount(String(row.reimbursementAmount-row.settledAmount));setMemo('');cleanFields.current=JSON.stringify({amount:String(row.reimbursementAmount-row.settledAmount),date,memo:'',kind,source});setNotice('精算を記録しました');onChanged();
     } catch(error) { setError(errorMessage(error)); } finally {lock.current=false;setBusy(false);}
   }
   async function cancel(id:string) {
@@ -95,15 +97,15 @@ function SettlementEditor({ initial, masters, onClose, onChanged }: { initial: E
     lock.current=true;setBusy(true);setError('');setNotice('');
     try {
       await requestJson(`/api/settlements/${id}`,{method:'DELETE',body:'{}'});
-      const row=await requestJson<ExpenseRecord>(`/api/expenses/${expense.id}`);setExpense(row);setAmount(String(row.reimbursementAmount-row.settledAmount));cleanFields.current=JSON.stringify({amount:String(row.reimbursementAmount-row.settledAmount),date,memo});setNotice('精算記録を取り消しました');onChanged();
+      const row=await requestJson<ExpenseRecord>(`/api/expenses/${expense.id}`);setExpense(row);setAmount(String(row.reimbursementAmount-row.settledAmount));cleanFields.current=JSON.stringify({amount:String(row.reimbursementAmount-row.settledAmount),date,memo,kind,source});setNotice('精算記録を取り消しました');onChanged();
     } catch(error) {setError(errorMessage(error));} finally {lock.current=false;setBusy(false);}
   }
   return <Dialog open onOpenChange={open=>{if(!open) close();}}><DialogContent className="expense-dialog" onInteractOutside={e=>e.preventDefault()}><DialogHeader><DialogTitle>精算を記録</DialogTitle><DialogDescription>{formatExpenseDate(expense.date)} / {expense.description || masters.categories.find(c=>c.id===expense.categoryId)?.name}</DialogDescription></DialogHeader>
     <div className="field-heading"><span className={`settlement-status ${settlementState(expense)}`}>{settlementLabels[settlementState(expense)]}</span><Button size="icon" variant="ghost" title="精算状況を更新" aria-label="精算状況を更新" disabled={busy} onClick={reload}><RefreshCw className={busy?'animate-spin':''} /></Button></div>
     <div className="settlement-detail"><p>{person(expense.reimbursementFromPartyId)} <ArrowRight /> {person(expense.reimbursementToPartyId)}</p><dl><div><dt>精算対象</dt><dd>{formatYen(expense.reimbursementAmount)}</dd></div><div><dt>精算済み</dt><dd>{formatYen(expense.settledAmount)}</dd></div><div><dt>未精算</dt><dd>{formatYen(remaining)}</dd></div></dl></div>
-    {isSampleRecord(expense)?<p className="sample-notice">サンプルのため、実際の精算は登録できません。</p>:remaining>0 && <form className="expense-form" onSubmit={submit}><label htmlFor="settlement-amount">返した金額（円）</label><input id="settlement-amount" required inputMode="numeric" pattern="[0-9]+" maxLength={9} value={amount} disabled={busy} onChange={e=>setAmount(e.target.value)} /><label htmlFor="settlement-date">精算日</label><input id="settlement-date" type="date" min="2000-01-01" max="2099-12-31" required value={date} disabled={busy} onChange={e=>setDate(e.target.value)} /><label htmlFor="settlement-memo">精算メモ <span className="muted-text">任意</span></label><input id="settlement-memo" value={memo} maxLength={500} disabled={busy} onChange={e=>setMemo(e.target.value)} /><Button className="primary-action" disabled={busy}>{busy ? <LoaderCircle className="animate-spin" />:<Check />}精算を保存</Button></form>}
+    {isSampleRecord(expense)?<p className="sample-notice">サンプルのため、実際の精算は登録できません。</p>:remaining>0 && <form className="expense-form" onSubmit={submit}><SettlementFunding masters={masters} from={expense.reimbursementFromPartyId} to={expense.reimbursementToPartyId} kind={kind} source={source} onKind={setKind} onSource={setSource} disabled={busy} /><label htmlFor="settlement-amount">返した金額（円）</label><input id="settlement-amount" required inputMode="numeric" pattern="[0-9]+" maxLength={9} value={amount} disabled={busy} onChange={e=>setAmount(e.target.value)} /><label htmlFor="settlement-date">精算日</label><input id="settlement-date" type="date" min="2000-01-01" max="2099-12-31" required value={date} disabled={busy} onChange={e=>setDate(e.target.value)} /><label htmlFor="settlement-memo">精算メモ <span className="muted-text">任意</span></label><input id="settlement-memo" value={memo} maxLength={500} disabled={busy} onChange={e=>setMemo(e.target.value)} /><Button className="primary-action" disabled={busy}>{busy ? <LoaderCircle className="animate-spin" />:<Check />}精算を保存</Button></form>}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="save-notice" role="status">{notice}</p>}
-    <section className="settlement-history"><h3>精算履歴</h3>{!expense.settlements.length && <p className="muted-text">記録なし</p>}<ul>{expense.settlements.map(record=><li key={record.id}><div><strong>{formatYen(record.amount)}</strong><span>{formatExpenseDate(record.date)}{record.cancelledAt ? ' / 取消済み':''}</span><span>{person(record.fromPartyId)} → {person(record.toPartyId)}</span>{record.memo && <p>{record.memo}</p>}</div>{!record.cancelledAt && <Button type="button" size="icon" variant="ghost" title="精算を取り消す" aria-label={`${record.amount}円の精算を取り消す`} disabled={busy} onClick={()=>cancel(record.id)}><Undo2 /></Button>}</li>)}</ul></section>
+    <section className="settlement-history"><h3>精算履歴</h3>{!expense.settlements.length && <p className="muted-text">記録なし</p>}<ul>{expense.settlements.map(record=><li key={record.id}><div><strong>{formatYen(record.amount)}</strong><span>{formatExpenseDate(record.date)}{record.cancelledAt ? ' / 取消済み':''}</span><span>{record.kind==='contribution'?'家計への負担（返金なし）':masters.paymentSources.find(s=>s.id===record.paymentSourceId)?.name??'返金元不明'} → {person(record.toPartyId)}</span>{record.memo && <p>{record.memo}</p>}</div>{!record.cancelledAt && <Button type="button" size="icon" variant="ghost" title="精算を取り消す" aria-label={`${record.amount}円の精算を取り消す`} disabled={busy} onClick={()=>cancel(record.id)}><Undo2 /></Button>}</li>)}</ul></section>
     <Button variant="outline" disabled={busy} onClick={close}>閉じる</Button>
   </DialogContent></Dialog>;
 }

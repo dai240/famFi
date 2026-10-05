@@ -10,6 +10,7 @@ tests/
 scripts/*
 !scripts/check-artifact.mjs
 !scripts/generate-prisma.mjs
+!scripts/rakuten-bank-csv.mjs
 .generated/
 lib/generated/prisma/
 test-results/

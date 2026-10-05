@@ -207,7 +207,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
       {error ? <section className="workspace-message" role="alert"><p>{error}</p><Button variant="outline" onClick={refresh}><RefreshCw />再読み込み</Button></section>
         : !data || dataKey !== queryKey ? <section className="workspace-message" role="status"><LoaderCircle className="animate-spin" /><p>支出を読み込み中</p></section>
         : <>
-          <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>記録数</span><strong>{data.count}<small> 件</small></strong></div></section>
+          <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>個別明細</span><strong>{data.count}<small> 件</small></strong></div></section>
           <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
           <BankMonthStatus month={month} revision={revision} onChanged={refresh} onCash={()=>navigate('cash')} />
           <MonthlyReview key={month} data={review?.month===month?review:null} error={reviewError} onRetry={refresh} onSchedule={openSchedule} onExpense={openReviewExpense} onSummary={id=>{setPresentation('list');setSummaryId(id);}} />
@@ -227,7 +227,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
                 <div><label>費用の区分</label><ReferenceSelect label="費用の区分で絞り込み" value={costClass} emptyLabel="すべて" options={Object.entries(costClassLabels).map(([id,name])=>({id,name}))} onChange={v=>{setCostClass(v??'');setPage(1);}} /></div>
               </div></div>}
               {hasFilters && <div className="filter-summary"><span>絞り込み結果 {formatYen(data.filteredTotal)}</span><Button variant="ghost" onClick={()=>{setCategory('');setPerson('');setPaymentSource('');setSettlement('');setTreatment('');setCostClass('');setSearch('');setSearchDraft('');setPage(1);}}>条件を解除</Button></div>}
-              {data.expenses.length === 0 ? <div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{category ? 'このカテゴリの記録はありません' : 'この月の記録はありません'}</p><Button variant="outline" onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
+              {data.expenses.length === 0 ? <div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{hasFilters ? '条件に合う個別明細はありません' : data.summaryRemainder ? '個別明細は未登録です' : 'この月の記録はありません'}</p><Button variant="outline" onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
                 : <div className="ledger-rows">{data.expenses.map(expense => {
                   const cat = categoryMap.get(expense.categoryId);
                   return <button className="expense-row" key={expense.id} disabled={loading} onClick={() => openEditor(expense)} aria-label={`${formatExpenseDate(expense.date)} ${expense.description || cat?.name} ${expense.amount}円を編集`}>
@@ -241,7 +241,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
               {pages > 1 && <nav className="ledger-pagination" aria-label="支出一覧のページ"><Button variant="outline" size="icon" aria-label="前のページ" disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></Button><span>{page} / {pages}</span><Button variant="outline" size="icon" aria-label="次のページ" disabled={page >= pages} onClick={() => setPage(page + 1)}><ChevronRight /></Button></nav>}
             </section>
             <aside className="expense-breakdown" aria-labelledby="breakdown-title"><h2 id="breakdown-title">カテゴリ別</h2>
-              {Boolean(data.summaryRemainder)&&<p className="summary-unclassified">未整理 <strong>{formatYen(data.summaryRemainder??0)}</strong></p>}
+              {Boolean(data.summaryRemainder)&&<p className="summary-unclassified">内訳未分類 <strong>{formatYen(data.summaryRemainder??0)}</strong></p>}
               {data.count === 0 && !data.summaryRemainder ? <p className="muted-text">記録なし</p> : <ul>{[...data.breakdown].sort((a, b) => b.amount - a.amount).map(item => {
                 const cat = categoryMap.get(item.categoryId);
                 return <li key={item.categoryId}><button className="breakdown-button" onClick={() => filter(category === item.categoryId ? '' : item.categoryId)} aria-pressed={category === item.categoryId}><span><i className="category-dot" style={{ backgroundColor: cat?.color }} />{cat?.name}</span><strong>{formatYen(item.amount)}</strong></button><div className="category-track"><div style={{ width: `${item.amount / data.total * 100}%`, backgroundColor: cat?.color }} /></div></li>;

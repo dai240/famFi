@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
-import { ArrowLeftRight, CalendarClock, History, Landmark, LogOut, Menu, Plus, ReceiptText, Settings2, StickyNote, UsersRound, UserRound } from 'lucide-react';
+import { ArrowLeftRight, ChartNoAxesCombined, CalendarClock, History, Landmark, LogOut, Menu, Plus, ReceiptText, Settings2, StickyNote, UsersRound, UserRound } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 export function BottomNavigation({ view, attention, ready, busy, onNavigate, onAdd, onMasters, onProfile, onLogout }: {
@@ -25,7 +25,7 @@ export function BottomNavigation({ view, attention, ready, busy, onNavigate, onA
         <SheetHeader><SheetTitle>メニュー</SheetTitle></SheetHeader>
         <div className="workspace-menu-items">
           <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('cash'))}><Landmark aria-hidden="true" />入出金</button>
-          <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('finance'))}><ArrowLeftRight aria-hidden="true" />負担・個人の貸し借り</button>
+          <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('finance'))}><ChartNoAxesCombined aria-hidden="true" />家計サマリー</button>
           <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('notes'))}><StickyNote aria-hidden="true" />共有メモ</button>
           <button type="button" disabled={!ready} onClick={() => select(() => onNavigate('household'))}><UsersRound aria-hidden="true" />家計の共有</button>
           <button type="button" disabled={!ready} onClick={() => select(onMasters)}><Settings2 aria-hidden="true" />マスタ管理</button>

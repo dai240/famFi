@@ -697,6 +697,101 @@
 .debt-repayment { border-top: 1px solid #dce3df; margin-top: 16px; }
 .finance-dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 3px; }
 .finance-dialog-body .expense-form { overflow: visible; }
+
+.finance-view-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); width: 100%; max-width: 480px; height: auto; }
+.finance-view-tabs [role=tab] { min-width: 0; min-height: 44px; padding: 8px 4px; font-size: 13px; white-space: normal; }
+.household-summary { min-width: 0; }
+.summary-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 22px 0 16px; }
+.summary-controls label,.summary-month-control { display: grid; gap: 6px; min-width: 0; font-size: 12px; color: #57695f; }
+.summary-controls select,.summary-controls input { min-width: 0; width: 100%; max-width: 100%; border: 1px solid #dce3df; border-radius: 5px; min-height: 44px; padding: 8px; background: #fff; color: #23352c; font-size: 14px; }
+.summary-controls select { height: 44px; }
+.summary-controls label:first-child { width: 156px; }
+.summary-controls .summary-account { flex: 1 1 140px; }
+.summary-month-control > div { display: grid; grid-template-columns: 36px minmax(130px,1fr) 36px; align-items: center; }
+.summary-month-control button { width: 36px; height: 44px; }
+.summary-controls > button { flex: 0 0 44px; width: 44px; height: 44px; }
+.summary-range { display: grid; gap: 6px; padding: 0 0 18px; font-size: 12px; color: #64746b; }
+.summary-range strong { color: #32483b; font-size: 14px; font-weight: 550; }
+.summary-band { padding: 22px 0; border-top: 1px solid #dfe5e2; min-width: 0; }
+.summary-section-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
+.summary-section-heading h2 { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+.summary-section-heading > span { font-size: 12px; color: #64746b; }
+.summary-section-heading svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.summary-main-amount { display: flex; align-items: center; gap: 16px; max-width: 100%; text-align: left; min-height: 52px; }
+.summary-main-amount strong { font-size: 30px; line-height: 1.4; font-weight: 650; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.summary-main-amount svg { width: 20px; height: 20px; flex: 0 0 20px; color: #688174; }
+.summary-main-amount:disabled svg { display: none; }
+.summary-quality { display: grid; gap: 6px; font-size: 12px; color: #64746b; margin-top: 12px; line-height: 1.7; }
+.summary-cash-numbers { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.summary-cash-numbers dt,.summary-people dt { font-size: 12px; color: #64746b; }
+.summary-cash-numbers dd { margin: 4px 0 0; font-size: 22px; font-weight: 600; min-height: 44px; display: flex; align-items: center; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.summary-cash-numbers dd button { min-height: 44px; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.summary-cash-numbers > div:nth-child(1) dd { color: #326f98; }
+.summary-cash-numbers > div:nth-child(2) dd { color: #a24e3d; }
+.summary-bank-breakdown { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0 4px; font-size: 12px; }
+.summary-caution { color: #64746b; font-size: 12px; line-height: 1.7; margin-top: 10px; overflow-wrap: anywhere; }
+.summary-unknown { margin-top: 16px; min-height: 44px; height: auto; white-space: normal; text-align: left; max-width: 100%; color: #77551c; border-color: #d6c596; }
+.summary-unknown svg { flex-shrink: 0; }
+.summary-unknown span { margin-left: auto; }
+.summary-inline-button { display: flex; gap: 6px; align-items: center; font-size: 13px; min-height: 44px; }
+.summary-people article { border-bottom: 1px solid #edf0ee; padding: 12px 0; }
+.summary-people h3 { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; margin-bottom: 10px; }
+.summary-people dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+.summary-people dd { min-height: 44px; display: flex; align-items: center; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; font-weight: 550; font-size: 18px; }
+.summary-people dd button { display: flex; align-items: center; gap: 6px; min-height: 44px; min-width: 0; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.summary-people dd svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.summary-people p { color: #64746b; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.summary-last-deposit { display: grid; gap: 14px; }
+.summary-last-deposit > div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.summary-last-deposit dt { color: #64746b; }
+.summary-last-deposit dd { font-weight: 550; text-align: right; }
+.summary-last-deposit small { display: inline-block; margin-left: 8px; font-size: 12px; font-weight: 400; color: #64746b; }
+.summary-chart { width: 100%; height: 230px; min-width: 0; }
+.summary-chart-period { font-size: 12px; color: #64746b; margin-bottom: 12px; }
+.summary-trend [role=tablist] { height: 44px; }
+.summary-trend [role=tab] { min-height: 40px; font-size: 13px; }
+.summary-trend figcaption { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: #64746b; margin: 8px 0 16px; }
+.chart-key::before { content: ''; display: inline-block; width: 9px; height: 9px; margin-right: 6px; }
+.chart-key.incoming::before { background: #397ca6; }
+.chart-key.outgoing::before { background: #bb604c; }
+.summary-month-table { max-width: 100%; overflow-x: auto; }
+.summary-month-table table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; }
+.summary-month-table th,.summary-month-table td { border-bottom: 1px solid #edf0ee; padding: 10px 4px; text-align: right; overflow-wrap: anywhere; }
+.summary-month-table th:first-child { text-align: left; }
+.summary-month-table thead th { color: #64746b; font-weight: 500; }
+.summary-month-table button { min-height: 44px; text-align: left; font-weight: 500; color: #176650; }
+.summary-confirmed { color: #236c54; font-size: 12px; }
+.summary-unconfirmed { color: #816125; font-size: 12px; }
+.summary-chart-paging { display: flex; gap: 14px; justify-content: center; align-items: center; margin: 12px 0; font-size: 12px; }
+.summary-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; border-top: 1px solid #dfe5e2; padding-top: 20px; }
+.summary-detail-export { justify-self: end; }
+.summary-detail-list li { border-bottom: 1px solid #edf0ee; }
+.summary-detail-list li > button { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px; padding: 14px 0; text-align: left; }
+.summary-detail-list li > button > span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.summary-detail-list li > button > span:last-child { text-align: right; flex-shrink: 0; }
+.summary-detail-list strong { font-size: 14px; font-weight: 550; }
+.summary-detail-list small { font-size: 11px; color: #64746b; }
+.summary-detail-list small svg { display: inline; width: 12px; height: 12px; }
+.household-summary button:focus-visible { outline: 2px solid #197765; outline-offset: 2px; }
+@media (max-width: 600px) {
+  .summary-controls { display: grid; grid-template-columns: minmax(0,1fr) 44px; gap: 12px 8px; }
+  .summary-controls label:first-child { width: auto; grid-column: 1 / -1; }
+  .summary-month-control,.summary-controls > label:not(.summary-account) { grid-column: 1 / -1; }
+  .summary-month-control > div { grid-template-columns: 44px minmax(0,1fr) 44px; }
+  .summary-month-control button { width: 44px; }
+  .summary-controls input { text-align: center; }
+  .summary-cash-numbers { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px 16px; }
+  .summary-cash-numbers > div:last-child { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; border-top: 1px solid #edf0ee; }
+  .summary-cash-numbers dd { font-size: 20px; }
+  .summary-cash-numbers > div:last-child dd { font-size: 16px; }
+  .summary-main-amount strong { font-size: 26px; }
+  .summary-people dl { gap: 6px; }
+  .summary-people dd { font-size: 14px; }
+  .summary-people dd button { flex-wrap: wrap; gap: 2px; }
+  .summary-chart { height: 210px; }
+  .summary-month-table table { font-size: 12px; }
+  .summary-last-deposit > div { font-size: 13px; }
+}
 .bank-posting .expense-form { max-width: 560px; padding-bottom: 16px; }
 @media(max-width: 400px) {
   .bank-month-status .toolbar-actions { margin-left: auto; }

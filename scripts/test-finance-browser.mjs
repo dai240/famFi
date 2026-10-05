@@ -36,9 +36,9 @@ for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
       const detailEditor=page.getByRole('dialog',{name:'支出を編集',exact:true});await expandExpenseFields(detailEditor);await detailEditor.getByLabel('支出日',{exact:true}).fill(`${year}-03-03`);await detailEditor.getByRole('button',{name:'保存',exact:true}).click();await detailEditor.waitFor({state:'hidden'});
       check(await page.getByLabel('表示する月').inputValue()===month,'Editing purchase date keeps the accounting month visible');check((await(await page.request.get(base+'/api/expenses?month='+month)).json()).total===1234,'Optional detail edits keep the household total unchanged');
       const nav=page.getByRole('navigation',{name:'メインメニュー',exact:true});
-      if(await nav.isVisible()){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name:'負担・個人の貸し借り',exact:true}).click();}
-      else await page.getByRole('tab',{name:'負担・貸し借り',exact:true}).click();
-      await page.getByRole('heading',{name:'家計への負担',exact:true}).waitFor();await page.getByRole('tab',{name:'個人の貸し借り',exact:true}).click();await page.getByRole('heading',{name:'個人の貸し借り',exact:true}).waitFor();
+      if(await nav.isVisible()){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name:'家計サマリー',exact:true}).click();}
+      else await page.getByRole('tab',{name:'家計サマリー',exact:true}).click();
+      await page.getByRole('heading',{name:'家計サマリー',exact:true}).waitFor();await page.getByRole('tab',{name:'個人の貸し借り',exact:true}).click();await page.getByRole('heading',{name:'個人の貸し借り',exact:true}).waitFor();
       await page.getByRole('button',{name:'記録',exact:true}).click();dialog=page.getByRole('dialog',{name:'個人の貸し借り',exact:true});
       const title=`Private ${name} ${width} ${randomUUID().slice(0,6)}`;
       await dialog.getByLabel('内容',{exact:true}).fill(title);await dialog.getByLabel('金額（円）',{exact:true}).fill('5000');await dialog.getByLabel('日付',{exact:true}).fill(`${year}-02-15`);

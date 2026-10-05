@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, List, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, LogOut, Pencil, Plus, ReceiptText, RefreshCw, Search, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { CalendarDays, ChartNoAxesCombined, List, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, LogOut, Pencil, Plus, ReceiptText, RefreshCw, Search, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -186,14 +186,14 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         <TabsTrigger value="expenses" className="ledger-tab"><ReceiptText aria-hidden="true" />支出</TabsTrigger>
         <TabsTrigger value="cash" className="ledger-tab" disabled={!data}><Landmark aria-hidden="true" />入出金</TabsTrigger>
         <TabsTrigger value="settlements">立替・精算</TabsTrigger>
-        <TabsTrigger value="finance">負担・貸し借り</TabsTrigger>
+        <TabsTrigger value="finance">家計サマリー</TabsTrigger>
         <TabsTrigger value="recurring">予定・定期{Boolean(attention)&&<span className="attention-badge" aria-label={'確認待ち'+attention+'件'}>{attention}</span>}</TabsTrigger>
         <TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger>
       </TabsList>
     </Tabs>
     <main className={'expense-main'+(presentation==='calendar'?' calendar-mode':'')} hidden={view !== 'expenses'}>
       <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
-        <Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button>
+        <div className="toolbar-actions"><Button variant="outline" disabled={!data} onClick={()=>navigate('finance')}><ChartNoAxesCombined />サマリー</Button><Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
       </div>
       <div className="expense-toolbar">
         <div className="month-selector"><Button variant="ghost" size="icon" title="前の月" aria-label="前の月" disabled={month === '2000-01'} onClick={() => changeMonth(shiftMonth(month, -1))}><ChevronLeft /></Button>
@@ -253,7 +253,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     {view === 'recurring' && <RecurringWorkspace key={recurringTarget?recurringTarget.month+recurringTarget.view:'regular'} initialMonth={recurringTarget?.month??month} initialView={recurringTarget?.view} externalRevision={revision} onEdit={openEditor} onChanged={refresh} onMastersChanged={mastersChanged} />}
     {view === 'history' && data && <main className="expense-main"><div className="workspace-heading"><h1>変更履歴</h1><Button variant="ghost" size="icon" title="履歴を更新" aria-label="履歴を更新" onClick={refresh}><RefreshCw /></Button></div><HistoryView masters={data} revision={revision} /></main>}
     {view === 'settlements' && <SettlementWorkspace externalRevision={revision} onEdit={openEditor} onChanged={refresh} />}
-    {view === 'finance' && data && <FinanceWorkspace masters={data} revision={revision} onChanged={refresh} initialMonth={month} />}
+    {view === 'finance' && data && <FinanceWorkspace masters={data} revision={revision} onChanged={refresh} initialMonth={month} onCash={()=>navigate('cash')} onExpenses={value=>{changeMonth(value);navigate('expenses');}} />}
     {view === 'household' && <HouseholdView />}
     {view === 'notes' && data && <NotesWorkspace masters={data} revision={revision} onChanged={refresh} />}
     {view === 'cash' && data && <CashWorkspace initialMonth={month} masters={data} revision={revision} onChanged={refresh} />}

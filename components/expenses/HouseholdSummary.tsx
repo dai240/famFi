@@ -33,7 +33,7 @@ export function HouseholdSummary({masters,revision,initialMonth,onChanged,onCash
   async function download(){if(downloading||!data)return;setDownloading(true);try{await downloadSummary(query);}catch(e){setError(errorMessage(e));}finally{setDownloading(false);}}
   const range=data?.range;
   const fundingTotal=data?.people.reduce((sum,p)=>sum+p.total,0)??0;
-  function changePeriod(value:string){setPeriod(value as SummaryQuery['period']);setDetail(null);}
+  function changePeriod(value:string){setPeriod(value as SummaryQuery['period']);setDetail(null);window.scrollTo({top:0,behavior:'auto'});}
   return <section className="household-summary" aria-label="家計サマリー">
     <div className="summary-controls">
       <label>期間<select aria-label="サマリーの期間" value={period} onChange={e=>changePeriod(e.target.value)}>{Object.entries(summaryPeriods).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
@@ -70,10 +70,10 @@ export function HouseholdSummary({masters,revision,initialMonth,onChanged,onCash
         </article>)}</div>
         <p className="summary-caution">入金は選択した口座、直接負担等は家計全体。最終入金は今日までの全期間。</p>
       </section>
-      <section className="summary-band" aria-labelledby="summary-last-deposit"><div className="summary-section-heading"><h2 id="summary-last-deposit">前回入金からの動き</h2><Button variant="ghost" size="icon" title="前回入金以降に切り替え" aria-label="前回入金以降に切り替え" onClick={()=>setPeriod('deposit')}><ArrowRight /></Button></div>
+      <section className="summary-band" aria-labelledby="summary-last-deposit"><div className="summary-section-heading"><h2 id="summary-last-deposit">前回入金からの動き</h2><Button variant="ghost" size="icon" title="前回入金以降に切り替え" aria-label="前回入金以降に切り替え" onClick={()=>changePeriod('deposit')}><ArrowRight /></Button></div>
         {data.lastDeposit&&data.sinceDeposit?<><dl className="summary-last-deposit"><div><dt>家族の最終入金日</dt><dd>{dateName(data.lastDeposit.date)} <small>{elapsed(data.lastDeposit.date,data.today)}日前</small></dd></div><div><dt>その日の家族の入金</dt><dd>{formatYen(data.lastDeposit.amount)}</dd></div><div><dt>その日から今日までの出金</dt><dd>{formatYen(data.sinceDeposit.outgoing)}</dd></div></dl><p className="summary-caution">選択期間とは別に、入金当日を含む登録済み取引。入金不要の判定ではありません。</p></>:<p className="muted-text">人物が確認された家族の入金はありません</p>}
       </section>
-      {data.months.length>0&&<SummaryTrend months={data.months} onMonth={value=>{setMonth(value);setPeriod('month');}} />}
+      {data.months.length>0&&<SummaryTrend months={data.months} onMonth={value=>{setMonth(value);changePeriod('month');}} />}
       <div className="summary-footer"><Button variant="outline" onClick={onCash}><Landmark />入出金を開く</Button><Button variant="outline" onClick={()=>onExpenses(month)}>支出を開く<ArrowRight /></Button></div>
     </>}
     {detail&&<SummaryDetailDialog query={query} detail={detail} masters={masters} revision={revision} onClose={()=>setDetail(null)} onChanged={onChanged} onExpenses={onExpenses} />}

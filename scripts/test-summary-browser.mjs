@@ -36,6 +36,7 @@ for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
       check(await page.locator('.summary-chart').evaluate(el=>el.getBoundingClientRect().height>=200&&el.getBoundingClientRect().width>200),'Stable chart dimensions');
       await page.locator('.summary-trend').scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${name}-${width}-chart.png`,animations:'disabled'});
       await page.getByRole('button',{name:'2024年2月のサマリー',exact:true}).click();await page.getByTestId('summary-expenses').filter({hasText:'14,100'}).waitFor();check(await page.getByLabel('サマリーの期間').inputValue()==='month','Trend drills into month');
+      check(await page.evaluate(()=>window.scrollY<2),'Month drilldown returns to the summary heading');
       await page.getByLabel('サマリーの期間').selectOption('year');await page.getByLabel('サマリーの対象年').selectOption('2024');await page.getByTestId('summary-range').filter({hasText:'2024/12/31'}).waitFor();
       await page.getByLabel('サマリーの期間').selectOption('all');await page.getByTestId('summary-range').filter({hasText:'2024/01/01'}).waitFor();
       const exported=page.waitForEvent('download');await page.getByRole('button',{name:'サマリーをCSV出力',exact:true}).click();check((await exported).suggestedFilename()==='famfi-household-summary.csv','Summary CSV export');

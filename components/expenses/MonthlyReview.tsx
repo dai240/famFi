@@ -22,6 +22,7 @@ export function MonthlyReview({ data, error, onRetry, onSchedule, onExpense, onS
   const other = data.periods.filter(period => period.month !== data.month);
   const count = (current?.recurring ?? 0) + (current?.plans ?? 0) + data.payments.length;
   const otherCount = other.reduce((sum, period) => sum + period.recurring + period.plans, 0);
+  if (!count && !otherCount && !data.waiting.count && !data.summaries.length && !data.samplePaymentCount) return null;
   const periodLinks = (period: ReviewPeriod) => <div className="review-period-actions">
     {period.recurring > 0 && <button type="button" onClick={() => onSchedule(period.month, 'due')}><span>定期支出</span><strong>{period.recurring}件</strong><ChevronRight aria-hidden="true" /></button>}
     {period.plans > 0 && <button type="button" onClick={() => onSchedule(period.month, 'plans')}><span>単発の予定</span><strong>{period.plans}件</strong><ChevronRight aria-hidden="true" /></button>}
@@ -33,7 +34,7 @@ export function MonthlyReview({ data, error, onRetry, onSchedule, onExpense, onS
   }
   return <section className="monthly-review" aria-label="この月の確認">
     <details>
-      <summary><span className="review-title">この月の確認 <span className={count ? 'review-count' : 'review-clear'}>{count ? `確認待ち ${count}件` : '確認待ちなし'}</span>
+      <summary><span className="review-title">予定・支払いの確認 <span className={count ? 'review-count' : 'review-clear'}>{count ? `確認待ち ${count}件` : data.waiting.count ? '確認日前' : 'その他の項目'}</span>
         {(otherCount > 0 || data.summaries.length > 0) && <small>{[otherCount > 0 ? `別の月 ${otherCount}件` : '', data.summaries.length > 0 ? `任意の整理 ${data.summaries.length}件` : ''].filter(Boolean).join(' / ')}</small>}
       </span><ChevronDown aria-hidden="true" /></summary>
       <div className="review-content">

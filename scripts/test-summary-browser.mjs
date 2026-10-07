@@ -17,7 +17,8 @@ for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
       await page.setViewportSize({width,height});await navigate(page,'支出');await page.getByRole('button',{name:'サマリー',exact:true}).click();
       await page.getByRole('heading',{name:'家計サマリー',exact:true}).waitFor();await page.getByLabel('サマリーの期間').selectOption('month');await page.getByLabel('サマリーの対象月').fill('2024-02');
       await page.getByTestId('summary-expenses').filter({hasText:'14,100'}).waitFor();
-      check(await page.getByLabel('サマリーの共通口座').inputValue()===bank.id,'Selected common bank');
+      const account=page.getByLabel('サマリーの共通口座');
+      check(await account.evaluate(el=>el.tagName)==='SELECT'?await account.inputValue()===bank.id:(await account.innerText()).includes(bank.name),'Selected common bank is visible');
       check(await page.getByTestId('summary-range').innerText().then(t=>t.includes('2024/02/01')&&t.includes('2024/02/29')),'Leap-year range');
       check(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth),'Summary fits viewport');
       check(await page.locator('.summary-controls').evaluate(el=>[...el.querySelectorAll('input,select')].every(n=>n.getBoundingClientRect().right<=innerWidth&&n.getBoundingClientRect().left>=0)),'Controls stay inside viewport');

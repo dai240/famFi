@@ -2,7 +2,7 @@ import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { navigate } from './browser-navigation.mjs';
+import { navigate, openExpenseInsights } from './browser-navigation.mjs';
 const base='http://127.0.0.1:3101',output='test-results/expense-improvements';await mkdir(output,{recursive:true});let checks=0;
 const check=(v,m)=>{assert.ok(v,m);checks++;};
 for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
@@ -14,8 +14,8 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
     const self=masters.parties.find(p=>p.id===masters.selfPartyId),shared=masters.parties.find(p=>p.systemKey==='shared'),source=masters.paymentSources.find(s=>s.fundingPartyId===self.id&&s.method==='card');
     const request=async(path,body)=>{const r=await page.request.post(base+path,{data:body,headers:{origin:base}});check(r.ok(),path+': '+await r.text());return r.json();};
     for(const [width,height] of [[320,568],[390,844],[844,390],[1280,800]]){
-      await page.setViewportSize({width,height});await navigate(page,'支出');await page.getByLabel('表示する月').fill('2038-08');await page.getByRole('region',{name:'前月比較'}).waitFor();
-      const comparison=page.getByRole('region',{name:'前月比較'});await comparison.locator('summary').click();await comparison.getByRole('heading',{name:'増加したカテゴリ'}).waitFor();check(await comparison.getByText(/サンプルを含みます/).isVisible(),'Comparison identifies samples');
+      await page.setViewportSize({width,height});await navigate(page,'支出');await page.getByLabel('表示する月').fill('2038-08');await openExpenseInsights(page);await page.getByRole('region',{name:'前月比較'}).waitFor();
+      const comparison=page.getByRole('region',{name:'前月比較'});if(await comparison.locator('details').getAttribute('open')===null)await comparison.locator('summary').click();await comparison.getByRole('heading',{name:'増加したカテゴリ'}).waitFor();check(await comparison.getByText(/サンプルを含みます/).isVisible(),'Comparison identifies samples');
       check(await page.locator('body').evaluate(e=>e.scrollWidth<=innerWidth),'No comparison overflow');await page.screenshot({path:`${output}/${engineName}-${width}-comparison.png`,animations:'disabled'});
       const token=engineName+width+randomUUID().slice(0,4),prefix='家族の食材まとめ買いと日用品 '+token;
       const fields={amount:1234,date:'2039-08-10',categoryId:'food',costClass:'variable',description:prefix,memo:'',paymentSourceId:source.id,paidByPartyId:self.id,usedByPartyId:self.id,usedByText:'',beneficiaryKind:'family',beneficiaryPartyId:null,beneficiaryText:'',paymentTreatment:'advance',reimbursementStatus:'required',reimbursementFromPartyId:shared.id,reimbursementToPartyId:self.id,reimbursementAmount:1234};

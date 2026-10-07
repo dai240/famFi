@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, ChartNoAxesCombined, List, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, LogOut, Pencil, Plus, ReceiptText, RefreshCw, Search, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { CalendarDays, ChartNoAxesCombined, List, ChevronDown, ChevronLeft, ChevronRight, Download, Landmark, LoaderCircle, LogOut, Pencil, Plus, ReceiptText, RefreshCw, Search, Settings2, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -46,6 +46,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const [managing,setManaging] = useState(false);
   const [profileOpen,setProfileOpen] = useState(false);
   const [filterOpen,setFilterOpen] = useState(false);
+  const [insightsOpen,setInsightsOpen] = useState(false);
   const [person,setPerson] = useState(''); const [paymentSource,setPaymentSource] = useState(''); const [settlement,setSettlement] = useState('');
   const [treatment,setTreatment] = useState('');
   const [costClass,setCostClass]=useState('');
@@ -178,7 +179,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
     <header className="expense-header"><div className="expense-header-inner">
       <Link href="/expenses" className="famfi-brand"><ReceiptText aria-hidden="true" />famFi</Link>
       <button type="button" className="header-section profile-header" title="表示名の設定" aria-label="表示名の設定" disabled={!self} onClick={()=>{toast.dismiss();setProfileOpen(true);}}><span>{data?.householdName ?? '支出管理'}</span>{self&&<strong>{self.name}</strong>}</button>
-      <Button className="desktop-control" variant="ghost" size="icon" title="マスタ管理" aria-label="マスタ管理" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
+      <Button className="desktop-control" variant="ghost" size="icon" title="家計の設定" aria-label="家計の設定" disabled={!data} onClick={()=>{toast.dismiss();setManaging(true);}}><Settings2 /></Button>
       <Button className="desktop-control" variant="ghost" size="icon" title="ログアウト" aria-label="ログアウト" disabled={busy} onClick={logout}><LogOut /></Button>
     </div></header>
     <Tabs value={view} onValueChange={navigate} className={'workspace-tabs'+(['expenses','cash'].includes(view)?' workspace-ledger-tabs':'')}>
@@ -191,8 +192,8 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
         <TabsTrigger value="notes">共有メモ</TabsTrigger><TabsTrigger value="household">家計の共有</TabsTrigger><TabsTrigger value="history">変更履歴</TabsTrigger>
       </TabsList>
     </Tabs>
-    <main className={'expense-main'+(presentation==='calendar'?' calendar-mode':'')} hidden={view !== 'expenses'}>
-      <div className="workspace-heading"><div><p className="section-eyebrow">家計簿</p><h1>支出</h1></div>
+    <main className="expense-main" hidden={view !== 'expenses'}>
+      <div className="workspace-heading"><div><h1>支出</h1></div>
         <div className="toolbar-actions"><Button variant="outline" disabled={!data} onClick={()=>navigate('finance')}><ChartNoAxesCombined />サマリー</Button><Button className="primary-action desktop-add" disabled={!data || loading} onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
       </div>
       <div className="expense-toolbar">
@@ -201,25 +202,31 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
           <Button variant="ghost" size="icon" title="次の月" aria-label="次の月" disabled={month === '2099-12'} onClick={() => changeMonth(shiftMonth(month, 1))}><ChevronRight /></Button>
         </div>
         <div className="toolbar-actions"><Button variant="ghost" size="icon" aria-label="一覧を更新" title="一覧を更新" disabled={loading} onClick={refresh}><RefreshCw className={loading ? 'animate-spin' : ''} /></Button>
-          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" disabled={!data || exporting}>{exporting ? <LoaderCircle className="animate-spin" /> : <Download />}CSV</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => download(false)}>表示月を出力</DropdownMenuItem>{hasFilters && <DropdownMenuItem onSelect={() => download(false,true)}>絞り込み結果を出力</DropdownMenuItem>}<DropdownMenuItem onSelect={() => download(true)}>全期間を出力</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" aria-label="CSV" title="CSV出力" disabled={!data || exporting}>{exporting ? <LoaderCircle className="animate-spin" /> : <Download />}<span className="export-label">CSV</span></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => download(false)}>表示月を出力</DropdownMenuItem>{hasFilters && <DropdownMenuItem onSelect={() => download(false,true)}>絞り込み結果を出力</DropdownMenuItem>}<DropdownMenuItem onSelect={() => download(true)}>全期間を出力</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         </div>
       </div>
       {error ? <section className="workspace-message" role="alert"><p>{error}</p><Button variant="outline" onClick={refresh}><RefreshCw />再読み込み</Button></section>
         : !data || dataKey !== queryKey ? <section className="workspace-message" role="status"><LoaderCircle className="animate-spin" /><p>支出を読み込み中</p></section>
         : <>
-          <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出</h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p></div><div className="entry-count"><span>個別明細</span><strong>{data.count}<small> 件</small></strong></div></section>
-          <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
+          <section className="expense-summary" aria-label="月の集計"><div><h2>この月の支出 <span>登録済み</span></h2><p className="total-amount" data-testid="monthly-total">{formatYen(data.total)}</p><p className="expense-record-count">まとめ {data.summaryCount??0}件 · 個別 {data.count}件</p></div><Button variant="ghost" className="insights-toggle" aria-expanded={insightsOpen} aria-controls="expense-insights" onClick={()=>setInsightsOpen(!insightsOpen)}><ChevronDown />内訳・比較</Button></section>
           <BankMonthStatus month={month} revision={revision} onChanged={refresh} onCash={()=>navigate('cash')} />
           <MonthlyReview key={month} data={review?.month===month?review:null} error={reviewError} onRetry={refresh} onSchedule={openSchedule} onExpense={openReviewExpense} onSummary={id=>{setPresentation('list');setSummaryId(id);}} />
-          <MonthComparison month={month} revision={revision} />
+          {insightsOpen&&<section id="expense-insights" className="expense-insights" aria-label="支出の内訳・比較">
+            <section className="cost-breakdown" aria-label="費用の区分別集計">{data.costBreakdown?.map(item=><div key={item.costClass}><span>{costClassLabels[item.costClass as CostClass]}</span><strong>{formatYen(item.amount)}</strong></div>)}</section>
+            <MonthComparison month={month} revision={revision} />
+            {Boolean(data.directContributions?.length) && <section className="direct-contributions" aria-label="家計への直接負担"><h2>直接負担・返金なし</h2>{data.directContributions?.map(item=><span key={item.partyId}>{data.parties.find(p=>p.id===item.partyId)?.name} <strong>{formatYen(item.amount)}</strong></span>)}</section>}
+            {Boolean(data.count||data.summaryRemainder)&&<section className="expense-breakdown" aria-labelledby="breakdown-title"><h2 id="breakdown-title">カテゴリ別</h2>
+              {Boolean(data.summaryRemainder)&&<p className="summary-unclassified">内訳未分類 <strong>{formatYen(data.summaryRemainder??0)}</strong></p>}
+              <ul>{[...data.breakdown].sort((a,b)=>b.amount-a.amount).map(item=>{const cat=categoryMap.get(item.categoryId);return <li key={item.categoryId}><button className="breakdown-button" onClick={()=>{filter(category===item.categoryId?'':item.categoryId);setPresentation('list');setFilterOpen(true);}} aria-pressed={category===item.categoryId}><span><i className="category-dot" style={{backgroundColor:cat?.color}} />{cat?.name}</span><strong>{formatYen(item.amount)}</strong></button><div className="category-track"><div style={{width:`${data.total?item.amount/data.total*100:0}%`,backgroundColor:cat?.color}} /></div></li>;})}</ul>
+            </section>}
+          </section>}
           <div className="ledger-view-switch" role="group" aria-label="支出の表示方法"><button type="button" aria-pressed={presentation==='list'} onClick={()=>setPresentation('list')}><List aria-hidden="true" />一覧</button><button type="button" aria-pressed={presentation==='calendar'} onClick={()=>setPresentation('calendar')}><CalendarDays aria-hidden="true" />カレンダー</button></div>
-          <div hidden={presentation!=='list'}><SummaryWorkspace month={month} masters={data} revision={revision} onChanged={refresh} onEdit={openEditor} onMastersChanged={mastersChanged} openId={summaryId} onOpened={()=>setSummaryId(null)} /></div>
           {presentation==='calendar'&&<ExpenseCalendar month={month} masters={data} revision={revision} onOpen={openCalendarEntry} onAdd={date=>setEditor({expense:null,initial:draftRecord(newExpense(data,date)),key:crypto.randomUUID()})} onNote={date=>setNoteEditor({note:null,date})} />}
-          {Boolean(data.directContributions?.length) && <section className="direct-contributions" aria-label="家計への直接負担"><h2>直接負担・返金なし</h2>{data.directContributions?.map(item=><span key={item.partyId}>{data.parties.find(p=>p.id===item.partyId)?.name} <strong>{formatYen(item.amount)}</strong></span>)}</section>}
           <div className="expense-body" hidden={presentation!=='list'}>
             <section className="expense-ledger" aria-labelledby="ledger-title">
-              <div className="ledger-heading"><h2 id="ledger-title">支出履歴 <span>{data.filteredCount}件</span></h2><div className="ledger-filter-actions"><CategorySelect label="カテゴリで絞り込み" value={category} onChange={filter} categories={categories} allowAll /><Button variant="ghost" size="icon" title="詳細な絞り込み" aria-label="詳細な絞り込み" aria-expanded={filterOpen} onClick={()=>setFilterOpen(!filterOpen)}><SlidersHorizontal /></Button></div></div>
+              <div className="ledger-heading"><h2 id="ledger-title">支出の記録</h2><Button variant="ghost" title="詳細な絞り込み" aria-label="詳細な絞り込み" aria-expanded={filterOpen} onClick={()=>setFilterOpen(!filterOpen)}><SlidersHorizontal />絞り込み{hasFilters&&<span className="filter-active">適用中</span>}</Button></div>
               {filterOpen && <div className="ledger-filters"><form className="search-form" onSubmit={e=>{e.preventDefault();setSearch(searchDraft);setPage(1);}}><input aria-label="内容・メモを検索" maxLength={120} value={searchDraft} onChange={e=>setSearchDraft(e.target.value)} /><Button variant="outline" size="icon" aria-label="検索" title="検索"><Search /></Button></form><div className="filter-grid">
+                <div><label>カテゴリ</label><CategorySelect label="カテゴリで絞り込み" value={category} onChange={filter} categories={categories} allowAll /></div>
                 <div><label>人物・共用資金</label><ReferenceSelect label="人物・共用資金で絞り込み" value={person} emptyLabel="すべて" options={data.parties} onChange={v=>{setPerson(v??'');setPage(1);}} /></div>
                 <div><label>支払元</label><ReferenceSelect label="支払元で絞り込み" value={paymentSource} emptyLabel="すべて" options={[]} groups={paymentSourceGroups(data,paymentSource,true)} onChange={v=>{setPaymentSource(v??'');setPage(1);}} /></div>
                 <div><label>支払いの扱い</label><ReferenceSelect label="支払いの扱いで絞り込み" value={treatment} emptyLabel="すべて" options={Object.entries(treatmentLabels).map(([id,name])=>({id,name}))} onChange={v=>{setTreatment(v??'');setPage(1);}} /></div>
@@ -227,7 +234,9 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
                 <div><label>費用の区分</label><ReferenceSelect label="費用の区分で絞り込み" value={costClass} emptyLabel="すべて" options={Object.entries(costClassLabels).map(([id,name])=>({id,name}))} onChange={v=>{setCostClass(v??'');setPage(1);}} /></div>
               </div></div>}
               {hasFilters && <div className="filter-summary"><span>絞り込み結果 {formatYen(data.filteredTotal)}</span><Button variant="ghost" onClick={()=>{setCategory('');setPerson('');setPaymentSource('');setSettlement('');setTreatment('');setCostClass('');setSearch('');setSearchDraft('');setPage(1);}}>条件を解除</Button></div>}
-              {data.expenses.length === 0 ? <div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{hasFilters ? '条件に合う個別明細はありません' : data.summaryRemainder ? '個別明細は未登録です' : 'この月の記録はありません'}</p><Button variant="outline" onClick={() => openEditor(null)}><Plus />支出を記録</Button></div>
+              <SummaryWorkspace month={month} masters={data} revision={revision} onChanged={refresh} onEdit={openEditor} onMastersChanged={mastersChanged} openId={summaryId} onOpened={()=>setSummaryId(null)} filtered={hasFilters} />
+              {(data.count>0||hasFilters)&&<h3 className="individual-heading">個別明細 <span>{data.filteredCount}件</span></h3>}
+              {data.expenses.length === 0 ? data.summaryCount&&!hasFilters?<p className="optional-details">月まとめを記録済み · 個別明細の追加は任意です</p>:<div className="empty-ledger"><ReceiptText aria-hidden="true" /><p>{hasFilters ? '条件に合う個別明細はありません' : 'この月の支出はまだ登録されていません'}</p><div className="empty-ledger-actions"><Button variant="outline" onClick={()=>navigate('cash')}><Landmark />銀行明細</Button><Button variant="outline" onClick={() => openEditor(null)}><Plus />支出を記録</Button></div></div>
                 : <div className="ledger-rows">{data.expenses.map(expense => {
                   const cat = categoryMap.get(expense.categoryId);
                   return <button className="expense-row" key={expense.id} disabled={loading} onClick={() => openEditor(expense)} aria-label={`${formatExpenseDate(expense.date)} ${expense.description || cat?.name} ${expense.amount}円を編集`}>
@@ -240,13 +249,6 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
                 })}</div>}
               {pages > 1 && <nav className="ledger-pagination" aria-label="支出一覧のページ"><Button variant="outline" size="icon" aria-label="前のページ" disabled={page === 1} onClick={() => setPage(page - 1)}><ChevronLeft /></Button><span>{page} / {pages}</span><Button variant="outline" size="icon" aria-label="次のページ" disabled={page >= pages} onClick={() => setPage(page + 1)}><ChevronRight /></Button></nav>}
             </section>
-            <aside className="expense-breakdown" aria-labelledby="breakdown-title"><h2 id="breakdown-title">カテゴリ別</h2>
-              {Boolean(data.summaryRemainder)&&<p className="summary-unclassified">内訳未分類 <strong>{formatYen(data.summaryRemainder??0)}</strong></p>}
-              {data.count === 0 && !data.summaryRemainder ? <p className="muted-text">記録なし</p> : <ul>{[...data.breakdown].sort((a, b) => b.amount - a.amount).map(item => {
-                const cat = categoryMap.get(item.categoryId);
-                return <li key={item.categoryId}><button className="breakdown-button" onClick={() => filter(category === item.categoryId ? '' : item.categoryId)} aria-pressed={category === item.categoryId}><span><i className="category-dot" style={{ backgroundColor: cat?.color }} />{cat?.name}</span><strong>{formatYen(item.amount)}</strong></button><div className="category-track"><div style={{ width: `${item.amount / data.total * 100}%`, backgroundColor: cat?.color }} /></div></li>;
-              })}</ul>}
-            </aside>
           </div>
         </>}
     </main>

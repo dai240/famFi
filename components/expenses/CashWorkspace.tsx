@@ -44,8 +44,7 @@ export function CashWorkspace({ initialMonth, masters, revision, onChanged }: { 
   }
   const bankSources=masters.paymentSources.filter(s=>s.method==='bank');
   return <main className="expense-main cash-workspace">
-    <div className="workspace-heading"><div><p className="section-eyebrow">銀行明細・手入力</p><h1>入出金</h1></div><Button className="primary-action" onClick={()=>setEditing({row:null})}><Plus />記録</Button></div>
-    <div className="finance-command"><Button variant="outline" onClick={()=>setImporting(true)}><Upload />楽天銀行CSV取込</Button></div>
+    <div className="workspace-heading"><div><h1>入出金</h1></div><div className="toolbar-actions"><Button variant="outline" size="icon" aria-label="楽天銀行CSV取込" title="楽天銀行CSV取込" onClick={()=>setImporting(true)}><Upload /></Button><Button className="primary-action" onClick={()=>setEditing({row:null})}><Plus />記録</Button></div></div>
     <BankPosting masters={masters} revision={revision} onChanged={onChanged} />
     <div className="expense-toolbar cash-toolbar">
       <Tabs className="cash-period" value={all?'all':'month'} onValueChange={value=>{setAll(value==='all');setPage(1);}}><TabsList aria-label="入出金の期間"><TabsTrigger value="all">全期間</TabsTrigger><TabsTrigger value="month">月別</TabsTrigger></TabsList></Tabs>

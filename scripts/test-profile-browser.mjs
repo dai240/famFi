@@ -13,9 +13,9 @@ async function choose(page,scope,label,name){await combo(scope,label).click();aw
 async function login(page,token){
   await page.goto(base+'/login');await page.getByLabel('メールアドレス').fill('fixture0@example.invalid');
   await page.getByRole('button',{name:'確認コードを送信',exact:true}).click();await page.getByLabel('確認コード',{exact:true}).fill(token);
-  await page.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL('**/expenses');await page.locator('[aria-label="カテゴリで絞り込み"]').waitFor();
+  await page.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL('**/expenses');await page.getByTestId('monthly-total').waitFor();
 }
-async function ready(page){await page.reload();await combo(page,'カテゴリで絞り込み').waitFor();}
+async function ready(page){await page.reload();await page.getByTestId('monthly-total').waitFor();}
 async function fits(page,scope){
   check(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth),'Page fits horizontally');
   check(await scope.evaluate(el=>el.scrollWidth<=el.clientWidth),'Surface fits horizontally');
@@ -87,7 +87,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
     check((await combo(wifeEditor,'購入・支払いをした人').innerText()).includes('自分（配偶者テスト）'),'Wife sees self, not husband');
     await combo(wifeEditor,'支払元').click();check((await wife.getByRole('listbox').innerText()).includes('変更後のカード'),'Rename reaches spouse sources');await wife.keyboard.press('Escape');
     await wifeEditor.getByRole('button',{name:'キャンセル',exact:true}).click();
-    await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});
+    await openMasters(page);const manager=page.getByRole('dialog',{name:'家計の設定',exact:true});
     await manager.getByRole('tab',{name:'人物・共用資金',exact:true}).click();check(await manager.getByRole('button',{name:'配偶者テストを編集',exact:true}).isDisabled(),'Cannot rename spouse in masters');
     await manager.getByRole('button',{name:'変更後を編集',exact:true}).click();profile=page.getByRole('dialog',{name:'表示名の設定',exact:true});await submitProfile(page,profile,'夫');
     await manager.getByRole('button',{name:'閉じる',exact:true}).click();

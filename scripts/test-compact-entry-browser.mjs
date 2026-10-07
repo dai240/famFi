@@ -3,7 +3,7 @@ import {chromium,webkit} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
-import {navigate} from './browser-navigation.mjs';
+import {navigate,openExpenseInsights} from './browser-navigation.mjs';
 const base='http://127.0.0.1:3101',output='test-results/compact-entry';
 await mkdir(output,{recursive:true});let checks=0;
 const check=(value,message)=>{assert.ok(value,message);checks++;};
@@ -48,6 +48,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       check(daily?.amount===1234&&daily.date===today&&daily.paymentSourceId===shared.id&&daily.usedByPartyId===self.id&&daily.beneficiaryKind==='family','Compact save persists all required defaults');
       await page.locator('.desktop-add:visible,.mobile-add button:visible').click();await dialog.waitFor();await dialog.getByLabel('金額（円）').fill('2500');await dialog.getByLabel('内容',{exact:false}).fill(label+' changed');
       await dialog.getByRole('button',{name:'支払情報を変更',exact:true}).click();await choose(page,dialog,'支払元',personal.name);
+      await choose(page,dialog,'支払いの扱い','立替・あとで精算');
       await choose(page,dialog,'購入・支払いをした人','その他');await dialog.getByLabel('購入・支払いをした人の名前').fill('とても長い名前の購入した人');
       await choose(page,dialog,'誰のため','その他');await dialog.getByLabel('誰のための支出か',{exact:true}).fill('家族と一緒に出かけた親戚のみなさん');
       await dialog.getByRole('button',{name:'支払情報を折りたたむ',exact:true}).click();
@@ -81,7 +82,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       check(posted.length===1&&posted[0].state==='posted','One manual confirmation per period');
       const actual=await(await page.request.get(base+'/api/expenses/'+posted[0].expenseId)).json();check(actual.amount===4800&&actual.reimbursementAmount===4800&&actual.costClass==='special'&&actual.memo==='当月だけ変更'&&actual.description===ruleName+' 今月分','Detailed overrides preserved by quick confirmation');
       const unchanged=recurring.rules.find(r=>r.id===rule.id);check(unchanged.name===ruleName&&unchanged.costClass==='fixed'&&unchanged.memo==='金額確認用'&&unchanged.version===rule.version,'Monthly confirmation does not change template');
-      await navigate(page,'支出');await page.getByLabel('表示する月').fill(today.slice(0,7));const comparison=page.getByRole('region',{name:'前月比較'});await comparison.waitFor();
+      await navigate(page,'支出');await page.getByLabel('表示する月').fill(today.slice(0,7));await openExpenseInsights(page);const comparison=page.getByRole('region',{name:'前月比較'});await comparison.waitFor();
       check(await comparison.getByText('今月ここまでの記録と前月全体の比較',{exact:true}).isVisible(),'Current comparison basis always visible');check(!(await comparison.locator('summary').innerText()).includes('%'),'No misleading partial-month percentage');
       await page.request.delete(base+'/api/expenses/'+daily.id,{headers:{origin:base},data:{version:daily.version}});
       await page.request.delete(base+'/api/expenses/'+changed.id,{headers:{origin:base},data:{version:changed.version}});

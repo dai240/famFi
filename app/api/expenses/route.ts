@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         const item = breakdown.get(categoryId) ?? { categoryId, amount: 0, count: 0 };
         item.amount += group._sum.amount ?? 0; item.count += group._count; breakdown.set(categoryId, item);
       }
-      return { expenses: expenses.map(serializeExpense), ...masters, total: (totals._sum.amount ?? 0)+summaryRemainder,summaryRemainder,
+      return { expenses: expenses.map(serializeExpense), ...masters, total: (totals._sum.amount ?? 0)+summaryRemainder,summaryRemainder,summaryCount:summaries.length,
         costBreakdown:['fixed','variable','special','unknown'].map(costClass=>({costClass,amount:(costs.find(c=>c.costClass===costClass)?._sum.amount??0)+(costClass==='unknown'?summaryRemainder:0)})),
         count: totals._count, filteredCount: filteredTotals._count, filteredTotal: (filteredTotals._sum.amount ?? 0)+filteredRemainder,
         breakdown: [...breakdown.values()], directContributions: direct.filter(g => g.paidByPartyId).map(g => ({ partyId: g.paidByPartyId!, amount: g._sum.amount ?? 0 })) };

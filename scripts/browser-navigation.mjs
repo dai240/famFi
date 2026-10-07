@@ -1,19 +1,29 @@
 export async function navigate(page, name) {
   const nav=page.getByRole('navigation',{name:'メインメニュー',exact:true});
   if(await nav.isVisible()){
-    if(['変更履歴','共有メモ','家計の共有','入出金','家計サマリー'].includes(name)){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name,exact:true}).click();}
+    if(['変更履歴','共有メモ','家計の共有','入出金','立替・精算'].includes(name)){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name,exact:true}).click();}
     else await nav.getByRole('button',{name,exact:name!=='予定・定期'}).click();
   } else await page.getByRole('tab',{name,exact:name!=='予定・定期'}).click();
   await page.getByRole('heading',{name,exact:true}).waitFor();
 }
 export async function openMasters(page){
   const nav=page.getByRole('navigation',{name:'メインメニュー',exact:true});
-  if(await nav.isVisible()){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name:'マスタ管理',exact:true}).click();}
-  else await page.getByRole('button',{name:'マスタ管理',exact:true}).click();
+  if(await nav.isVisible()){await nav.getByRole('button',{name:'メニュー',exact:true}).click();await page.getByRole('dialog',{name:'メニュー',exact:true}).getByRole('button',{name:'カテゴリ・支払元の設定',exact:true}).click();}
+  else await page.getByRole('button',{name:'家計の設定',exact:true}).click();
 }
 export async function expandExpenseFields(dialog) {
   for(const name of ['支払情報を変更','支出日を変更']){
     const button=dialog.getByRole('button',{name,exact:true});
     if(await button.isVisible())await button.click();
   }
+  const extras=dialog.locator('.entry-extras');
+  if(await extras.isVisible()&&!await extras.getAttribute('open').then(v=>v!==null))await extras.locator('summary').click();
+}
+export async function openExpenseInsights(page) {
+  const toggle=page.getByRole('button',{name:'内訳・比較',exact:true});
+  if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();
+}
+export async function openExpenseFilters(page) {
+  const toggle=page.getByRole('button',{name:'詳細な絞り込み',exact:true});
+  if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();
 }

@@ -20,7 +20,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const name=`${engineName}-${width}-${height}-${Date.now().toString().slice(-5)}`,parent=`家族の買物 ${name}`,child=`日用品 ${name}`,person=`本人 ${name}`,fund=`共用資金 ${name}`,source=`個人カード ${name}`,description=`生活用品 ${name}`;
       console.log(`Checking ledger ${engineName} ${width}x${height}`);
       const before=await(await page.request.get(base+'/api/expenses?month=2026-09')).json();
-      await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});
+      await openMasters(page);const manager=page.getByRole('dialog',{name:'家計の設定',exact:true});
       await manager.getByRole('button',{name:'追加',exact:true}).click();await manager.getByLabel('名称',{exact:true}).fill(parent);await manager.getByRole('button',{name:'色 #3C75B5',exact:true}).click();await manager.getByRole('button',{name:'保存',exact:true}).click();await manager.getByRole('button',{name:parent+'を編集',exact:true}).waitFor();
       await manager.getByRole('button',{name:'追加',exact:true}).click();await manager.getByLabel('名称',{exact:true}).fill(child);await choose(page,manager,'親カテゴリ',parent);await manager.getByRole('button',{name:'色 #B35F79',exact:true}).click();await manager.getByRole('button',{name:'保存',exact:true}).click();await manager.getByRole('button',{name:child+'を編集',exact:true}).waitFor();
       await fit(page,manager);await page.screenshot({path:path.join(output,name+'-categories.png'),animations:'disabled'});

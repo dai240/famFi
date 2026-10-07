@@ -3,7 +3,7 @@ import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import {expandExpenseFields} from './browser-navigation.mjs';
+import {expandExpenseFields,openExpenseFilters} from './browser-navigation.mjs';
 
 const base = 'http://127.0.0.1:3101';
 const output = path.resolve('test-results/expense-input');
@@ -77,6 +77,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
       let row = page.getByRole('button', { name: `2026年9月（月のみ） ${label} 750円を編集`, exact: true });
       await row.waitFor();
       check((await row.locator('time').innerText()).includes('月のみ'), 'Reload preserves month-only display');
+      await openExpenseFilters(page);
       const filter = page.getByRole('combobox', { name: 'カテゴリで絞り込み' });
       await filter.click();
       await page.getByRole('option', { name: '日用品', exact: true }).click();

@@ -22,6 +22,24 @@ test('comparison handles missing months, cost classes, categories and zero denom
   assert.equal(compareMonths({current,previous:null}).available,false);
   assert.equal(compareMonths({current,previous:{...previous,total:0,count:0}}).percent,null);
 });
+test('comparison never treats an unrecorded card month as a confirmed zero',()=>{
+  const base:MonthSnapshot={month:'2026-08',total:10000,count:0,sampleCount:0,summaryRemainder:10000,cardConfirmed:true,costs:[],categories:[]};
+  const empty={...base,month:'2026-09',total:0,summaryRemainder:0,cardConfirmed:false};
+  assert.equal(compareMonths({current:empty,previous:base}).available,false);
+  assert.equal(compareMonths({current:empty,previous:base}).percent,null);
+  const confirmedZero=compareMonths({current:{...empty,cardConfirmed:true},previous:base});
+  assert.equal(confirmedZero.available,true);assert.equal(confirmedZero.percent,-100);
+  assert.equal(compareMonths({current:base,previous:{...empty,cardConfirmed:true}}).percent,null);
+  assert.equal(compareMonths({current:base,previous:empty}).available,false);
+});
+test('comparison shows raw recorded difference without a percentage until both card months are reviewed',()=>{
+  const base:MonthSnapshot={month:'2026-07',total:10000,count:1,sampleCount:0,summaryRemainder:0,cardConfirmed:false,costs:[],categories:[]};
+  const current={...base,month:'2026-08',total:12000,cardConfirmed:true};
+  const pending=compareMonths({current,previous:base});
+  assert.equal(pending.available,true);assert.equal(pending.delta,2000);assert.equal(pending.percent,null);
+  assert.equal(compareMonths({current,previous:{...base,cardConfirmed:true}}).percent,20);
+  assert.equal(compareMonths({current:{...current,cardConfirmed:false},previous:{...base,cardConfirmed:true}}).percent,null);
+});
 test('sample and provisional markers remain distinct from access rules',()=>{
   const memo=sampleBatch+': 動作確認用の架空データです。実際の請求・支払・送金ではありません。 金額・日程は仮です。実際の請求内容へ変更して確定してください。';
   assert.equal(isSampleRecord({description:'【サンプル】食費',memo:''}),true);

@@ -69,6 +69,7 @@ export type ExpenseResponse = Masters & {
   directContributions?: { partyId: string; amount: number }[];
   costBreakdown?: {costClass:string;amount:number}[];
   summaryRemainder?:number;
+  summaryCount?:number;
 };
 
 export function todayInJapan(now = new Date()) {

@@ -11,7 +11,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
   const browser=await engine.launch();const context=await browser.newContext({locale:'ja-JP',timezoneId:'Asia/Tokyo'});const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
   page.on('dialog',dialog=>dialog.accept());
   try{
-    await page.goto(base+'/login');await page.getByLabel('メールアドレス').fill('fixture0@example.invalid');await page.getByRole('button',{name:'確認コードを送信',exact:true}).click();await page.getByLabel('確認コード',{exact:true}).fill('111111');await page.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL('**/expenses');await page.getByRole('combobox',{name:'カテゴリで絞り込み',exact:true}).waitFor();
+    await page.goto(base+'/login');await page.getByLabel('メールアドレス').fill('fixture0@example.invalid');await page.getByRole('button',{name:'確認コードを送信',exact:true}).click();await page.getByLabel('確認コード',{exact:true}).fill('111111');await page.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL('**/expenses');await page.getByTestId('monthly-total').waitFor();
     await page.getByRole('button',{name:'表示名の設定',exact:true}).click();let profile=page.getByRole('dialog',{name:'表示名の設定',exact:true});await profile.getByLabel('表示名',{exact:true}).fill('あいうえおかきくけこ');await profile.getByRole('button',{name:'保存',exact:true}).click();await profile.waitFor({state:'hidden'});
     for(const [width,height] of [[320,700],[390,600],[1280,900]]){
       await page.setViewportSize({width,height});await page.screenshot({path:path.join(output,`${engineName}-${width}-header.png`),animations:'disabled'});
@@ -20,7 +20,7 @@ for(const [engineName,engine] of [['chromium',chromium],['webkit',webkit]]){
       const boxes=await header.locator(':scope > *').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return {x:r.x,end:r.right};}));
       for(let i=1;i<boxes.length;i++)check(boxes[i-1].end<=boxes[i].x+1,'Header controls do not overlap');
     }
-    await page.setViewportSize({width:390,height:844});await openMasters(page);const manager=page.getByRole('dialog',{name:'マスタ管理',exact:true});await manager.getByRole('tab',{name:'支払元',exact:true}).click();await manager.getByRole('button',{name:'追加',exact:true}).click();
+    await page.setViewportSize({width:390,height:844});await openMasters(page);const manager=page.getByRole('dialog',{name:'家計の設定',exact:true});await manager.getByRole('tab',{name:'支払元',exact:true}).click();await manager.getByRole('button',{name:'追加',exact:true}).click();
     await choose(page,manager,'資金の持ち主','あいうえおかきくけこ');
     check(await manager.getByLabel('持ち主の名前を付ける',{exact:true}).isChecked(),'Personal names link by default');
     const label=('識別名'+engineName+Date.now()+'長い名前のカード').padEnd(40,'あ').slice(0,40),display='あいうえおかきくけこの'+label;

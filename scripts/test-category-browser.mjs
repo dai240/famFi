@@ -1,7 +1,7 @@
 // Uses only the disposable loopback stack; never production accounts or data.
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
-import {navigate,expandExpenseFields} from './browser-navigation.mjs';
+import {navigate,expandExpenseFields,openExpenseFilters} from './browser-navigation.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -30,7 +30,8 @@ async function save(editor) {
 }
 async function reloadWorkspace(page) {
   await page.reload();
-  await combo(page, 'カテゴリで絞り込み').waitFor();
+  await page.getByTestId('monthly-total').waitFor();
+  await openExpenseFilters(page);
 }
 for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]]) {
   const browser = await engine.launch();
@@ -132,12 +133,12 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
       const parentExpense = data.expenses.find(row => row.description === '親のみ ' + label);
       check(parentExpense?.categoryId === parent.id, 'Unspecified detail saves the parent ID');
       await choose(page, page, 'カテゴリで絞り込み', parent.name);
-      await page.getByRole('heading', { name: '支出履歴 2件', exact: true }).waitFor();
+      await page.getByRole('heading', { name: '個別明細 2件', exact: true }).waitFor();
       check((await combo(page, '詳細カテゴリで絞り込み').innerText()).includes('すべての詳細カテゴリ'), 'Parent filter includes parent and all children');
       await choose(page, page, '詳細カテゴリで絞り込み', child.name);
-      await page.getByRole('heading', { name: '支出履歴 1件', exact: true }).waitFor();
+      await page.getByRole('heading', { name: '個別明細 1件', exact: true }).waitFor();
       await expenseRow.waitFor();
-      await fit(page, page.locator('.ledger-filter-actions'));
+      await fit(page, page.locator('.ledger-filters'));
       await page.screenshot({ path: path.join(output, label + '-filter.png'), fullPage: true, animations: 'disabled' });
       const downloadPromise = page.waitForEvent('download');
       await page.getByRole('button', { name: 'CSV', exact: true }).click();
@@ -145,7 +146,7 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
       const csv = await readFile(await (await downloadPromise).path(), 'utf8');
       check(csv.includes(saved.id) && !csv.includes(parentExpense.id) && csv.includes(parent.name + ' / ' + child.name), 'Filtered CSV uses child ID and full path');
       await choose(page, page, '詳細カテゴリで絞り込み', 'すべての詳細カテゴリ');
-      await page.getByRole('heading', { name: '支出履歴 2件', exact: true }).waitFor();
+      await page.getByRole('heading', { name: '個別明細 2件', exact: true }).waitFor();
       await choose(page, page, 'カテゴリで絞り込み', 'すべてのカテゴリ');
       check(await combo(page, '詳細カテゴリで絞り込み').count() === 0, 'Clearing parent removes detail filter');
       await navigate(page,'予定・定期');
@@ -204,7 +205,7 @@ for (const [engineName, engine] of [['chromium', chromium], ['webkit', webkit]])
     await newEditor.getByRole('button', { name: 'キャンセル', exact: true }).click();
     await choose(page, page, 'カテゴリで絞り込み', parent.name + '（使用停止）');
     await choose(page, page, '詳細カテゴリで絞り込み', child.name + '（使用停止）');
-    await page.getByRole('heading', { name: '支出履歴 2件', exact: true }).waitFor();
+    await page.getByRole('heading', { name: '個別明細 2件', exact: true }).waitFor();
     check(errors.length === 0, 'No browser errors: ' + errors.join(', '));
     await context.close();
   } catch (error) {

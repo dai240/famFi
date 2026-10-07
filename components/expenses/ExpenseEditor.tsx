@@ -25,6 +25,7 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
   const [id]=useState(()=>expense?.id??crypto.randomUUID());
   const [fields,setFields]=useState<ExpenseFields>(()=>seed?{...expenseFields.omit({amount:true}).strip().parse(seed),amount:seed.amount}:newExpense(masters));
   const [detailsOpen,setDetailsOpen]=useState(!recurringConfirmation);
+  const [extrasOpen,setExtrasOpen]=useState(Boolean(expense||seed?.memo||recurringConfirmation));
   const [managing,setManaging]=useState<'categories'|'parties'|'payment-sources'|null>(null);
   const [history,setHistory]=useState(false);
   const [keepOpen,setKeepOpen]=useState(continueEntry);
@@ -61,13 +62,16 @@ export function ExpenseEditor({ expense, initial, masters, onMastersChanged, onC
         {recurringConfirmation&&amountHint&&<p className="muted-text">{amountHint}</p>}
         {showDetails&&<>
         <label htmlFor="expense-description">内容 <span className="muted-text">任意</span></label><input id="expense-description" maxLength={120} value={fields.description} disabled={busy} onChange={e=>patch({description:e.target.value})} />
-        <label>費用の区分</label><CostClassSelect value={fields.costClass} onChange={costClass=>patch({costClass})} disabled={busy} />
         </>}
         {expense?.summaryId&&<p className="muted-text">まとめ記録の明細{expense.accountingMonth?' / 計上月 '+expense.accountingMonth:''}</p>}
         <PaymentFields compact={!expense} fields={fields} masters={masters} onChange={patch} disabled={busy} financialLocked={financialLocked} onManage={setManaging} />
         <ExpenseDateField compact={!expense&&!recurringConfirmation} date={fields.date} onChange={date=>patch({date})} disabled={busy} />
         {recurringConfirmation&&<Button type="button" variant="ghost" className="details-toggle" aria-expanded={showDetails} disabled={busy||!category||category.archived} onClick={()=>setDetailsOpen(!showDetails)}>{showDetails?<ChevronUp />:<ChevronDown />}{showDetails?'詳細を閉じる':'詳細を編集'}</Button>}
-        {showDetails?<><label htmlFor="expense-memo">メモ <span className="muted-text">任意</span></label><textarea id="expense-memo" maxLength={1000} rows={2} value={fields.memo} disabled={busy} onChange={e=>patch({memo:e.target.value})} /></>:Boolean(fields.memo)&&<p className="confirmation-memo">{fields.memo}</p>}
+        {showDetails&&<details className="entry-extras" open={extrasOpen} onToggle={e=>setExtrasOpen(e.currentTarget.open)}><summary><span>費用区分・メモ <small>{costClassLabels[fields.costClass]}{fields.memo?' · メモあり':''}</small></span><ChevronDown aria-hidden="true" /></summary><div>
+          <label>費用の区分</label><CostClassSelect value={fields.costClass} onChange={costClass=>patch({costClass})} disabled={busy} />
+          <label htmlFor="expense-memo">メモ <span className="muted-text">任意</span></label><textarea id="expense-memo" maxLength={1000} rows={2} value={fields.memo} disabled={busy} onChange={e=>patch({memo:e.target.value})} />
+        </div></details>}
+        {!showDetails&&Boolean(fields.memo)&&<p className="confirmation-memo">{fields.memo}</p>}
         {expense&&<div className="record-attribution"><span>記録：{personLabel(expense.recordedByPartyId??null,masters)}</span>{expense.updatedByPartyId&&<span>最終変更：{personLabel(expense.updatedByPartyId,masters)}</span>}<Button type="button" variant="ghost" size="icon" title="この支出の変更履歴" aria-label="この支出の変更履歴" onClick={()=>setHistory(true)}><History /></Button></div>}
         {error&&<p className="form-error" role="alert">{error}</p>}
         {!expense&&!saveOverride&&<label className="check-label"><input type="checkbox" checked={keepOpen} disabled={busy} onChange={e=>setKeepOpen(e.target.checked)} />保存後も続けて登録</label>}

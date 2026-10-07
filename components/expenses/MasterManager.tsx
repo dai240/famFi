@@ -1,6 +1,6 @@
 'use client';
 import { FormEvent, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, LoaderCircle, LockKeyhole, Pencil, Plus, RefreshCw, Save } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, LoaderCircle, LockKeyhole, Pencil, Plus, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +23,7 @@ export function MasterManager({ masters, onChange, onClose, initialKind = 'categ
   const [kind, setKind] = useState<Kind>(initialKind);
   const [editing, setEditing] = useState<{ item: Item | null; key: string } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [expandedParents,setExpandedParents] = useState<string[]>([]);
   const [formBusy, setFormBusy] = useState(false);
   const [profileOpen,setProfileOpen] = useState(false);
   const self = masters.parties.find(p=>p.id===masters.selfPartyId);
@@ -52,7 +53,7 @@ export function MasterManager({ masters, onChange, onClose, initialKind = 'categ
   }
   return <Dialog open onOpenChange={open => { if (!open && !busy && !formBusy && (!editing || window.confirm('入力中の変更を破棄して閉じますか？'))) onClose(); }}>
     <DialogContent className="expense-dialog master-dialog" onInteractOutside={e => e.preventDefault()}>
-      <DialogHeader><DialogTitle>マスタ管理</DialogTitle><DialogDescription className="sr-only">カテゴリ・人物・支払元の管理</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>家計の設定</DialogTitle><DialogDescription className="sr-only">カテゴリ・人物・支払元の管理</DialogDescription></DialogHeader>
       {editing ? <MasterForm key={editing.key} kind={kind} item={editing.item} masters={masters} onBusyChange={setFormBusy} onSaved={async () => { await refresh(); setEditing(null); }} onCancel={() => setEditing(null)} /> : <>
         <Tabs value={kind} onValueChange={v => { setKind(v as Kind); setError(''); }}><TabsList className="master-tabs">{Object.entries(labels).map(([key,label]) => <TabsTrigger key={key} value={key}>{label}</TabsTrigger>)}</TabsList></Tabs>
         <div className="master-toolbar"><label className="check-label"><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} />使用停止も表示</label><div className="toolbar-actions"><Button size="icon" variant="ghost" title="マスタを更新" aria-label="マスタを更新" disabled={busy} onClick={reload}><RefreshCw className={busy ? 'animate-spin':''} /></Button><Button variant="outline" disabled={busy} onClick={() => setEditing({ item: null, key: crypto.randomUUID() })}><Plus />追加</Button></div></div>
@@ -60,8 +61,12 @@ export function MasterManager({ masters, onChange, onClose, initialKind = 'categ
         {kind==='categories'&&suggested.length>0&&<Button variant="outline" disabled={busy} onClick={applyDefaults}><RefreshCw />初期区分を設定</Button>}
         <ul className="master-list">{items.filter(item => showArchived || !item.archived).map(item => {
           const cat = 'color' in item ? item : null;
+          const parent=cat?.parentId?masters.categories.find(c=>c.id===cat.parentId):null;
+          if(parent&&(showArchived||!parent.archived)&&!expandedParents.includes(parent.id))return null;
+          const children=cat?masters.categories.filter(c=>c.parentId===cat.id&&(showArchived||!c.archived)):[];
           const siblings = cat ? masters.categories.filter(c => c.parentId === cat.parentId) : [];
           return <li key={item.id} className={cat?.parentId ? 'master-child' : ''}>
+            {children.length>0&&<Button size="icon" variant="ghost" className="category-expand" title={item.name+'の詳細カテゴリ'} aria-label={item.name+'の詳細カテゴリ'} aria-expanded={expandedParents.includes(item.id)} onClick={()=>setExpandedParents(old=>old.includes(item.id)?old.filter(id=>id!==item.id):[...old,item.id])}><ChevronRight /></Button>}
             <button className="master-name" disabled={busy || ('systemKey' in item && Boolean(item.systemKey) && item.id!==masters.selfPartyId)} onClick={() => { if('systemKey' in item && item.systemKey && item.id===masters.selfPartyId)setProfileOpen(true);else setEditing({ item, key: item.id }); }} aria-label={`${item.name}を編集`}>
               {cat && <i className="category-swatch" style={{ backgroundColor: cat.color }} />}
               <span><strong>{item.name}</strong><small>{item.archived ? '使用停止' : cat?.parentId ? masters.categories.find(c => c.id === cat.parentId)?.name : 'kind' in item ? item.systemKey ? `${personRole(item)}${item.id===masters.selfPartyId?'・自分':''}` : item.kind === 'person' ? '人物' : '共用資金・家族全体' : 'method' in item ? `${paymentMethods[item.method]} / ${masters.parties.find(p => p.id === item.fundingPartyId)?.name ?? '持ち主未設定'}` : '親カテゴリ'}</small></span>{'systemKey' in item && item.systemKey && item.id!==masters.selfPartyId ? <LockKeyhole aria-label="固定" /> : <Pencil aria-hidden="true" />}

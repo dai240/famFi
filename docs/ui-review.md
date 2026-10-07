@@ -62,7 +62,12 @@ npm run test:category-browser
 
 ## 本番公開
 
-ローカル検証とProduction buildが完了。本番はProduction環境で再buildし、切替前HTTP検査後に公開する。deploymentと公開後確認は完了後に追記する。
+- 実装 `54d3955` をmainへpushし、Production用の `famfi` Prismaを生成してVercelで再buildした。remote buildは55秒で成功。Preview成果物の昇格ではない。
+- `dpl_DACtRiTaxpFtwW2zhQPbmotZ333e`（Production/READY）、固有URL `https://famfi-j8oitgywx-day56s-projects.vercel.app`。切替前検査後、正規URL `https://famfi-nu.vercel.app` へ公開し、aliasが同deploymentを指すことを確認した。
+- 切替前後のHTTP検査は各73項目が成功。認証なしのAPI拒否、Origin制約、no-storeを確認し、メール送信や実データの保存は行っていない。
+- 本人の既存セッションでスマホ幅の支出一覧・カレンダー・月まとめ・内訳の開閉・新規登録の既定値・サマリーを確認。公開前後の8月合計は一致し、9月の未反映状態を-100%と表示しない。登録画面は保存せず閉じた。
+- 公開直後のブラウザerrorは0件、横はみ出しなし。このdeploymentの直近15分のVercel errorログは該当なし。継続監視や有料サービスは追加していない。
+- DB構造・migration・権限・共有Auth・環境変数・参加者・実データ・backup形式・Preview・他アプリ・プランの変更なし。
 
 ## 残す課題
 

@@ -2,6 +2,8 @@
 
 ## 最新の運用
 
+2026-10-13: [GA4計測](analytics.md) を `9d8eacf` / Vercel `dpl_BWL6ub4vBxAWJuX36k12wkxzm5jy`（Production/READY）で公開。測定ID `G-D4LJPG83ZY` をProductionだけに設定し、認証後の正規ホストで固定画面名を計測する。家計データ・検索語・認証情報は送信せず、拡張計測/広告用途を無効化。公開前後HTTP各73項目、実本人画面、GA4リアルタイムの支出/家計サマリー受信まで確認済み。DB・共有Auth・実データ・backup・他アプリ・Preview・プランの変更なし。
+
 2026-10-07: [日常利用のUI整理](ui-review.md) を `54d3955` / Vercel `dpl_DACtRiTaxpFtwW2zhQPbmotZ333e`（Production/READY）で公開。支出一覧への導線、サマリーの直接ナビ、登録/設定の折りたたみ、未反映月の比較表示を整理した。公開前後HTTP各73項目と既存本人画面を確認し、8月合計は公開前後で一致。DB・共有Auth・環境変数・参加設定・実データ・backup形式・Preview・他アプリ・プランの変更なし。
 
 2026-10-05の仕様・検証・公開記録は [月次の家計管理](household-finance.md)。最新backupはv9、v1-v8復元を維持。月次のCSVは画面から確認付きで取込可能。カードの支出計上と個人の貸し借りは同文書の手順に従う。

@@ -31,4 +31,9 @@
 
 ローカル検証: 型検査、Lint（既存の試作img警告4件のみ）、単体64件、Production用Prisma生成とbuild・成果物検査が成功。`npm run test:analytics-browser` はChromium/WebKitで145項目成功。Googleの実タグを読み込み、送信を全件遮断・捕捉し、3画面の閲覧、再描画の重複なし、検索語/query/hash/家計名の非送信、ログイン・認証拒否・別ホスト・DNT/GPCの除外、タグ遮断時の登録画面を確認した。テストはローカルProduction buildをport 3113で起動し、APIを架空応答へ置き換える。実DBや本番の家計データへ接続しない。
 
-公開後にdeployment、HTTP検査、実送信/GA4画面の確認結果を追記する。DB構造・Auth・家計データ・backup・他アプリは変更しない。
+2026-10-13公開:
+
+- 実装 `9d8eacf` をmainへpush。Vercel `dpl_BWL6ub4vBxAWJuX36k12wkxzm5jy`（Production/READY）、固有URL `https://famfi-1b6ktzphn-day56s-projects.vercel.app`。Production用Prismaを生成してremote buildし、staged版のHTTP73項目成功後に正規ドメインへpromoteした。
+- 正規URL `https://famfi-nu.vercel.app` のdeployment一致・公開後HTTP73項目、既存本人セッションの支出/家計サマリー表示、意図したタグURL、ブラウザerror 0件を確認。公開直後の当該deploymentのVercel errorログも該当なし。
+- GA4のリアルタイムページでアクティブユーザー1、`/expenses` と `/expenses/summary` の受信を確認した。本番の最小限の閲覧確認はGA4へ記録されるが、ローカルテストは送信していない。通常レポートの集計完了は別であり、将来の全閲覧の計測を保証しない。
+- 新しい公開設定値はVercel Productionの `NEXT_PUBLIC_GA_MEASUREMENT_ID` のみ。共有DB・Auth・参加設定・実データ・backup形式・他アプリ・Previewの設定は変更なし。家計データの保存/削除やメール送信を伴う本番検査は行っていない。有料プラン・新しい有料契約・継続監視の追加なし。

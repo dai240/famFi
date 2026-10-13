@@ -34,8 +34,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Masters, categoryName, settlementLabels, settlementState, treatmentLabels } from '@/lib/ledger';
 import { ExpenseRecord, ExpenseResponse, PAGE_SIZE, formatExpenseDate, formatYen, shiftMonth } from '@/lib/expenses';
 import { RequestError, errorMessage, requestJson } from '@/lib/client-api';
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 
-export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
+export function ExpenseWorkspace({ initialMonth, analyticsId }: { initialMonth: string; analyticsId?: string }) {
   const [month, setMonth] = useState(initialMonth);
   const [category, setCategory] = useState('');
   const [view,setView] = useState('expenses');
@@ -176,6 +177,7 @@ export function ExpenseWorkspace({ initialMonth }: { initialMonth: string }) {
   const self = data?.parties.find(p=>p.id===data.selfPartyId);
   const firstProfile = self?.profileConfirmed === false && ['owner','partner'].includes(self.systemKey ?? '');
   return <div className="expense-app">
+    {data && <GoogleAnalytics measurementId={analyticsId} view={view} presentation={presentation} />}
     <header className="expense-header"><div className="expense-header-inner">
       <Link href="/expenses" className="famfi-brand"><ReceiptText aria-hidden="true" />famFi</Link>
       <button type="button" className="header-section profile-header" title="表示名の設定" aria-label="表示名の設定" disabled={!self} onClick={()=>{toast.dismiss();setProfileOpen(true);}}><span>{data?.householdName ?? '支出管理'}</span>{self&&<strong>{self.name}</strong>}</button>

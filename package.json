@@ -13,6 +13,7 @@
     "test:planning-browser": "node scripts/test-planning-browser.mjs",
     "test:navigation-browser": "node scripts/test-navigation-browser.mjs",
     "test:ui-browser": "node scripts/test-ui-review-browser.mjs",
+    "test:analytics-browser": "node scripts/test-analytics-browser.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "tsx --test tests/*.test.ts",
